@@ -1,0 +1,12 @@
+{
+    "Grid_type": "3D",
+    "Grid_bounding_box": {
+        "xmin": -1480,
+        "xmax": 780,
+        "ymin": -680,
+        "ymax": 2580,
+        "nz": 200,
+        "nx": 113,
+        "ny": 164
+    }
+}

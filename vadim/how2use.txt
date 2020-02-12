@@ -1,0 +1,39 @@
+lwc_re_2_txt.py
+
+./lwc_re_2_txt.py --lwc /home/vhold/pyshdom/vadim/dannys_clouds/LWC_SMALL_MED_view55.mat,\
+ --re /home/vhold/pyshdom/vadim/dannys_clouds/Re_SMALL_MED_view55.mat,\
+ --c 1 --grid_data /home/vhold/pyshdom/vadim/dannys_clouds/GRID_SMALL_MED_view55.json,\
+--output /home/vhold/pyshdom/synthetic_cloud_fields/small_cloud_les/view55_small_updated.txt
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+data_txt2extinction:
+
+python data_txt2extinction.py --scat ../mie_tables/polydisperse/Water_672nm.scat \
+--txt ../synthetic_cloud_fields/small_cloud_les/view55_small.txt --output view55_small.mat
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------------------
+ git:
+ 
+ * Fork a repo
+A fork is a copy of a repository. Forking a repository allows you to freely experiment with changes without affecting the original project.
+I followed https://help.github.com/en/github/getting-started-with-github/fork-a-repo
+when I did the fork of pyshdom form aviad.
+
+
+* I followed https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging
+when I changed branches.
+
+
+* Adding an existing project to GitHub using the command line"
+I followed  https://help.github.com/en/github/importing-your-projects-to-github/adding-an-existing-project-to-github-using-the-command-line
+
+ 
+git log # to see all commits.
