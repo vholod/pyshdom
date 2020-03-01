@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<scene version="0.5.0">
+	<integrator type="volpath_simple">
+		<integer name="maxDepth" value="-1"/>
+    <integer name="rrDepth" value="10000"/>
+	</integrator>
+	
+
+
+   	<medium type="heterogeneous" id="clouds">
+		<string name="method" value="woodcock"/>
+
+		<volume name="density" type="gridvolume">
+			<string name="filename" value="ZeroAtm100x100x10.vol"/>
+		</volume>
+		
+		<volume name="albedo" type="constvolume">
+			<spectrum name="value" value="1"/>
+		</volume>
+		<float name="scale" value="2.14649"/>
+		
+		
+		<phase type="hg">
+			<float name="g" value="0.860866"/>
+		</phase>
+		
+	</medium>
+
+	<shape type="obj">
+		<string name="filename" value="ZeroAtm100x100x10.obj"/>
+
+		<ref name="interior" id="clouds"/>
+
+	</shape>
+
+
+  <shape type="rectangle" id="ocean">
+		<bsdf type="diffuse">
+			<spectrum name="reflectance" value="1"/>
+		</bsdf>
+		<transform name="toWorld">
+			<scale value="2490"/>
+			<translate z="1"/>
+		</transform>  
+
+	</shape>
+ 
+	<sensor type="perspective">
+		<float name="fov" value="135.9986"/> 
+		<transform name="toWorld">
+			<lookat	target="0, 0, 0" origin="1000  0  1000"/>
+		</transform>
+
+		<sampler type="ldsampler">
+			<integer name="sampleCount" value="256"/>
+		</sampler>
+
+
+   <film type="mfilm">
+			<integer name="height" value="10"/>
+			<integer name="width" value="10"/>
+   </film>
+
+ 
+		<ref name="interior" id="clouds"/>
+
+	</sensor>
+
+	
+	<emitter type="directional">
+		<vector name="direction" x="-0.7660444" y="0" z="-0.6427876"/>
+    <spectrum name="irradiance" value="1"/>
+	</emitter>
+
+</scene>
