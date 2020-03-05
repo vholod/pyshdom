@@ -663,6 +663,90 @@ class Medium(object):
         """
         self._grid = grid
 
+    
+    # vadim added for visualization:
+    def show_scatterer(self, name=None):
+        
+        ShowVolumeBox = True
+        
+        try:
+            import mayavi.mlab as mlab
+    
+        except:
+            raise Exception("Make sure you installed mayavi")
+        
+        scatterer = self.get_scatterer(name)
+        grid = scatterer.grid
+        
+        # What to show for example?
+        # currently, show the lwc. But other properties can be also visualized.
+        show_field = scatterer.lwc.data
+        data_type = 'LWC'
+        
+        # -----------------------------
+        dx = grid.dx
+        dy = grid.dy
+        
+        nz = grid.nz
+        nx = grid.nx
+        ny = grid.ny 
+        
+        # The _max is one d_ befor the last corner (|_|_|_|_|_|_|_->|_|).
+        x_min = grid.bounding_box.xmin
+        x_max = grid.bounding_box.xmax
+        
+        y_min = grid.bounding_box.ymin
+        y_max = grid.bounding_box.ymax
+        
+        z_min = grid.bounding_box.zmin
+        z_max = grid.bounding_box.zmax        
+        
+        Lz = z_max - z_min
+        dz = Lz/nz
+        
+        #exclude data discription buges:
+        assert float_round(dx) == float_round((x_max- x_min)/(nx-1)), \
+               'dab data discription'
+        assert float_round(dy) == float_round((y_max- y_min)/(ny-1)), \
+               'dab data discription'  
+        assert float_round(dz) == float_round((z_max- z_min)/(nz-1)), \
+               'dab data discription'  
+        
+        xgrid = np.linspace(x_min, x_max,nx)
+        ygrid = np.linspace(y_min, y_max,ny)
+        zgrid = np.linspace(z_min, z_max,nz)         
+        
+        X, Y, Z = np.meshgrid(xgrid, ygrid, zgrid, indexing='ij')
+        figh = mlab.gcf()
+        src = mlab.pipeline.scalar_field(X, Y, Z, show_field)
+        src.spacing = [dx, dy, dz]
+        src.update_image_data = True 
+        
+        isosurface = mlab.pipeline.iso_surface(src, contours=[0.1*show_field.max(),\
+                                                              0.2*show_field.max(),\
+                                                              0.3*show_field.max(),\
+                                                              0.4*show_field.max(),\
+                                                              0.5*show_field.max(),\
+                                                              0.6*show_field.max(),\
+                                                              0.7*show_field.max(),\
+                                                              0.8*show_field.max(),\
+                                                              0.9*show_field.max(),\
+                                                              ],opacity=0.9)
+        
+        mlab.outline(figure=figh,color = (1, 1, 1))  # box around data axes
+        mlab.orientation_axes(figure=figh)
+        mlab.axes(figure=figh, xlabel="x (km)", ylabel="y (km)", zlabel="z (km)") 
+        color_bar = mlab.colorbar(title=data_type, orientation='vertical', nb_labels=5)    
+            
+        if(ShowVolumeBox):
+            xm = [x_min, x_max, x_max, x_min, x_max, x_max, x_min, x_min ]
+            ym = [y_min, y_min, y_min, y_min, y_max, y_max, y_max, y_max ]
+            zm = [z_min, z_min, z_max, z_max, z_min, z_max, z_max, z_min ]
+            # Medium cube
+            triangles = [[0,1,2],[0,3,2],[1,2,5],[1,4,5],[2,5,6],[2,3,6],[4,7,6],[4,5,6],[0,3,6],[0,7,6],[0,1,4],[0,7,4]];
+            obj = mlab.triangular_mesh( xm, ym, zm, triangles,color = (0.0, 0.17, 0.72),opacity=0.3,figure=figh)
+                
+        
     def add_scatterer(self, scatterer, name=None):
         """
         Add a Scatterer to the medium.

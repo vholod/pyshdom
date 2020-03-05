@@ -113,7 +113,7 @@ C       Get the maximum single scattering albedo over all processors
      .             DELXD, DELYD, DELJDOT, DELJOLD, DELJNEW, 
      .             JNORM, NBCELLS,FFTFLAG, CMU1, CMU2, WTMU, CPHI1,
      .             CPHI2, WPHISAVE, MAXSFCPARS, WORK, WORK1, WORK2,
-     .             NSTLEG, NSTOKES, UNIFORM_SFC_BRDF, SFC_BRDF_DO)
+     .             NSTLEG, NSTOKES, UNIFORM_SFC_BRDF, SFC_BRDF_DO,MAXIR)
 Cf2py threadsafe
 C       Initialize the SHDOM solution procedure.
       IMPLICIT NONE
@@ -125,7 +125,8 @@ Cf2py intent(in) ::  NUMPHASE, NSTLEG, NSTOKES
 Cf2py intent(in) :: ML, MM, NCS, NLM, NMU, NPHI, NLEG, MAXSFCPARS
       INTEGER BCFLAG, IPFLAG, NBCELLS
 Cf2py intent(in) ::  BCFLAG, IPFLAG, NBCELLS
-      INTEGER MAXIV, MAXIC, MAXIG, MAXIDO, NPHI0MAX
+      INTEGER*8 MAXIV, MAXIC, MAXIG, MAXIDO
+      INTEGER NPHI0MAX
 Cf2py intent(in) :: MAXIV, MAXIC, MAXIG, MAXIDO, NPHI0MAX
       INTEGER MAXNBC, MAXBCRAD
 Cf2py intent(in) :: MAXNBC, MAXBCRAD
@@ -190,8 +191,12 @@ Cf2py intent(out) :: SFCGRIDPARMS
 Cf2py intent(out) :: MU, WTDO, PHI
       INTEGER RSHPTR(MAXIG+2), SHPTR(MAXIG+1), OSHPTR(MAXIG+1)
 Cf2py intent(out) :: RSHPTR, SHPTR, OSHPTR
-      REAL    SOURCE(MAXIV), DELSOURCE(MAXIV)
-      REAL    RADIANCE(MAXIV+MAXIG), DIRFLUX(MAXIG)
+      REAL    SOURCE(MAXIV), DELSOURCE(MAXIV)   
+C add the MAXIR for debug
+      INTEGER*8 MAXIR	
+Cf2py intent(in) :: MAXIR	
+      REAL    RADIANCE(MAXIR), DIRFLUX(MAXIG)
+C it was befor      REAL    RADIANCE(MAXIV+MAXIG), DIRFLUX(MAXIG)
 Cf2py intent(out) :: SOURCE, DELSOURCE, RADIANCE, DIRFLUX
       DOUBLE PRECISION UNIFORMZLEV
 Cf2py intent(out) ::  UNIFORMZLEV
@@ -219,6 +224,8 @@ Cf2py intent(out) ::  UNIFORM_SFC_BRDF, SFC_BRDF_DO
       INTEGER ORDINATESET
       LOGICAL LAMBERTIAN
 
+
+      
 C       Set up some things before solution loop     
 C    Compute the solar transmission in DIRFLUX. 
       IF (SRCTYPE .NE. 'T') THEN
@@ -344,7 +351,7 @@ Cf2py intent(in) :: NSTOKES, NX, NY, NX1, NY1, NZ, NXSFC, NYSFC, NSFCPAR
 Cf2py intent(in) :: ML, MM, NCS, NLM, NMU, NPHI, NANG, NLEG, NSTLEG, NUMPHASE
       INTEGER NPHI0(NMU), MAXITER, ITER, BCFLAG, IPFLAG
 Cf2py intent(in) :: MAXITER, BCFLAG, IPFLAG, NPHI0
-      INTEGER MAXIV, MAXIC, MAXIG, MAXIDO
+      INTEGER*8 MAXIV, MAXIC, MAXIG, MAXIDO
 Cf2py intent(in) :: MAXIV, MAXIC, MAXIG, MAXIDO
       INTEGER MAXNBC, MAXBCRAD
 Cf2py intent(in) :: MAXBCRAD, MAXNBC
@@ -645,7 +652,8 @@ C     of the solution criterion (SOLCRIT, the RMS difference in succesive
 C     source function fields normalized by the RMS of the field).
       IMPLICIT NONE
 
-      INTEGER NPTS, ML, MM, NCS, NLM, NLEG, MAXIV
+      INTEGER NPTS, ML, MM, NCS, NLM, NLEG
+      INTEGER*8 MAXIV
 Cf2py intent(in) :: NPTS, ML, MM, NCS, NLM, NLEG, MAXIV
       INTEGER NUMPHASE, NPART
       INTEGER RSHPTR(*), SHPTR(*), OSHPTR(*)
@@ -913,6 +921,9 @@ C             Use all the m's for the last l for the source function.
           SHPTR(I) = IS
         ENDIF
         IF (IS+NS .GT. MAXIV) THEN
+C vadim added to debug        
+          write(*,"(A)",advance="no") "VD, The value of MAXIV is " 
+          write(*,*) MAXIV
           WRITE (6,*) 'COMPUTE_SOURCE: MAXIV exceeded.'
           WRITE (6,*) 'Out of memory for more spherical harmonic terms.'
           STOP
@@ -948,7 +959,8 @@ C     a low order truncation).  The minimum radiance truncation is
 C     L=1 so that the mean radiance and net flux terms may be computed,
 C     unless HIGHORDERRAD is on, in which case all terms are kept.
       IMPLICIT NONE
-      INTEGER NPTS, ML, MM, NCS, NLEG, MAXIR
+      INTEGER NPTS, ML, MM, NCS, NLEG
+      INTEGER*8 MAXIR
 Cf2py intent(in) :: NPTS, ML, MM, NCS, NLEG, MAXIR
       INTEGER NUMPHASE, NPART
       INTEGER SHPTR(*), RSHPTR(*)
@@ -1042,6 +1054,10 @@ C             But if out of memory, use the source function truncation.
         IR = IR + NR
         RSHPTR(I+1) = IR
         IF (IR .GT. MAXIR) THEN
+            write(*,"(A)",advance="no") "VD, The value of MAXIR is " 
+            write(*,*) MAXIR
+            write(*,"(A)",advance="no") "VD, The value of IR is " 
+            write(*,*) IR
             WRITE (6,*)
      .    'RADIANCE_TRUNCATION: Out of memory for more radiance terms.'
           GOTO 190
@@ -1067,6 +1083,10 @@ C           just set the radiance truncation to that of the source.
         ENDIF
         IR = IR + NR
         IF (IR .GT. MAXIR) THEN
+          write(*,"(A)",advance="no") "VD, The value of MAXIR is " 
+          write(*,*) MAXIR
+          write(*,"(A)",advance="no") "VD, The value of IR is " 
+          write(*,*) IR
           WRITE (6,*) 'RADIANCE_TRUNCATION: Really out of memory ',
      .      'for more radiance terms.'
           WRITE (6,*) 'Increase MAXIV.'
@@ -3086,7 +3106,8 @@ C     achieved is returned in SPLITCRIT.  If we are at the end of the
 C     grid point, grid cell, or spherical harmonic arrays (sizes given
 C     by MAXIG, MAXIC, MAXIV, MAXIDO) then the OUTOFMEM flag is returned true.
       IMPLICIT NONE
-      INTEGER MAXIG, MAXIC, MAXIV, MAXIDO, NPHI0MAX
+      INTEGER*8 MAXIG, MAXIC, MAXIV, MAXIDO
+      INTEGER NPHI0MAX
 Cf2py intent(in) :: MAXIG, MAXIC, MAXIV, MAXIDO, NPHI0MAX
       INTEGER NPTS, NCELLS, BCFLAG, IPFLAG
 Cf2py intent(in,out) :: NPTS, NCELLS, BCFLAG, IPFLAG

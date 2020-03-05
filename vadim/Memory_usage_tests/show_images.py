@@ -42,9 +42,50 @@ lookat_list = [[0.21, 0.21, 0.56],\
 # -------------------------------------------------------------
 # -------------------------------------------------------------
 # -------------------------------------------------------------
-start_from_index = 0
-    
-for fx,fy,fz,origin,fov,lookat in zip(fx_list,fy_list,fz_list,origin_list,fov_list,lookat_list):
+start_from_index = 7
+if(0):    
+    for fx,fy,fz,origin,fov,lookat in zip(fx_list,fy_list,fz_list,origin_list,fov_list,lookat_list):
+        
+        loop_index = fx_list.index(fx)
+        if(start_from_index<=loop_index):
+            continue
+        
+        
+        print( "--{}x{}x{}--".format(fx,fy,fz))
+        print( "njobs = 72")
+        output_dir = '../experiments/help_tamar_cvpr{}x{}x{}/monochromatic'.format(fx,fy,fz)
+        path = '/home/vhold/pyshdom/notebooks/tamar_cvpr_rico{}x{}x{}.txt'.format(fx,fy,fz)
+        cam_nx = fx
+        cam_ny = fy
+        
+        # load the measurments to see the rendered images:
+        medium, solver, measurements = shdom.load_forward_model(output_dir)
+        # A Measurements object bundles together the imaging geometry and sensor measurements for later optimization.
+        USED_CAMERA = measurements.camera
+        RENCERED_IMAGES = measurements.images
+        f, axarr = plt.subplots(1, 2, figsize=(20, 20))
+        ax = axarr.ravel()
+        original_image = RENCERED_IMAGES[0]
+        gamma_image = (original_image/np.max(original_image))**0.5
+        
+        ax[0].imshow(original_image,cmap='gray')
+        ax[0].invert_xaxis() 
+        ax[0].invert_yaxis() 
+        ax[0].axis('off')
+        ax[0].set_title("tamar_cvpr_rico{}x{}x{}.txt".format(fx,fy,fz))
+        
+        ax[1].imshow(gamma_image,cmap='gray')
+        ax[1].invert_xaxis() 
+        ax[1].invert_yaxis() 
+        ax[1].axis('off')
+        ax[1].set_title('one view gamma corrected')
+
+
+# --------------------------------------
+f, axarr = plt.subplots(3, 3, figsize=(20, 20))
+axarr = axarr.ravel()
+
+for ax,fx,fy,fz,origin,fov,lookat in zip(axarr,fx_list,fy_list,fz_list,origin_list,fov_list,lookat_list):
     
     loop_index = fx_list.index(fx)
     if(start_from_index<=loop_index):
@@ -53,7 +94,7 @@ for fx,fy,fz,origin,fov,lookat in zip(fx_list,fy_list,fz_list,origin_list,fov_li
     
     print( "--{}x{}x{}--".format(fx,fy,fz))
     print( "njobs = 72")
-    output_dir = 'experiments/help_tamar_cvpr{}x{}x{}/monochromatic'.format(fx,fy,fz)
+    output_dir = '../experiments/help_tamar_cvpr{}x{}x{}/monochromatic'.format(fx,fy,fz)
     path = '/home/vhold/pyshdom/notebooks/tamar_cvpr_rico{}x{}x{}.txt'.format(fx,fy,fz)
     cam_nx = fx
     cam_ny = fy
@@ -63,21 +104,15 @@ for fx,fy,fz,origin,fov,lookat in zip(fx_list,fy_list,fz_list,origin_list,fov_li
     # A Measurements object bundles together the imaging geometry and sensor measurements for later optimization.
     USED_CAMERA = measurements.camera
     RENCERED_IMAGES = measurements.images
-    f, axarr = plt.subplots(1, 2, figsize=(20, 20))
-    ax = axarr.ravel()
     original_image = RENCERED_IMAGES[0]
     gamma_image = (original_image/np.max(original_image))**0.5
     
-    ax[0].imshow(original_image,cmap='gray')
-    ax[0].invert_xaxis() 
-    ax[0].invert_yaxis() 
-    ax[0].axis('off')
-    ax[0].set_title("tamar_cvpr_rico{}x{}x{}.txt".format(fx,fy,fz))
+    ax.imshow(original_image,cmap='gray')
+    ax.invert_xaxis() 
+    ax.invert_yaxis() 
+    ax.axis('off')
+    ax.set_title("tamar_cvpr_rico{}x{}x{}.txt".format(fx,fy,fz))
     
-    ax[1].imshow(gamma_image,cmap='gray')
-    ax[1].invert_xaxis() 
-    ax[1].invert_yaxis() 
-    ax[1].axis('off')
-    ax[1].set_title('one view gamma corrected')
-
+    
+    
 plt.show()

@@ -14,6 +14,16 @@ import subprocess
 # -----------------------------------------------------------------
 # ------------------------THE FUNCTIONS BELOW----------------------
 # -----------------------------------------------------------------
+def plank(llambda,T):
+    h = 6.62607004e-34 # Planck constant
+    c = 3.0e8
+    k = 1.38064852e-23 # Boltzmann constant
+    # https://en.wikipedia.org/wiki/Planck%27s_law
+    a = 2.0*h*(c**2)
+    b = (h*c)/(llambda*k*T)
+    spectral_radiance = a/ ( (llambda**5) * (np.exp(b) - 1.0) )
+    return spectral_radiance
+
 
 def CALC_MIE_TABLES(where_to_check_path = './mie_tables/polydisperse',wavelength_micron=None):
     """
@@ -113,7 +123,8 @@ axisLenght = 5000
 # orbit altitude:
 Rsat = 500 # km
 wavelength_micron = 1.6
-wavelength_micron = 0.672
+sun_azimuth = 45
+sun_zenith = 150
 """
 Check if mie tables exist, if not creat them, if yes skip it is long process.
 table file name example: mie_tables/polydisperse/Water_<1000*wavelength_micron>nm.scat
@@ -281,10 +292,17 @@ if(DOFORWARD):
     #numerical_params = shdom.NumericalParameters()
     numerical_params = shdom.NumericalParameters(num_mu_bins=16,num_phi_bins=32,
                                                  split_accuracy=0.1,max_total_mb=100000000.0)
+    # Calculate irradiance of the spesific wavelength:
+    # use plank function:
+    L_TOA = 6.8e-5*1e-9*plank(1e-6*vis_wavelength,temp) # units fo W/(m^2)
+    Cosain = np.cos(np.deg2rad((180-sun_zenith)))
+    solar_flux = L_TOA*Cosain
+    
     scene_params = shdom.SceneParameters(
         wavelength=mie.wavelength,
         surface=shdom.LambertianSurface(albedo=0.05),
-        source=shdom.SolarSource(azimuth=45, zenith=175)
+        source=shdom.SolarSource(azimuth = sun_azimuth,
+                                 zenith=sun_zenith,flux=solar_flux)
     )
     #azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
     #zenith: Solar beam zenith angle in range (90,180]   

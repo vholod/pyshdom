@@ -95,6 +95,14 @@ class RenderScript(object):
                             type=float,
                             help='(default value: %(default)s) The radio of adaptive (internal) grid points property array grid points \
                             See rte_solver.NumericalParameters for more details.')
+        parser.add_argument('--del_source',
+                            action='store_true',
+                            help='If not used, ACCELFLAG = TRUE, if used, it cencel the acceleration  \
+                            See rte_solver.NumericalParameters for more details.')   
+        parser.add_argument('--high_order_radiance',
+                            action='store_true',
+                            help='If not used, high_order_radiance = False, if used, high_order_radiance = True  \
+                            See rte_solver.NumericalParameters for more details.')                
         parser.add_argument('--solar_spectrum',
                             action='store_true',
                             help='Use solar spectrum flux for each wavelength. \
@@ -278,12 +286,24 @@ class RenderScript(object):
         else:
             solar_fluxes = np.full_like(self.args.wavelength, 1.0)
 
+        if self.args.del_source:
+            acceleration_flag = False
+        else:
+            acceleration_flag = True 
+            # acceleration_flag(ACCELFLAG): True to do the sequence acceleration. 
+        if self.args.high_order_radiance:
+            high_order_radiance = True
+        else:
+            high_order_radiance = False 
+        print( "-- Ignore high_order_radiance = {}".format(high_order_radiance))                 
         numerical_params = shdom.NumericalParameters(
             num_mu_bins=self.args.num_mu,
             num_phi_bins=self.args.num_phi,
             split_accuracy=self.args.split_accuracy,
             adapt_grid_factor=self.args.adapt_grid_factor,
             max_total_mb = self.args.max_total_mb,
+            acceleration_flag = acceleration_flag,
+            high_order_radiance = high_order_radiance,
             solution_accuracy=self.args.solution_accuracy
         )
         for wavelength, solar_flux in zip(self.args.wavelength, solar_fluxes):

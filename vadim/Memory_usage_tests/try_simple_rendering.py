@@ -28,14 +28,51 @@ def resize_image(image,desired_res=[10,10]):
 # -----------------------------------------------
 # -----------------------------------------------
 # -----------------------------------------------
+#pic mediume:
+pic_index = 6
+
+fx_list = [21,31,61,81,101,121,152]
+fy_list = [21,31,61,81,101,121,252]
+fz_list = [21,31,61,67,67,67,67]
+
+origin_list =  [[0.2, 0.2, 0.91],\
+                        [0.3, 0.3, 1.34333],\
+                [0.6, 0.6, 2.64333],\
+                [0.8, 0.8, 2.9033],\
+                [1, 1, 2.90333],\
+                [1.2, 1.2, 2.90333],\
+                [1.5, 2.5, 2.90333]]
+
+fov_list = [85.4187799, 105.4187799, 85.41877, 96.27356, \
+                    108.59441, 118.08409, 147.86411]
+
+lookat_list = [[0.21, 0.21, 0.56],\
+                       [0.31, 0.31, 0.826667],\
+                [0.61, 0.61, 1.62667],\
+                [0.81, 0.81, 1.78667],\
+                [1.01, 1.01, 1.78667],\
+                [1.21, 1.21, 1.78667],\
+                [1.52, 2.52, 1.78667]]
+
+fx = fx_list[pic_index]
+fy = fy_list[pic_index]
+fz = fz_list[pic_index]
+
+path = 'mediums/tamar_cvpr_rico{}x{}x{}.txt'.format(fx,fy,fz)
+cam_nx = fx
+cam_ny = fy
+origin = origin_list[pic_index]
+fov = fov_list[pic_index]
+lookat = lookat_list[pic_index]
+USE_AIR = False
 
 # Mie scattering for water droplets
 mie = shdom.MiePolydisperse()
-mie.read_table(file_path='../../mie_tables/polydisperse/Water_672nm.scat')
+mie.read_table(file_path='../mie_tables/polydisperse/Water_672nm.scat')
 
 # Generate a Microphysical medium
 droplets = shdom.MicrophysicalScatterer()
-droplets.load_from_csv('../tamar_cvpr_rico40x40x40.txt', veff=0.1)
+droplets.load_from_csv(path, veff=0.1)
 
 droplets.add_mie(mie)
 
@@ -52,15 +89,19 @@ air = rayleigh.get_scatterer()
 # -----------------------------------------------
 # ---------initilize an RteSolver object------------
 # -----------------------------------------------
-
-atmospheric_grid = droplets.grid + air.grid # Add two grids by finding the common grid which maintains the higher resolution grid.
-atmosphere = shdom.Medium(atmospheric_grid)
-atmosphere.add_scatterer(droplets, name='cloud')
-atmosphere.add_scatterer(air, name='air')
-
+if(USE_AIR):
+    atmospheric_grid = droplets.grid + air.grid # Add two grids by finding the common grid which maintains the higher resolution grid.
+    atmosphere = shdom.Medium(atmospheric_grid)
+    atmosphere.add_scatterer(droplets, name='cloud')
+    atmosphere.add_scatterer(air, name='air')
+else:
+    atmospheric_grid = droplets.grid
+    atmosphere = shdom.Medium(atmospheric_grid)
+    atmosphere.add_scatterer(droplets, name='cloud')
+    
 #numerical_params = shdom.NumericalParameters()
-numerical_params = shdom.NumericalParameters(num_mu_bins=16,num_phi_bins=32,
-                                             split_accuracy=0.01,max_total_mb=100000000.0)
+numerical_params = shdom.NumericalParameters(num_mu_bins=16,num_phi_bins=32,adapt_grid_factor=1.1,
+                                             split_accuracy=0.03,max_total_mb=100000.0,high_order_radiance=False,acceleration_flag=True)
 scene_params = shdom.SceneParameters(
     wavelength=mie.wavelength,
     surface=shdom.LambertianSurface(albedo=0.009999),
@@ -122,42 +163,16 @@ dz = Lz/nz
 
 projection = shdom.MultiViewProjection()
 
-fov = 85.4187
-sc = 10
-cny= sc*ny
-cnx = sc*nx
-
-cny= 40
-cnx = 40
-
-origin = [[0.4 , 0.4 , 1.7333],
-          [0.4 , 0.4, 1.7333],
-          [0.0 , 0.0, 1.7333]]
-          
-lookat = [[0.4 , 0.4 , 1.06667],
-          [0.4 , 0.4 , 1.06667],
-          [0.0 , 0.0 , 1.06667]]          
-          
+         
 # render 2 views and see the camera x,y,z , angles:
 for posind in range(len(lookat)):
-    x, y, z = origin[posind]  
+    x, y, z = origin  
 
-    tmpproj = shdom.PerspectiveProjection(fov, cnx, cny, x, y, z)
-    tmpproj.look_at_transform(lookat[posind],[0,1,0])
+    tmpproj = shdom.PerspectiveProjection(fov, cam_nx, cam_ny, x, y, z)
+    tmpproj.look_at_transform(lookat,[0,1,0])
     PHI, THETA = tmpproj.export_thete_phi()
     projection.add_projection(tmpproj)
-    if(1):
-        fig, ax_list = plt.subplots(1, 2, figsize=(10, 10))
-        ax = ax_list.ravel()
-        pos = ax[0].imshow(PHI)
-        ax[0].set_title('PHI {}'.format(posind))
-        fig.colorbar(pos, ax=ax[0])    
-        
-        pos = ax[1].imshow(THETA)
-        ax[1].set_title('THETA')
-        fig.colorbar(pos, ax=ax[1])  
-        
-          
+              
     
 camera = shdom.Camera(shdom.RadianceSensor(), projection)
 images = camera.render(rte_solver, n_jobs=20)
@@ -179,18 +194,3 @@ for ax, image in zip(axarr, images):
 
 plt.show()
 
-
-
-"""
-nice setup to work with:
-Rsat = 1
-print('Rsat is {} '.format(Rsat))
-origin = [[2 , 0.5*ny*dy , Rsat],
-          [0.5*nx*dx , 2 , Rsat]]
-          
-lookat = [[0.5*nx*dx , 0.5*ny*dy , Rsat+0.01],
-          [0.5*nx*dx , 0.5*ny*dy , Rsat+0.01]]
-
-
-fov = 45
-"""

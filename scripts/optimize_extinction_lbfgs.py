@@ -368,7 +368,7 @@ class OptimizationScript(object):
         # Optimization process
         num_global_iter = 1
         if self.args.globalopt:
-            global_optimizer = shdom.GlobalOptimizer(local_optimizer=optimizer)
+            global_optimizer = shdom.GlobalOptimizer(local_optimizer = local_optimizer)
             result = global_optimizer.minimize(niter_success=20, T=1e-3)
             num_global_iter = result.nit
             result = result.lowest_optimization_result

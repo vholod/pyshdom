@@ -14,7 +14,9 @@ mie.read_table(file_path='../mie_tables/polydisperse/Water_672nm.scat')
 # Generate a Microphysical medium
 droplets = shdom.MicrophysicalScatterer()
 #droplets.load_from_csv('../synthetic_cloud_fields/jpl_les/rico32x37x26.txt', veff=0.1)
-droplets.load_from_csv('../synthetic_cloud_fields/small_cloud_les/view55_small.txt', veff=0.1)
+#droplets.load_from_csv('../synthetic_cloud_fields/small_cloud_les/view55_small.txt', veff=0.1)
+droplets.load_from_csv('../synthetic_cloud_fields/small_cloud_les/cut_from_dannys_clouds_S1.txt', veff=0.1)
+
 droplets.add_mie(mie)
 
 # Rayleigh scattering for air molecules up to 20 km
@@ -71,7 +73,7 @@ the shdom.RteSolver object. These are subsequently used for the rendering of an 
 
 import pickle
 if(1):
-                                             rte_solver.solve(maxiter=100)
+                                             rte_solver.solve(maxiter=2)
                                              # it breaks here:
                                              # failed to create intent(cache|hide)|optional array-- must have defined dimensions but got (-435764992,)
 
@@ -108,18 +110,16 @@ Render an image by integrating the incoming radiance along the projection geomet
 # A Perspective trasnormation (pinhole camera).
 projection = shdom.MultiViewProjection()
 fov = 8*0.213904
-ny= 10*328
-nx = 10*328#2*226
-#origin = [[-299907.40615228115*1e-3 , 0.0 , 593545.6813589074*1e-3],
-          #[-149988.42496515365*1e-3 , 0.0 , 598386.2335485807*1e-3],
-          #[-74998.55309552186*1e-3 , 0.0 , 599596.5467120232*1e-3],
-          #[0.0 , 0.0 , 600000.0*1e-3],
-          #[74998.55309552186*1e-3 , 0.0 , 599596.5467120232*1e-3],
-          #[149988.42496515365*1e-3 , 0.0 , 598386.2335485807*1e-3],
-          #[299907.40615228115*1e-3 ,
+ny= sc*328
+nx = sc*328#2*226
+origin = [[-299907.40615228115*1e-3 , 0.0 , 593545.6813589074*1e-3],
+          [-149988.42496515365*1e-3 , 0.0 , 598386.2335485807*1e-3],
+          [-74998.55309552186*1e-3 , 0.0 , 599596.5467120232*1e-3],
+          [0.0 , 0.0 , 600000.0*1e-3],
+          [74998.55309552186*1e-3 , 0.0 , 599596.5467120232*1e-3],
+          [149988.42496515365*1e-3 , 0.0 , 598386.2335485807*1e-3],
+          [299907.40615228115*1e-3 ]]
            
-origin = [[0.0 , 0.0 , 100.0],
-          [0.0 , 0.0 , 100.0]]
 
 lookat = [[57*0.02 , 82*0.02 , 0],
           [57*0.02 , 82*0.02 , 0]]           

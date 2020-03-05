@@ -697,6 +697,9 @@ class RteSolver(object):
             28 + 16.5 * self._cell_to_point_ratio + \
             self._nphi0max*self._nstokes + self._num_sh_term_factor*self._nstokes*self._nlm*self._big_arrays)                
         
+        # Vadim add this print when he helped Tamar with CVPR
+        print("--- the wantmem variable before REDUCE is {}, memory usage is {}".format(wantmem,4*wantmem))
+        
         REDUCE = min(1.0, ((self._max_total_mb * 1024**2) / 4 - self._memword) / wantmem)
         self._adapt_grid_factor *= REDUCE
         assert self._adapt_grid_factor > 1.0, 'max_total_mb memory limit exceeded with just base grid.'
@@ -710,6 +713,7 @@ class RteSolver(object):
         self._maxic = int(self._cell_to_point_ratio*self._maxig)
         self._maxiv = int(self._num_sh_term_factor*self._nlm*self._maxig)
         self._maxido = self._maxig*self._nphi0max
+        self._maxir = self._maxiv + self._maxig
     
         assert 4.0*(self._maxiv+self._maxig)*self._nstokes < sys.maxsize, 'size of big sh arrays (maxiv) probably exceeds max integer number of bytes: %d' % self._maxiv
         assert 4.0*8.0*self._maxic <= sys.maxsize, 'size of gridptr array (8*maxic) probably exceeds max integer number of bytes: %d' % 8*self._maxic
@@ -721,6 +725,29 @@ class RteSolver(object):
         else:
             self._maxbcrad = int((2+self._nmu*self._nphi0max/2)*self._maxnbc)
 
+        # Vadim add this print when he helped Tamar with CVPR
+        print("--- the wantmem variable after REDUCE is {}, memory usage is {}".format(wantmem,4*wantmem))
+        print("--- the wantmem variable after REDUCE in Mib is {}".format(1.048576*((4*wantmem)*1e-6)))
+        # 1 MiB = 1.048576 MB
+        print("--- The memory is being used per voxel is {}".format((4*wantmem)/self._nbpts))
+        
+        print("---  SYSTEM MAX SIZE is {}".format(sys.maxsize))
+        print("--- MAXIG	max number of internal grid points is {}".format(self._maxig))
+        print("--- MAXIC	max number of grid cells, between 1 and 2 times grid points is {}".format(self._maxic))
+        print("--- MAXIV	max words for source function and radiance arrays; needed size is average spherical harmonic truncation times number of grid points is {}".format(self._maxiv))
+        print("--- MAXIDO	max words for temporary discrete ordinate azimuthal array; needed size is max azimuths times number of grid points. is {}".format(self._maxido))
+        print("--- MAXIR	The RADIANCE defined by RADIANCE(MAXIV+MAXIG). MAXIR is {}".format(self._maxir))
+        print("--- NLM    spherical harmonic terms is {}".format(self._nlm))
+        print("--- ADAPTIVE GRID FACTOR    ratio of the max number of internal grid points to the number of base grid points is {}".format(self._adapt_grid_factor))
+        print("---  CELL_TO_POINT_RATIO is {}".format(self._cell_to_point_ratio))
+        print("---  ml is {}".format(self._ml))
+        print("---  mm is {}".format(self._mm))
+        print("---  nbpts is {}".format(self._nbpts))
+        
+        # ----------------------------------------------------------------
+        
+        
+        
     def init_solution(self):
         """
         Initilize the solution (I, J fields) from the direct transmission and a simple layered model. 
@@ -749,6 +776,7 @@ class RteSolver(object):
                 maxic=self._maxic,
                 maxig=self._maxig,
                 maxido=self._maxido, 
+                maxir=self._maxir,
                 shacc=self._shacc,
                 ncs=self._ncs,
                 nlm=self._nlm,

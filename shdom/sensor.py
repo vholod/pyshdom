@@ -649,6 +649,9 @@ class PerspectiveProjection(HomographyProjection):
         x_c, y_c, z_c = np.meshgrid(np.linspace(-1, 1, nx), np.linspace(-1, 1, ny), 1.0)        
         self._homogeneous_coordinates = np.stack([x_c.ravel(), y_c.ravel(), z_c.ravel()])
         self.update_global_coordinates()
+        
+        RandColor = np.random.rand(3) # for visualization purpos
+        self._RandColor = tuple(RandColor.tolist())          
 
     def update_global_coordinates(self):
         """
@@ -681,7 +684,18 @@ class PerspectiveProjection(HomographyProjection):
         yaxis = np.cross(zaxis, xaxis)
         self._rotation_matrix = np.stack((xaxis, yaxis, zaxis), axis=1)
         self.update_global_coordinates()
+    
+    # vadim add it to debug rendering issue
+    def export_thete_phi(self):
+        PHI = self._phi
+        THETA = np.arccos(self._mu)
+        THETA = THETA.reshape(self._resolution, order='F')
+        PHI = PHI.reshape(self._resolution, order='F')  
+        X = self._x.reshape(self._resolution, order='F')
+        Y = self._y.reshape(self._resolution, order='F')
+        Z = self._z.reshape(self._resolution, order='F')
         
+        return PHI, THETA, X, Y, Z        
     def rotate_transform(self, axis, angle):
         """
         Rotate the camera with respect to one of it's (local) axis
@@ -716,6 +730,112 @@ class PerspectiveProjection(HomographyProjection):
         self._rotation_matrix = np.matmul(self._rotation_matrix, rot)
         self.update_global_coordinates()
 
+    # vadim added for visualization:
+    def show_camera(self,scale = 0.6,axisWidth = 3.0,axisLenght=1.0, FullCone = False):
+        """
+        Show camera pyramid using mayavi.
+        
+        Parameters:
+        inpute:
+        scale: float, default=0.6
+            The scale of the camera cone
+        axisWidth: float, default=3.0
+            The Width of the quiver arrows in the plot
+        axisLenght: float, default=1.0
+            The length of the quiver arrows in the plot
+        FullCone is a flag
+             if true show camera cone from view point until flate ground.
+        """
+        
+        try:
+            import mayavi.mlab as mlab
+    
+        except:
+            raise Exception("Make sure you installed mayavi")
+        
+        
+        figh = mlab.gcf()
+        origin, xaxis, yaxis, zaxis = [0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]
+    
+        tm = 0.5*np.deg2rad(self._fov)
+        a = scale
+        xm = -a*np.tan(tm)
+        xp = a*np.tan(tm)
+        ym = -a*np.tan(tm)
+        yp = a*np.tan(tm)
+        zt=a        
+        
+        t = self._position.copy()
+        t = t[np.newaxis].T
+        R = np.concatenate((self._rotation_matrix , t), axis = 1)
+        R = np.vstack((R,np.array([0,0,0,1])))
+        
+        Vert1 = np.dot(R,[xp,yp,zt,1])
+        Vert2 = np.dot(R,[xp,ym,zt,1])
+        Vert3 = np.dot(R,[xm,ym,zt,1])
+        Vert4 = np.dot(R,[xm,yp,zt,1])
+        Vert5 = np.dot(R,[0,0,0,1])
+        PrincPoint = np.dot(R,[0,0,zt,1])[:-1]
+    
+        x = [Vert1[0],Vert2[0],Vert3[0],Vert4[0],Vert5[0]]
+        y = [Vert1[1],Vert2[1],Vert3[1],Vert4[1],Vert5[1]]
+        z = [Vert1[2],Vert2[2],Vert3[2],Vert4[2],Vert5[2]]
+    
+        # camera cone
+        triangles = [[0 ,1,4],[1,2,4],[2,3,4],[3,0,4]];
+    
+        obj = mlab.triangular_mesh( x, y, z, triangles,color = (1.0, 0, 0.2),opacity=0.3,figure=figh)
+        obj = mlab.pipeline.extract_edges(obj)
+        obj = mlab.pipeline.surface(obj, opacity= 0, color=(0,0,0))
+    
+        # drow the axis
+        Ronly = R[0:3,0:3]
+        cam_dir_x =  np.dot(Ronly,xaxis)*axisWidth 
+        cam_dir_y =  np.dot(Ronly,yaxis)*axisWidth  
+        cam_dir_z =  np.dot(Ronly,zaxis)*axisWidth
+
+        mlab.quiver3d(t[0],t[1],t[2], cam_dir_x[0], cam_dir_x[1], cam_dir_x[2], line_width=axisWidth,color = (1.0, 0, 0), scale_factor=axisLenght,figure=figh)
+        mlab.quiver3d(t[0],t[1],t[2], cam_dir_y[0], cam_dir_y[1], cam_dir_y[2], line_width=axisWidth,color = (0, 1.0, 0), scale_factor=axisLenght,figure=figh)
+        mlab.quiver3d(t[0],t[1],t[2], cam_dir_z[0], cam_dir_z[1], cam_dir_z[2], line_width=axisWidth,color = (0, 0, 1.0), scale_factor=axisLenght,figure=figh)
+    
+        if(FullCone):
+            # intersection of a line with the ground surface (flat):
+            """p_co, p_no: define the plane:
+                p_co is a point on the plane (plane coordinate).
+                p_no is a normal vector defining the plane direction.
+                """
+            p_co = np.array([0,0,0])# write your z value if you want it to be on TOA
+            p_no = np.array([0,0,1])
+            epsilon = 1e-6
+            Points_on_ground = []
+        
+            for i in range(4):
+        
+                u = [x[i],y[i],z[i]] - Vert5[:3]
+                Q = np.dot(p_no, u)
+        
+                if abs(Q) > epsilon:
+                    d = np.dot((p_co - Vert5[:3]),p_no)/Q
+                    point_on_ground = Vert5[:3] + (d*u)
+                    Points_on_ground.append(point_on_ground)
+            
+            t = self._position.copy() # copy it again becouse t.T does problems here. 
+            Points_on_ground  = np.array(Points_on_ground)         
+            xtri = Points_on_ground[:,0].tolist()
+            xtri.append(t[0])
+            ytri = Points_on_ground[:,1].tolist()
+            ytri.append(t[1])
+            ztri = Points_on_ground[:,2].tolist()
+            ztri.append(t[2])        
+            # camera cone
+            triangles = [[0 ,1,4],[1,2,4],[2,3,4],[3,0,4]]
+            RandColor = np.random.rand(3) # for visualization purpos
+            obj = mlab.triangular_mesh( xtri, ytri, ztri, triangles,color = self._RandColor,opacity=0.2,figure=figh)
+            obj = mlab.pipeline.extract_edges(obj)  
+            
+        
+
+        
     def plot(self, ax, xlim, ylim, zlim, length=0.1):
         """
         Plot the cameras and their orientation in 3D space using matplotlib's quiver.
