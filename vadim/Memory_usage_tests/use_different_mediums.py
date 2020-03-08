@@ -5,7 +5,7 @@ import pandas as pd
 import shdom
 import pickle
 from shutil import copyfile
-
+import time
 import subprocess
 import sys
 import json
@@ -15,6 +15,7 @@ import glob
 import functools  
 # importing operator for operator functions 
 import operator 
+
 
 M = 1
 NJ1FLAG = False
@@ -29,11 +30,11 @@ adapt_grid_factor = 10
 del_source = False
 
 for high_order_radiance in [True, False]:
-    for del_source in [False]:
+    for del_source in [False , True]:
         # max bm:
         for max_total_mb in [320000.0]:
             # adapt_grid_factor 
-            for adapt_grid_factor in [10.0]:
+            for adapt_grid_factor in [10.0, 5.0]:
                 
                 fx_list = [21,31,61,81,101,121,152]
                 fy_list = [21,31,61,81,101,121,252]
@@ -74,7 +75,15 @@ for high_order_radiance in [True, False]:
                     print( "del_source = {}".format(del_source))
                     print( "high_order_radiance = {}".format(high_order_radiance))
                     
-                    output_dir = '../experiments/help_tamar_cvpr{}x{}x{}/monochromatic'.format(fx,fy,fz)
+                    this_name = 'help_tamar_cvpr{}x{}x{}'.format(fx,fy,fz)
+                    this_name = this_name + '_HOR' if high_order_radiance else this_name
+                    this_name = this_name + '_DS' if del_source else this_name
+                    this_name = this_name + '_ADF{}'.format(int(adapt_grid_factor))
+                    this_name = this_name + '_MTB{}'.format(int(1e-3*max_total_mb))
+                    this_name = this_name + '_DS' if del_source else this_name
+                    
+                    
+                    output_dir = '../experiments/{}/monochromatic'.format(this_name)
                     path = 'mediums/tamar_cvpr_rico{}x{}x{}.txt'.format(fx,fy,fz)
                     cam_nx = fx
                     cam_ny = fy
@@ -195,12 +204,15 @@ for high_order_radiance in [True, False]:
                 # -------------------------------------------------------------
                 # -------------------------------------------------------------
                 # -------------------------------------------------------------
-                start_from_index = 2
+                start_from_index = 0
+                end_index = 5
                 for fx,fy,fz,origin,fov,lookat in zip(fx_list,fy_list,fz_list,origin_list,fov_list,lookat_list):
                     
                     loop_index = fx_list.index(fx)
                     if(start_from_index>loop_index):
                         continue
+                    if(loop_index == end_index):
+                        break
                         
                     print( "--{}x{}x{}--".format(fx,fy,fz))
                     print( "njobs = 72")
@@ -209,8 +221,17 @@ for high_order_radiance in [True, False]:
                     print( "del_source = {}".format(del_source))
                     print( "high_order_radiance = {}".format(high_order_radiance))
                     
-                    output_dir = '../experiments/help_tamar_cvpr{}x{}x{}/monochromatic'.format(fx,fy,fz)
+                    this_name = 'help_tamar_cvpr{}x{}x{}'.format(fx,fy,fz)
+                    this_name = this_name + '_HOR' if high_order_radiance else this_name
+                    this_name = this_name + '_DS' if del_source else this_name
+                    this_name = this_name + '_ADF{}'.format(int(adapt_grid_factor))
+                    this_name = this_name + '_MTB{}'.format(int(1e-3*max_total_mb))
+                    this_name = this_name + '_DS' if del_source else this_name
+                    
+                    
+                    output_dir = '../experiments/{}/monochromatic'.format(this_name)
                     path = 'mediums/tamar_cvpr_rico{}x{}x{}.txt'.format(fx,fy,fz)
+                    
                     cam_nx = fx
                     cam_ny = fy
                     

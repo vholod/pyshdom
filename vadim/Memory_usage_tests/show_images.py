@@ -100,7 +100,7 @@ for ax,fx,fy,fz,origin,fov,lookat in zip(axarr,fx_list,fy_list,fz_list,origin_li
     cam_ny = fy
     
     # load the measurments to see the rendered images:
-    medium, solver, measurements = shdom.load_forward_model(output_dir)
+    measurements = shdom.load_forward_model_measurements(output_dir)
     # A Measurements object bundles together the imaging geometry and sensor measurements for later optimization.
     USED_CAMERA = measurements.camera
     RENCERED_IMAGES = measurements.images

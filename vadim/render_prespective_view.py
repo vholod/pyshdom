@@ -1,6 +1,20 @@
 import numpy as np
 import argparse
 import shdom
+import time
+
+
+class Timer(object):
+    def __init__(self, name='RTE+RENDER'):
+        self.name = name
+
+    def __enter__(self):
+        self.tstart = time.time()
+
+    def __exit__(self, type, value, traceback):
+        if self.name:
+            print('[%s]' % self.name,)
+        print('Elapsed: %s' % (time.time() - self.tstart))
 
 
 class RenderScript(object):
@@ -95,6 +109,13 @@ class RenderScript(object):
                             type=float,
                             help='(default value: %(default)s) The radio of adaptive (internal) grid points property array grid points \
                             See rte_solver.NumericalParameters for more details.')
+        
+        parser.add_argument('--num_sh_term_factor',
+                            default=5,
+                            type=float,
+                            help='(default value: %(default)s) num_sh_term_factor(NUM_SH_TERM_FACTOR) it is ratio of average number of spherical harmonic terms to total possible (NLM) \
+                            See rte_solver.NumericalParameters for more details.')
+        
         parser.add_argument('--del_source',
                             action='store_true',
                             help='If not used, ACCELFLAG = TRUE, if used, it cencel the acceleration  \
@@ -304,7 +325,8 @@ class RenderScript(object):
             max_total_mb = self.args.max_total_mb,
             acceleration_flag = acceleration_flag,
             high_order_radiance = high_order_radiance,
-            solution_accuracy=self.args.solution_accuracy
+            num_sh_term_factor = self.args.num_sh_term_factor,
+            solution_accuracy = self.args.solution_accuracy
         )
         for wavelength, solar_flux in zip(self.args.wavelength, solar_fluxes):
             scene_params = shdom.SceneParameters(
@@ -343,7 +365,8 @@ class RenderScript(object):
         ny = int(self.args.cam_ny)
         
         
-        x, y, z = origin                                                 
+        x, y, z = origin   
+        # render original image:
         tmpproj = shdom.PerspectiveProjection(fov, nx, ny, x, y, z)
         tmpproj.look_at_transform(lookat,[0,1,0])
         projection.add_projection(tmpproj)
@@ -351,7 +374,25 @@ class RenderScript(object):
             
         camera = shdom.Camera(self.sensor, projection)
         images = camera.render(rte_solver, self.args.n_jobs)
-        measurements = shdom.Measurements(camera, images=images, wavelength=rte_solver.wavelength)
+        #measurements = shdom.Measurements(camera, images=images, wavelength=rte_solver.wavelength)
+        
+        # render up-down scalled image:
+        projection = shdom.MultiViewProjection()
+        SC = 10
+        tmpproj = shdom.PerspectiveProjection(fov, SC*nx, SC*ny, x, y, z)
+        tmpproj.look_at_transform(lookat,[0,1,0])
+        projection.add_projection(tmpproj)
+            
+            
+        camera = shdom.Camera(self.sensor, projection)
+        images_u = camera.render(rte_solver, self.args.n_jobs)
+        image_ud = np.zeros([nx,ny])
+        for iy in range(ny):
+            for ix in range(nx):        
+                image_ud[ix,iy] = np.mean(images_u[0][(SC*ix):(SC*(ix+1)) , (SC*iy):(SC*(iy+1))])
+        
+        images = [images[0],image_ud,images_u[0]]
+        measurements = shdom.Measurements(camera, images=images, wavelength=rte_solver.wavelength)        
         return measurements
 
     @profile
@@ -369,9 +410,11 @@ class RenderScript(object):
         """
         Main forward rendering script.
         """
-        rte_solver, measurements, medium = self.SolveAndRender()
+        with Timer():
+            rte_solver, measurements, medium = self.SolveAndRender()
+            #self.SolveAndRender()
         # Save measurements, medium and solver parameters
-        shdom.save_forward_model(self.args.output_dir, medium, rte_solver, measurements)
+        shdom.save_forward_model_measurements(self.args.output_dir, measurements)
 
 
 if __name__ == "__main__":

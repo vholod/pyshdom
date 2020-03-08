@@ -9,7 +9,7 @@ import shdom
 from shdom import CloudCT_setup
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import subprocess
-
+from mpl_toolkits.axes_grid1 import AxesGrid
 
 # -----------------------------------------------------------------
 # ------------------------THE FUNCTIONS BELOW----------------------
@@ -291,10 +291,11 @@ if(DOFORWARD):
         
     #numerical_params = shdom.NumericalParameters()
     numerical_params = shdom.NumericalParameters(num_mu_bins=16,num_phi_bins=32,
-                                                 split_accuracy=0.1,max_total_mb=100000000.0)
+                                                 split_accuracy=0.000001,max_total_mb=100000000.0,solution_accuracy=0.00001)
     # Calculate irradiance of the spesific wavelength:
     # use plank function:
-    L_TOA = 6.8e-5*1e-9*plank(1e-6*vis_wavelength,temp) # units fo W/(m^2)
+    temp = 5900 #K
+    L_TOA = 6.8e-5*1e-9*plank(1e-6*wavelength_micron,temp) # units fo W/(m^2)
     Cosain = np.cos(np.deg2rad((180-sun_zenith)))
     solar_flux = L_TOA*Cosain
     
@@ -302,7 +303,7 @@ if(DOFORWARD):
         wavelength=mie.wavelength,
         surface=shdom.LambertianSurface(albedo=0.05),
         source=shdom.SolarSource(azimuth = sun_azimuth,
-                                 zenith=sun_zenith,flux=solar_flux)
+                                 zenith = sun_zenith,flux = solar_flux)
     )
     #azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
     #zenith: Solar beam zenith angle in range (90,180]   
@@ -331,29 +332,31 @@ if(DOFORWARD):
     camera = shdom.Camera(shdom.RadianceSensor(), CloudCT_VIEWS)
     # render all:
     images = camera.render(rte_solver, n_jobs=40)
-    f, axarr = plt.subplots(2, int(np.ceil(SATS_NUMBER/2)), figsize=(20, 20))
-    axarr = axarr.ravel()
+    
     projection_names = CloudCT_VIEWS.projection_names
     # calculate images maximum:
     images_array = np.array(images)
     MAXI = images_array.max()
     
-    index = 0
-    for ax, image,name in zip(axarr, images, projection_names):
-        
-        
+    # nice plot alternative:
+    fig = plt.figure(figsize=(20, 20))
+    grid = AxesGrid(fig, 111,
+                    nrows_ncols=(2, int(np.ceil(SATS_NUMBER/2))),
+                    axes_pad=0.3,
+                    cbar_mode='single',
+                    cbar_location='right',
+                    cbar_pad=0.1
+                    )  
+    
+    for ax, image, name in zip(grid, images, projection_names):
+        ax.set_axis_off()
         im = ax.imshow(image,cmap='gray',vmin=0, vmax=MAXI)
-        #image_gamma = (image/np.max(image))**0.5
-        #ax.imshow(image_gamma,cmap='gray')
-        if(index > 0):
-            ax.axis('off')
-        
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes('right', size='5%', pad=0.05)        
-        f.colorbar(im, cax=cax, orientation='vertical')
-                     
         ax.set_title("{}".format(name))
-        index = index + 1
+     
+    title = "$\lambda$={}nm , $\Phi$={:.2f} , $L$={:.2f}".format(int(1e3*wavelength_micron),sun_zenith,solar_flux)
+    cbar = ax.cax.colorbar(im)
+    cbar = grid.cbar_axes[0].colorbar(im)
+    fig.suptitle(title, size=16,y=0.95) 
         
     plt.show()
     
@@ -472,7 +475,7 @@ if(DOINVERSE):
         # The mie_base_path is defined at the begining of this script.
         INIT_USE = ' --init '+ init
         add_rayleigh = True
-        use_forward_mask = True
+        use_forward_mask = False#True
         use_forward_grid = True
         use_forward_albedo = True
         use_forward_phase = True
@@ -562,6 +565,6 @@ if(DOINVERSE):
     #AirGenerator = shdom.generate.AFGLSummerMidLatAir
     #air_generator = AirGenerator(air_path,air_max_alt,air_num_points)
     
-    print("use tensorboard --logdir {}/logs/{} --bind_all".format(input_dir,log_name))
+    print("use tensorboard --logdir {}/logs/{} --bind_all".format(invers_dir,log_name))
     
     print("done")

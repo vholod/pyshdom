@@ -670,6 +670,49 @@ def save_forward_model(directory, medium, solver, measurements):
     medium.save(os.path.join(directory, 'ground_truth_medium'))
     solver.save_params(os.path.join(directory, 'solver_parameters'))   
 
+def save_forward_model_measurements(directory, measurements):
+    """
+    Save only the forward model measurements.
+    
+    Parameters
+    ----------
+    directory: str
+        Directory path where the forward modeling parameters are saved. 
+        If the folder doesnt exist it will be created.
+    measurements: shdom.Measurements
+        Contains the camera used and the measurements acquired. 
+        
+    Notes
+    -----
+    """  
+    if not os.path.isdir(directory):
+        os.makedirs(directory)  
+    measurements.save(os.path.join(directory, 'measurements'))
+      
+def load_forward_model_measurements(directory):
+    """
+    Load only the forward model measurements.
+    
+    Parameters
+    ----------
+    directory: str
+        Directory path where the forward modeling parameters are saved. 
+    
+    Returns
+    -------
+    measurements: shdom.Measurements
+        Contains the sensor used to image the mediu and the radiance measurements. 
+        
+    Notes
+    -----
+    """  
+    # Load shdom.Measurements object (sensor geometry and radiances)
+    measurements = shdom.Measurements()
+    measurements_path = os.path.join(directory, 'measurements')
+    assert os.path.exists(measurements_path), 'No measurements file in directory: {}'.format(directory)
+    measurements.load(path=measurements_path) 
+        
+    return measurements
 
 def load_forward_model(directory):
     """

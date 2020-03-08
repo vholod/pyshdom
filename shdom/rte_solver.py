@@ -730,6 +730,7 @@ class RteSolver(object):
         print("--- the wantmem variable after REDUCE in Mib is {}".format(1.048576*((4*wantmem)*1e-6)))
         # 1 MiB = 1.048576 MB
         print("--- The memory is being used per voxel is {}".format((4*wantmem)/self._nbpts))
+        print("--- The memory is being used per voxel per angle is {}".format((4*wantmem)/(self._nbpts*self._nphi*self._nmu)))
         
         print("---  SYSTEM MAX SIZE is {}".format(sys.maxsize))
         print("--- MAXIG	max number of internal grid points is {}".format(self._maxig))

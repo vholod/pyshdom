@@ -3144,7 +3144,8 @@ Cf2py intent(in,out) :: TEMP, PLANCK, DIRFLUX
       CHARACTER SRCTYPE*1, UNITS*1
 Cf2py intent(in) :: SRCTYPE, UNITS
       INTEGER ICELL, ICELL1, IDIR, I, N, NEWPOINTS(3,4), OLDNPTS
-      INTEGER MAXCELLS, MAXPTS, MAXWORK, MAXSH, MAXRAD
+      INTEGER MAXCELLS, MAXPTS, MAXWORK
+      INTEGER*8 MAXSH, MAXRAD
       LOGICAL OUTOFMEM0
       REAL    ADAPT(3), FRAC
       
@@ -3237,7 +3238,12 @@ C                 Interpolate the medium properties, radiance, and source
           MAXWORK = MAXIDO - 4*NPHI0MAX
           MAXSH = MAXIV - 4*NLM
           MAXRAD = MAXIV+MAXIG - 4*NLM
-          
+C vadim used that to monitor memory usage          
+C          write(*,"(A)",advance="no") "VD, The value of MAXSH is " 
+C          write(*,*) MAXSH
+C          write(*,"(A)",advance="no") "VD, The value of MAXRAD is " 
+C          write(*,*) MAXRAD
+
 C             Split some more cells to make the adaptive grid "smoother"
           DO WHILE (.NOT. OUTOFMEM .AND. I .LE. N)
             IF (NCELLS .GT. MAXCELLS .OR. NPTS .GT. MAXPTS .OR.
