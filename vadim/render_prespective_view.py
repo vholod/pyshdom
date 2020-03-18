@@ -374,25 +374,25 @@ class RenderScript(object):
             
         camera = shdom.Camera(self.sensor, projection)
         images = camera.render(rte_solver, self.args.n_jobs)
-        #measurements = shdom.Measurements(camera, images=images, wavelength=rte_solver.wavelength)
-        
-        # render up-down scalled image:
-        projection = shdom.MultiViewProjection()
-        SC = 10
-        tmpproj = shdom.PerspectiveProjection(fov, SC*nx, SC*ny, x, y, z)
-        tmpproj.look_at_transform(lookat,[0,1,0])
-        projection.add_projection(tmpproj)
+        measurements = shdom.Measurements(camera, images=images, wavelength=rte_solver.wavelength)
+        if(0):
+            # render up-down scalled image:
+            projection = shdom.MultiViewProjection()
+            SC = 10
+            tmpproj = shdom.PerspectiveProjection(fov, SC*nx, SC*ny, x, y, z)
+            tmpproj.look_at_transform(lookat,[0,1,0])
+            projection.add_projection(tmpproj)
+                
+                
+            camera = shdom.Camera(self.sensor, projection)
+            images_u = camera.render(rte_solver, self.args.n_jobs)
+            image_ud = np.zeros([nx,ny])
+            for iy in range(ny):
+                for ix in range(nx):        
+                    image_ud[ix,iy] = np.mean(images_u[0][(SC*ix):(SC*(ix+1)) , (SC*iy):(SC*(iy+1))])
             
-            
-        camera = shdom.Camera(self.sensor, projection)
-        images_u = camera.render(rte_solver, self.args.n_jobs)
-        image_ud = np.zeros([nx,ny])
-        for iy in range(ny):
-            for ix in range(nx):        
-                image_ud[ix,iy] = np.mean(images_u[0][(SC*ix):(SC*(ix+1)) , (SC*iy):(SC*(iy+1))])
-        
-        images = [images[0],image_ud,images_u[0]]
-        measurements = shdom.Measurements(camera, images=images, wavelength=rte_solver.wavelength)        
+            images = [images[0],image_ud,images_u[0]]
+            measurements = shdom.Measurements(camera, images=images, wavelength=rte_solver.wavelength)        
         return measurements
 
     @profile

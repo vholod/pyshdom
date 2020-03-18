@@ -122,7 +122,7 @@ axisLenght = 5000
 
 # orbit altitude:
 Rsat = 500 # km
-wavelength_micron = 1.6
+wavelength_micron = 0.672
 sun_azimuth = 45
 sun_zenith = 150
 """

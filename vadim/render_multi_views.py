@@ -9,7 +9,7 @@ import shdom
 
 
 mie = shdom.MiePolydisperse()
-mie.read_table(file_path='../mie_tables/polydisperse/Water_672nm.scat')
+mie.read_table(file_path='mie_tables/polydisperse/Water_672nm.scat')
 
 # Generate a Microphysical medium
 droplets = shdom.MicrophysicalScatterer()
