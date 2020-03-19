@@ -1,6 +1,6 @@
 
 import os 
-import mayavi.mlab as mlab
+#import mayavi.mlab as mlab
 import scipy.io as sio
 import matplotlib.pyplot as plt
 import numpy as np
@@ -44,12 +44,74 @@ atmosphere = shdom.Medium(atmospheric_grid)
 atmosphere.add_scatterer(droplets, name='cloud')
 atmosphere.add_scatterer(air, name='air')
 
+# -----------------------------------------------
+# ---------Calculate camera footprint at nadir --
+# -----------------------------------------------
+
+dx = atmospheric_grid.dx
+dy = atmospheric_grid.dy
+
+nz = atmospheric_grid.nz
+nx = atmospheric_grid.nx
+ny = atmospheric_grid.ny
+
+Lx = atmospheric_grid.bounding_box.xmax - atmospheric_grid.bounding_box.xmin
+Ly = atmospheric_grid.bounding_box.ymax - atmospheric_grid.bounding_box.ymin
+Lz = atmospheric_grid.bounding_box.zmax - atmospheric_grid.bounding_box.zmin
+L = max(Lx,Ly)
+Lz_droplets = droplets.grid.bounding_box.zmax - droplets.grid.bounding_box.zmin
+dz = Lz_droplets/nz
+
+#USED FOV, RESOLUTION and SAT_LOOKATS:
+PIXEL_FOOTPRINT = 0.02 # km
+Rsat = 600
+fov = 2*np.rad2deg(np.arctan(0.5*L/(Rsat)))
+cny = int(np.floor(L/PIXEL_FOOTPRINT))
+cnx = int(np.floor(L/PIXEL_FOOTPRINT))
+
+CENTER_OF_MEDIUM_BOTTOM = [0.5*nx*dx , 0.5*ny*dy , 0]
+
+# -------------------------------------------------------
+print(20*"-")
+print(20*"-")
+print(20*"-")
+
+print("CAMERA intrinsics summary")
+print("fov = {}[deg], cnx = {}[pixels],cny ={}[pixels]".format(fov,cnx,cny))
+
+print(20*"-")
+print(20*"-")
+print(20*"-")
+
+print("Medium summary")
+print("nx = {}, ny = {},nz ={}".format(nx,ny,nz))
+print("dx = {}, dy = {},dz ={}".format(dx,dy,dz))
+print("Lx = {}, Ly = {},Lz ={}".format(Lx,Ly,Lz))
+x_min = atmospheric_grid.bounding_box.xmin
+x_max = atmospheric_grid.bounding_box.xmax
+
+y_min = atmospheric_grid.bounding_box.ymin
+y_max = atmospheric_grid.bounding_box.ymax
+
+z_min = atmospheric_grid.bounding_box.zmin
+z_max = atmospheric_grid.bounding_box.zmax 
+print("xmin = {}, ymin = {},zmin ={}".format(x_min,y_min,z_min))
+print("xmax = {}, ymax = {},zmax ={}".format(x_max,y_max,z_max))
+
+print(20*"-")
+print(20*"-")
+print(20*"-")
+
+# ------------------------------------------------------
+# ------------------------------------------------------
+# ------------------------------------------------------
+
 #For radiances may need Nmu=16, Nphi=32 or more depending on the phase function. The defulte is
 #Nmu=8, Nphi=16 .
 #numerical_params = shdom.NumericalParameters(num_mu_bins=8,num_phi_bins=16,
                                              #split_accuracy=0.1,max_total_mb=100000.0)
 
-numerical_params = shdom.NumericalParameters(num_mu_bins=8,num_phi_bins=16,
+numerical_params = shdom.NumericalParameters(num_mu_bins=16,num_phi_bins=32,
                                              split_accuracy=0.1,max_total_mb=100000000.0)
 scene_params = shdom.SceneParameters(
     wavelength=mie.wavelength,
@@ -73,7 +135,7 @@ the shdom.RteSolver object. These are subsequently used for the rendering of an 
 
 import pickle
 if(1):
-                                             rte_solver.solve(maxiter=2)
+                                             rte_solver.solve(maxiter=200)
                                              # it breaks here:
                                              # failed to create intent(cache|hide)|optional array-- must have defined dimensions but got (-435764992,)
 
@@ -109,21 +171,16 @@ Render an image by integrating the incoming radiance along the projection geomet
 
 # A Perspective trasnormation (pinhole camera).
 projection = shdom.MultiViewProjection()
-fov = 8*0.213904
-ny= sc*328
-nx = sc*328#2*226
-origin = [[-299907.40615228115*1e-3 , 0.0 , 593545.6813589074*1e-3],
-          [-149988.42496515365*1e-3 , 0.0 , 598386.2335485807*1e-3],
-          [-74998.55309552186*1e-3 , 0.0 , 599596.5467120232*1e-3],
-          [0.0 , 0.0 , 600000.0*1e-3],
-          [74998.55309552186*1e-3 , 0.0 , 599596.5467120232*1e-3],
-          [149988.42496515365*1e-3 , 0.0 , 598386.2335485807*1e-3],
-          [299907.40615228115*1e-3 ]]
-           
 
-lookat = [[57*0.02 , 82*0.02 , 0],
-          [57*0.02 , 82*0.02 , 0]]           
+sc = 10
+ny= sc*cny
+nx = sc*cnx
 
+origin = [[0.5*cnx*dx , 0.5*cny*dy , Rsat],
+          [0.5*cnx*dx , 0.5*cny*dy , Rsat]]
+
+lookat = [[0.5*cnx*dx , 0.5*cny*dy , 0],
+          [0.5*cnx*dx , 0.5*cny*dy , 0]] 
   
 for posind in range(len(lookat)):
                                              
@@ -132,8 +189,8 @@ for posind in range(len(lookat)):
                                              tmpproj.look_at_transform(lookat[posind],[0,1,0])
                                              projection.add_projection(tmpproj)
                                              
-                                             nx = int(nx/10)
-                                             ny = int(ny/10)
+                                             nx = int(nx/sc)
+                                             ny = int(ny/sc)
                                              
 
 camera = shdom.Camera(shdom.RadianceSensor(), projection)
@@ -160,7 +217,7 @@ ax[1].invert_yaxis()
 ax[1].axis('off')
 
 
-file_name = 'orto_cloudct'+'.mat'
+file_name = 'high_angular_res'+'.mat'
 sio.savemat(file_name, {'img':images})
             
 plt.show()

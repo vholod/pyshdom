@@ -12,6 +12,9 @@ import shdom
 def StringOfPearls(SATS_NUMBER = 10,orbit_altitude = 500):
     """
     Set orbit parmeters:
+         input:
+         SATS_NUMBER - int, how many satellite to put?
+         
          returns sat_positions: np.array of shape (SATS_NUMBER,3).
          The satellites setup alwas looks like \ \ | / /. 
     """
@@ -22,8 +25,6 @@ def StringOfPearls(SATS_NUMBER = 10,orbit_altitude = 500):
     Darc = 100# km # distance between adjecent satellites (on arc).
     Dtheta = Darc/R # from the center of the earth.
     
-    # how many satellite to put?
-    SATS_NUMBER = 10
     
     # where to set the sateliites?
     theta_config = np.arange(-0.5*SATS_NUMBER,0.5*SATS_NUMBER)*Dtheta
