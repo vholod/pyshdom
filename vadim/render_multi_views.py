@@ -111,8 +111,11 @@ print(20*"-")
 #numerical_params = shdom.NumericalParameters(num_mu_bins=8,num_phi_bins=16,
                                              #split_accuracy=0.1,max_total_mb=100000.0)
 
-numerical_params = shdom.NumericalParameters(num_mu_bins=16,num_phi_bins=32,
-                                             split_accuracy=0.1,max_total_mb=100000000.0)
+numerical_params = shdom.NumericalParameters(num_mu_bins=8,num_phi_bins=16,
+                                             adapt_grid_factor=5,
+                                             split_accuracy=0.1,max_total_mb=300000.0)
+# I ran the simulation with split_accuracy=0.00 and I got bad result. Why is that so?
+
 scene_params = shdom.SceneParameters(
     wavelength=mie.wavelength,
     source=shdom.SolarSource(azimuth=180, zenith=157.5)
@@ -135,7 +138,7 @@ the shdom.RteSolver object. These are subsequently used for the rendering of an 
 
 import pickle
 if(1):
-                                             rte_solver.solve(maxiter=200)
+                                             rte_solver.solve(maxiter=125)
                                              # it breaks here:
                                              # failed to create intent(cache|hide)|optional array-- must have defined dimensions but got (-435764992,)
 
@@ -172,7 +175,7 @@ Render an image by integrating the incoming radiance along the projection geomet
 # A Perspective trasnormation (pinhole camera).
 projection = shdom.MultiViewProjection()
 
-sc = 10
+sc = 50
 ny= sc*cny
 nx = sc*cnx
 
@@ -202,22 +205,26 @@ image_small = np.array(images[1])
 image_large = (image_large/np.max(image_large))**0.5
 image_small = (image_small/np.max(image_small))**0.5
 
-f, axarr = plt.subplots(1, 2, figsize=(20, 20))
-ax = axarr.ravel()
+SHOWRENDERING = False
 
-ax[0].imshow(image_large,cmap='gray')
-ax[0].invert_xaxis() 
-ax[0].invert_yaxis() 
-ax[0].axis('off')
-ax[0].set_title('cloudct')
+if(SHOWRENDERING):
+                                             f, axarr = plt.subplots(1, 2, figsize=(20, 20))
+                                             ax = axarr.ravel()
+                                             
+                                             ax[0].imshow(image_large,cmap='gray')
+                                             ax[0].invert_xaxis() 
+                                             ax[0].invert_yaxis() 
+                                             ax[0].axis('off')
+                                             ax[0].set_title('cloudct')
+                                             
+                                             ax[1].imshow(image_small,cmap='gray')
+                                             ax[1].invert_xaxis() 
+                                             ax[1].invert_yaxis() 
+                                             ax[1].axis('off')
 
-ax[1].imshow(image_small,cmap='gray')
-ax[1].invert_xaxis() 
-ax[1].invert_yaxis() 
-ax[1].axis('off')
 
-
-file_name = 'high_angular_res'+'.mat'
+#file_name = 'high_angular_res'+'.mat'
+file_name = 'moderate_angular_res_new_param_sa01E-1'+'.mat'
 sio.savemat(file_name, {'img':images})
             
 plt.show()

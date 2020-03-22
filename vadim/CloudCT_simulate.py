@@ -125,7 +125,7 @@ SATS_NUMBER = 10
 for SATS_NUMBER in [10, 9, 8, 7, 6, 5, 4, 3]:
     # orbit altitude:
     Rsat = 500 # km
-    wavelength_micron = 0.672
+    wavelength_micron = 1.6  #0.672 , 1.6
     sun_azimuth = 45
     sun_zenith = 150
     """
@@ -153,7 +153,7 @@ for SATS_NUMBER in [10, 9, 8, 7, 6, 5, 4, 3]:
     
     # --------------------------------------------------------
     
-    DOFORWARD = False
+    DOFORWARD = True
     DOINVERSE = True
     
     
@@ -293,8 +293,14 @@ for SATS_NUMBER in [10, 9, 8, 7, 6, 5, 4, 3]:
             
             
         #numerical_params = shdom.NumericalParameters()
+        split_accuracy = 0.1
+        if(wavelength_micron == 1.6):
+            split_accuracy = 0.0001
+        if(split_accuracy == 0.672):
+            split_accuracy = 0.1
+            
         numerical_params = shdom.NumericalParameters(num_mu_bins=16,num_phi_bins=32,
-                                                     split_accuracy=0.1,max_total_mb=100000000.0,solution_accuracy=0.00001)
+                                                     split_accuracy=split_accuracy,max_total_mb=100000000.0,solution_accuracy=0.00001)
         # Calculate irradiance of the spesific wavelength:
         # use plank function:
         temp = 5900 #K
