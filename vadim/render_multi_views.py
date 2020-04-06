@@ -15,7 +15,9 @@ mie.read_table(file_path='mie_tables/polydisperse/Water_672nm.scat')
 droplets = shdom.MicrophysicalScatterer()
 #droplets.load_from_csv('../synthetic_cloud_fields/jpl_les/rico32x37x26.txt', veff=0.1)
 #droplets.load_from_csv('../synthetic_cloud_fields/small_cloud_les/view55_small.txt', veff=0.1)
-droplets.load_from_csv('../synthetic_cloud_fields/small_cloud_les/cut_from_dannys_clouds_S1.txt', veff=0.1)
+#droplets.load_from_csv('../synthetic_cloud_fields/small_cloud_les/cut_from_dannys_clouds_S1.txt', veff=0.1)
+droplets.load_from_csv('../synthetic_cloud_fields/shdom/les_stcu.txt', veff=0.1)
+
 
 droplets.add_mie(mie)
 
@@ -138,7 +140,7 @@ the shdom.RteSolver object. These are subsequently used for the rendering of an 
 
 import pickle
 if(1):
-                                             rte_solver.solve(maxiter=125)
+                                             rte_solver.solve(maxiter=1)
                                              # it breaks here:
                                              # failed to create intent(cache|hide)|optional array-- must have defined dimensions but got (-435764992,)
 
@@ -163,15 +165,19 @@ if(0):
 """
 Render an image by integrating the incoming radiance along the projection geometry defines (pixels).
 """
-#projection = shdom.OrthographicProjection(
-    #bounding_box=droplets.grid.bounding_box, 
-    #x_resolution=0.02, 
-    #y_resolution=0.02, 
-    #azimuth=0.0, 
-    #zenith=0.0,
-    #altitude='TOA'
-#)
+projection = shdom.OrthographicProjection(
+    bounding_box=droplets.grid.bounding_box, 
+    x_resolution=0.02, 
+    y_resolution=0.02, 
+    azimuth=0.0, 
+    zenith=0.0,
+    altitude='TOA'
+)
 
+camera = shdom.Camera(shdom.RadianceSensor(), projection)
+images = camera.render(rte_solver, n_jobs=40)
+plt.imshow(images,cmap='gray')
+plt.show()
 # A Perspective trasnormation (pinhole camera).
 projection = shdom.MultiViewProjection()
 
@@ -205,7 +211,7 @@ image_small = np.array(images[1])
 image_large = (image_large/np.max(image_large))**0.5
 image_small = (image_small/np.max(image_small))**0.5
 
-SHOWRENDERING = False
+SHOWRENDERING = True
 
 if(SHOWRENDERING):
                                              f, axarr = plt.subplots(1, 2, figsize=(20, 20))

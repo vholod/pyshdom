@@ -37,6 +37,7 @@ mie.read_table(file_path='./mie_tables/polydisperse/Water_672nm.scat')
 droplets = shdom.MicrophysicalScatterer()
 droplets.load_from_csv('../synthetic_cloud_fields/jpl_les/rico32x37x26.txt', veff=0.1)
 
+#droplets.add_mie(mie)
 droplets.add_mie(mie)
 
 # Rayleigh scattering for air molecules up to 20 km
@@ -59,7 +60,7 @@ atmosphere.add_scatterer(droplets, name='cloud')
 atmosphere.add_scatterer(air, name='air')
 
 #numerical_params = shdom.NumericalParameters()
-numerical_params = shdom.NumericalParameters(num_mu_bins=16,num_phi_bins=32,
+numerical_params = shdom.NumericalParameters(num_mu_bins=8,num_phi_bins=16,
                                              split_accuracy=0.1,max_total_mb=100000000.0)
 scene_params = shdom.SceneParameters(
     wavelength=mie.wavelength,
@@ -163,26 +164,27 @@ lookat = [[0.5*nx*dx , 0.5*ny*dy , 0],
           
 Rsat = [500,250,100,50,10]
 # render 2 views and see the camera x,y,z , angles:
-for posind in range(len(lookat)):
-    x, y, z = origin[posind]  
-    fov = 0.54*np.rad2deg(2*np.arctan(L/(Rsat[posind])))
-    
-    tmpproj = shdom.PerspectiveProjection(fov, cnx, cny, x, y, z)
-    tmpproj.look_at_transform(lookat[posind],[0,1,0])
-    PHI, THETA, X, Y, Z = tmpproj.export_thete_phi()
-    projection.add_projection(tmpproj)
-    if(1):
-        fig, ax_list = plt.subplots(1, 2, figsize=(10, 10))
-        ax = ax_list.ravel()
-        pos = ax[0].imshow(PHI)
-        ax[0].set_title('PHI {}'.format(posind))
-        fig.colorbar(pos, ax=ax[0])    
+if(1):
+    for posind in range(len(lookat)):
+        x, y, z = origin[posind]  
+        fov = 0.54*np.rad2deg(2*np.arctan(L/(Rsat[posind])))
         
-        pos = ax[1].imshow(THETA)
-        ax[1].set_title('THETA')
-        fig.colorbar(pos, ax=ax[1])  
-        
-          
+        tmpproj = shdom.PerspectiveProjection(fov, cnx, cny, x, y, z)
+        tmpproj.look_at_transform(lookat[posind],[0,1,0])
+        PHI, THETA, X, Y, Z = tmpproj.export_thete_phi()
+        projection.add_projection(tmpproj)
+        if(1):
+            fig, ax_list = plt.subplots(1, 2, figsize=(10, 10))
+            ax = ax_list.ravel()
+            pos = ax[0].imshow(PHI)
+            ax[0].set_title('PHI {}'.format(posind))
+            fig.colorbar(pos, ax=ax[0])    
+            
+            pos = ax[1].imshow(THETA)
+            ax[1].set_title('THETA')
+            fig.colorbar(pos, ax=ax[1])  
+            
+              
     
 camera = shdom.Camera(shdom.RadianceSensor(), projection)
 images = camera.render(rte_solver, n_jobs=20)
@@ -191,7 +193,7 @@ images = camera.render(rte_solver, n_jobs=20)
 f, axarr = plt.subplots(1, len(images), figsize=(20, 20))
 tookat_index = 0
 for ax, image in zip(axarr, images):
-    #image2show = resize_image(image=image,desired_res=[nx,ny])
+    image2show = resize_image(image=image,desired_res=[nx,ny])
     image2show = image
     ax.imshow(image2show,cmap='gray')
     ax.invert_xaxis() 
@@ -201,10 +203,10 @@ for ax, image in zip(axarr, images):
     tookat_index = tookat_index + 1
     
 
-
+print("Visualize the rendering")
 plt.show()
 
-
+print("Finished")
 
 """
 nice setup to work with:

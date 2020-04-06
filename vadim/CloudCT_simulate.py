@@ -401,7 +401,7 @@ for SATS_NUMBER in SAT_CONFIG:
     Solve inverse problem:
     """
     if(DOINVERSE):
-        SEE_SETUP = True
+        SEE_SETUP = False
         SEE_IMAGES = True
         
         MICROPHYSICS = False
@@ -469,7 +469,7 @@ for SATS_NUMBER in SAT_CONFIG:
             radiance_threshold = 0.05 # Threshold for the radiance to create a cloud mask.
             # Threshold is either a scalar or a list of length of measurements.
             if(wavelength_micron == 1.6):
-                radiance_threshold = radiance_threshold/20
+                radiance_threshold = 0.005
                 
             fig = plt.figure(figsize=(20, 20))
             grid = AxesGrid(fig, 111,
@@ -484,10 +484,10 @@ for SATS_NUMBER in SAT_CONFIG:
                 ax.set_axis_off()
                 tmp_image = image
                 tmp_image[tmp_image<=radiance_threshold] = 0
-                im = ax.imshow(image,cmap='gray',vmin=0, vmax=MAXI)
+                im = ax.imshow(tmp_image,cmap='gray',vmin=0, vmax=MAXI)
                 ax.set_title("{}".format(name))
              
-            title = "$After radiance_threshold\n\lambda$={}nm , $\Phi$={:.2f} , $L$={:.2f}".format(int(1e3*wavelength_micron),sun_zenith,solar_flux)
+            title = "After radiance_threshold of {}\n$\lambda$={}nm , $\Phi$={:.2f} , $L$={:.2f}".format(radiance_threshold,int(1e3*wavelength_micron),sun_zenith,solar_flux)
             cbar = ax.cax.colorbar(im)
             cbar = grid.cbar_axes[0].colorbar(im)
             fig.suptitle(title, size=16,y=0.95)                
