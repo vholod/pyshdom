@@ -184,6 +184,12 @@ atmosphere = shdom.Medium(atmospheric_grid)
 atmosphere.add_scatterer(droplets, name='cloud')
 atmosphere.add_scatterer(air, name='air')
 
+# Calculate irradiance of the spesific wavelength:
+# use plank function:
+temp = 5900 #K
+L_TOA = 6.8e-5*1e-9*plank(1e-6*wavelength_micron,temp) # units fo W/(m^2)
+Cosain = np.cos(np.deg2rad((180-sun_zenith)))
+solar_flux = L_TOA*Cosain
 # -----------------------------------------------
 # ---------Calculate camera footprint at nadir --
 # -----------------------------------------------
@@ -290,14 +296,9 @@ if(DOFORWARD):
         
         
     #numerical_params = shdom.NumericalParameters()
-    numerical_params = shdom.NumericalParameters(num_mu_bins=16,num_phi_bins=32,
+    numerical_params = shdom.NumericalParameters(num_mu_bins=8,num_phi_bins=16,
                                                  split_accuracy=0.000001,max_total_mb=100000000.0,solution_accuracy=0.00001)
-    # Calculate irradiance of the spesific wavelength:
-    # use plank function:
-    temp = 5900 #K
-    L_TOA = 6.8e-5*1e-9*plank(1e-6*wavelength_micron,temp) # units fo W/(m^2)
-    Cosain = np.cos(np.deg2rad((180-sun_zenith)))
-    solar_flux = L_TOA*Cosain
+    
     
     scene_params = shdom.SceneParameters(
         wavelength=mie.wavelength,
@@ -382,7 +383,7 @@ Solve inverse problem:
 """
 if(DOINVERSE):
     SEE_SETUP = False
-    SEE_IMAGES = False
+    SEE_IMAGES = True
     
     MICROPHYSICS = False
     
@@ -408,31 +409,34 @@ if(DOINVERSE):
     
     # show images:
     if(SEE_IMAGES):
-        f, axarr = plt.subplots(2, int(np.ceil(SATS_NUMBER/2)), figsize=(20, 20))
-        axarr = axarr.ravel()
+ 
+        RENDERED_IMAGES = measurements.images
         projection_names = CloudCT_VIEWS.projection_names
         # calculate images maximum:
         images_array = np.array(RENDERED_IMAGES)
         MAXI = images_array.max()
         
-        index = 0
-        for ax, image,name in zip(axarr, RENDERED_IMAGES, projection_names):
-            
-            
+        # nice plot alternative:
+        fig = plt.figure(figsize=(20, 20))
+        grid = AxesGrid(fig, 111,
+                        nrows_ncols=(2, int(round(np.ceil(SATS_NUMBER/2)))),
+                        axes_pad=0.3,
+                        cbar_mode='single',
+                        cbar_location='right',
+                        cbar_pad=0.1
+                        )  
+        
+        for ax, image, name in zip(grid, RENDERED_IMAGES, projection_names):
+            ax.set_axis_off()
             im = ax.imshow(image,cmap='gray',vmin=0, vmax=MAXI)
-            #image_gamma = (image/np.max(image))**0.5
-            #ax.imshow(image_gamma,cmap='gray')
-            if(index > 0):
-                ax.axis('off')
-            
-            divider = make_axes_locatable(ax)
-            cax = divider.append_axes('right', size='5%', pad=0.05)        
-            f.colorbar(im, cax=cax, orientation='vertical')
-                         
             ax.set_title("{}".format(name))
-            index = index + 1
+         
+        title = "$\lambda$={}nm , $\Phi$={:.2f} , $L$={:.2f}".format(int(1e3*wavelength_micron),sun_zenith,solar_flux)
+        cbar = ax.cax.colorbar(im)
+        cbar = grid.cbar_axes[0].colorbar(im)
+        fig.suptitle(title, size=16,y=0.95) 
             
-        plt.show()    
+        plt.show() 
     
     # show the mutli view setup if you want.
     if(SEE_SETUP):
@@ -491,7 +495,12 @@ if(DOINVERSE):
         # usefull for debugging/development.    
         radiance_threshold = 0.05 # Threshold for the radiance to create a cloud mask.
         # Threshold is either a scalar or a list of length of measurements.
-        
+        if(wavelength_micron == 1.6):
+            radiance_threshold = radiance_threshold/10
+     
+    
+    
+            
         # The log_name defined above
         # Write intermediate TensorBoardX results into log_name.
         # The provided string is added as a comment to the specific run.

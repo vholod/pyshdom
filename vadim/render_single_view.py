@@ -15,6 +15,7 @@ mie.read_table(file_path='../mie_tables/polydisperse/Water_672nm.scat')
 droplets = shdom.MicrophysicalScatterer()
 #droplets.load_from_csv('../synthetic_cloud_fields/jpl_les/rico32x37x26.txt', veff=0.1)
 droplets.load_from_csv('../synthetic_cloud_fields/small_cloud_les/view55_small.txt', veff=0.1)
+
 droplets.add_mie(mie)
 
 # Rayleigh scattering for air molecules up to 20 km
