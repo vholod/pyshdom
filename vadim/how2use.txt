@@ -1,3 +1,8 @@
+record the installetion paths:
+python setup.py install --record setsum.txt
+
+
+
 lwc_re_2_txt.py
 
 ./lwc_re_2_txt.py --lwc /home/vhold/pyshdom/vadim/dannys_clouds/LWC_SMALL_MED_view55.mat,\
@@ -5,7 +10,10 @@ lwc_re_2_txt.py
  --c 1 --grid_data /home/vhold/pyshdom/vadim/dannys_clouds/GRID_SMALL_MED_view55.json,\
 --output /home/vhold/pyshdom/synthetic_cloud_fields/small_cloud_les/view55_small_updated.txt
 
-
+python lwc_re_2_txt.py --lwc ./dannys_clouds/cut_from_dannys_clouds_S1/lwc.mat,\
+ --re ./dannys_clouds/cut_from_dannys_clouds_S1/re.mat,\
+ --grid_data ./dannys_clouds/cut_from_dannys_clouds_S1/domain_info.json,\
+ --output /home/vhold/CloudCT/pyshdom/synthetic_cloud_fields/small_cloud_les/cut_from_dannys_clouds_S1.txt
 ----------------------------------------------------------------------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -13,10 +21,11 @@ lwc_re_2_txt.py
 
 data_txt2extinction:
 
-python data_txt2extinction.py --scat ../mie_tables/polydisperse/Water_672nm.scat \
+python data_txt2extinction.py --scat ../mie_tables/polydisperse_extanded_extra/Water_672nm.scat \
 --txt ../synthetic_cloud_fields/small_cloud_les/view55_small.txt --output view55_small.mat
 
-
+python data_txt2extinction.py --scat mie_tables/polydisperse_extanded_extra/Water_672nm.scat \
+--txt ../notebooks/ZeroAtm100x100x10.txt --output ZeroAtm100x100x10.mat
 ----------------------------------------------------------------------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -37,3 +46,48 @@ I followed  https://help.github.com/en/github/importing-your-projects-to-github/
 
  
 git log # to see all commits.
+Git keeps a log of all ref updates (e.g., checkout, reset, commit, merge). You can view it by typing:
+git reflog
+
+
+If you want to temporarily go back to it, fool around, then come back to where you are, all you have to do is check out the desired commit: git checkout 0d1d7fc32
+
+Or if you want to make commits while you're there, go ahead and make a new branch while you're at it:
+git checkout -b old-state 0d1d7fc32
+
+If, on the other hand, you want to really get rid of everything you've done since then, there are two possibilities. One, if you haven't published any of these commits, simply reset:
+git reset --hard 0d1d7fc32
+
+https://stackoverflow.com/questions/4114095/how-do-i-revert-a-git-repository-to-a-previous-commit
+-------------------------------------------------------
+use screen:
+To create a named session, run the screen command with the following arguments:
+screen -S session_name
+You can detach from the screen session at any time by typing:
+Ctrl+a d
+
+To resume your screen session use the following command:
+screen -r
+In case you have multiple screen sessions running on your machine, you will need to append the screen session ID after the r switch.
+
+To find the session ID list the current running screen sessions with:
+screen -ls
+
+There are screens on:
+    10835.pts-0.linuxize-desktop   (Detached)
+    10366.pts-0.linuxize-desktop   (Detached)
+2 Sockets in /run/screens/S-linuxize.
+
+If you want to restore screen 10835.pts-0, then type the following command:
+screen -r 10835
+or:
+screen -d -r 10835
+--------------------------------------------------------------
+Tamars ECCV:
+the data from my runs is saved saperatly:
+I try to keep the updated code in sipl 133
+use ECCV_RUN_102x152.py to run tests on the large mediume 102x152x67.
+use ECCV_CREATE_GT_102x152.py to create the GT image with highest angular resolution.
+
+
+the code use_different_mediums.py is old version not for eccv.

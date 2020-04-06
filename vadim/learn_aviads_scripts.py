@@ -20,6 +20,8 @@ import operator
 
 
 SCRIPTS_PATH = '../scripts'
+air_path = './ancillary_data/AFGL_summer_mid_lat.txt'
+
 print ("1. Generate Mie scattering tables for AirMSPI and more wavelengths")
 # set parameteres for generate_mie_tables.py
 start_reff = 4.0 # Starting effective radius [Micron]
@@ -86,18 +88,26 @@ print(20*'-')
 # -------------------------------------------------------------
 # -------------------------------------------------------------
 IfRender_SINGLE_VOXEL = True
-Render_flag = True
+Render_flag = False
+DOINVERSE = True
+SEEIMAGES = False
 
 if(IfRender_SINGLE_VOXEL):
     print("2. Render a single voxel atmosphere at 9 view angles, 20m resolution, 672nm")
     output_dir = 'experiments/single_voxel/monochromatic'
+    log_name = 'vadim_single_voxel'
+    # If the LWC is specified then the extinction is derived using
+    #(lwc,reff,veff). If not the extinction needs to be directly
+    #specified.
+    lwc = 35e-3
+    
     if(Render_flag):
         
         wavelength = 0.672
         #mie_base_path = 
         # for each wavelength, the render script prepares its own rte_solver.
         generator = 'SingleVoxel'
-        log_name = 'vadim_single_voxel'
+        
         
         domain_size = 1.0
         x_res = 0.02
@@ -114,7 +124,7 @@ if(IfRender_SINGLE_VOXEL):
         zenith_string = functools.reduce(operator.add,[str(j)+" " for j in zenith_list]).rstrip()
         zenith_arg = ' --zenith '+zenith_string
         
-        extinction = 5.0
+        extinction = 5.0 #' --extinction '+ str(extinction) +\
         reff = 10.0
         n_jobs = 20
         
@@ -131,7 +141,7 @@ if(IfRender_SINGLE_VOXEL):
                 ' --nx '+ str(nx) +' --ny '+ str(ny) +' --nz '+ str(nz) +\
                 azimuth_arg +\
                 zenith_arg +\
-                ' --extinction '+ str(extinction) +' --reff '+ str(reff) +\
+                ' --lwc '+ str(lwc) + ' --reff '+ str(reff) +\
                 ' --n_jobs '+ str(n_jobs) +\
                 ' --split_accuracy '+ str(split_accuracy) +\
                 ' --num_mu '+ str(num_mu) +' --num_phi '+ str(num_phi) +\
@@ -151,6 +161,8 @@ if(IfRender_SINGLE_VOXEL):
 else: # render les:
     print("2. Render an LES cloud field (rico) at 9 view angles, 10m resolution, 672nm, with a rayleigh scattering atmosphere and parallelization")
     output_dir = 'experiments/LES_cloud_field_rico/monochromatic'
+    log_name = 'rico32x37x26'
+    
     if(Render_flag):
         
         wavelength = 0.672
@@ -158,7 +170,7 @@ else: # render les:
         # for each wavelength, the render script prepares its own rte_solver.
         generator = 'LesFile'
         path = '/home/vhold/pyshdom/synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
-        log_name = 'rico32x37x26'
+        
         domain_size = 1.0
         x_res = 0.02
         y_res = 0.02
@@ -204,35 +216,230 @@ else: # render les:
 # -------------------------------------------------------
 # -------------------------------------------------------
 # ----------------------------------------------------------
-print("3. Estimate extinction with the ground truth phase function, grid and cloud mask for precomputed LES measurements")
-input_dir = output_dir
-# log_name defiend above
+"""
+In this part try to set the radiance_threshold.
+It is importent for the space curving (when option --use_forward_mask is off).
+"""
+DEBUG = True
+if(DEBUG):
+    
+    # load the measurments to see the rendered images:
+    medium, solver, measurements = shdom.load_forward_model(output_dir)    
+    # Get optical medium ground-truth
+    scatterer_name='cloud'
+    ground_truth = medium.get_scatterer(scatterer_name)
+    if isinstance(ground_truth, shdom.MicrophysicalScatterer):
+        ground_truth = ground_truth.get_optical_scatterer(measurements.wavelength)
 
-n_jobs = 40
-extinction = 0.01
-
-air_path = '/home/vhold/pyshdom/vadim/ancillary_data/AFGL_summer_mid_lat.txt'
-# numerical parameters:
-cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_extinction_lbfgs.py')+\
-        ' --input_dir ' + input_dir + \
-        ' --add_rayleigh'+\
-        ' --use_forward_grid'+\
-        ' --use_forward_albedo'+\
-        ' --use_forward_phase'+\
-        ' --use_forward_mask'+\
-        ' --init Homogeneous'+\
-        ' --extinction ' + str(extinction) +\
-        ' --log ' + log_name +\
-        ' --air_path ' + air_path +\
-        ' --n_jobs '+ str(n_jobs)
         
-Inverse_extinction = subprocess.call( cmd, shell=True)
+radiance_threshold = 0.0167
+if(SEEIMAGES):
+    
+    measurements_path = output_dir
+    measurements = shdom.load_forward_model_measurements(measurements_path)
+    
+    USED_CAMERA = measurements.camera
+    RENDERED_IMAGES = measurements.images    
+    THIS_MULTI_VIEW_SETUP = USED_CAMERA.projection
+    # calculate images maximum:
+    MAXI = 0
+    for img in RENDERED_IMAGES:
+        MAXI = max(MAXI,img.max())
+        
+    # show the renderings:
+    RI = len(RENDERED_IMAGES)
+    f, axarr = plt.subplots(2, RI, figsize=(20, 20))
+    axarr = axarr.ravel()
+    for ax, image in zip(axarr[:RI], RENDERED_IMAGES):
 
-"""
-Here the call of cmd command, rendered the images and
-saved measurements, medium and solver parameters.
-"""
-print("3. done")
-print(20*'-')
-print(20*'-')
+        ax.imshow(image,cmap='gray')
+        ax.axis('off') 
 
+    for ax, image in zip(axarr[RI:], RENDERED_IMAGES):
+        image[image<=radiance_threshold] = 0
+        ax.imshow(image,cmap='gray')
+        ax.axis('off') 
+    plt.show()    
+    
+if(DOINVERSE):
+    all_known = False
+    extinction_nomask = False
+    Microphysical_find_lwc = False
+    Microphysical_find_reff = True
+
+    if(all_known):
+        
+        print("3. Estimate extinction with the ground truth phase function, grid and cloud mask")
+        input_dir = output_dir
+        # log_name defiend above
+        
+        n_jobs = 40
+        extinction = 0.01
+        log_name = log_name + '_all_known'
+        # numerical parameters:
+        cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_extinction_lbfgs.py')+\
+                ' --input_dir ' + input_dir + \
+                ' --add_rayleigh'+\
+                ' --use_forward_grid'+\
+                ' --use_forward_albedo'+\
+                ' --use_forward_phase'+\
+                ' --use_forward_mask'+\
+                ' --init Homogeneous'+\
+                ' --extinction ' + str(extinction) +\
+                ' --log ' + log_name +\
+                ' --air_path ' + air_path +\
+                ' --n_jobs '+ str(n_jobs)
+                
+        Inverse_extinction = subprocess.call( cmd, shell=True)
+        
+        """
+        Here the call of cmd command, rendered the images and
+        saved measurements, medium and solver parameters.
+        """
+        print("3. done")
+        print(20*'-')
+        print(20*'-')
+    
+    if(extinction_nomask):
+            
+        print("4. Estimate extinction with the ground truth phase function, grid")
+        input_dir = output_dir
+        # log_name defiend above
+        
+        n_jobs = 40
+        extinction = 0.01
+        log_name = log_name + '_all_known-mask'
+        # numerical parameters:
+        cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_extinction_lbfgs.py')+\
+                ' --input_dir ' + input_dir + \
+                ' --add_rayleigh'+\
+                ' --use_forward_grid'+\
+                ' --use_forward_albedo'+\
+                ' --use_forward_phase'+\
+                ' --init Homogeneous'+\
+                ' --radiance_threshold ' + str(radiance_threshold) +\
+                ' --extinction ' + str(extinction) +\
+                ' --log ' + log_name +\
+                ' --air_path ' + air_path +\
+                ' --n_jobs '+ str(n_jobs)
+                
+        Inverse_extinction = subprocess.call( cmd, shell=True)
+        
+        """
+        Here the call of cmd command, rendered the images and
+        saved measurements, medium and solver parameters.
+        """
+        print("4. done")
+        print(20*'-')
+        print(20*'-')        
+        
+# Estimate Micro-physical Properties        
+    if(Microphysical_find_lwc):
+            
+        print("5. Estimate lwc with ground-truth effective radius and effective variance and use GT cloud mask")
+        input_dir = output_dir
+        # log_name defiend above
+        
+        n_jobs = 40
+        lwc = 0.01
+        
+        log_name1 = log_name + '_Micro-physical-find_lwc-usemaks'
+        # numerical parameters:
+        cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_microphysics_lbfgs.py')+\
+                ' --input_dir ' + input_dir + \
+                ' --add_rayleigh'+\
+                ' --use_forward_grid'+\
+                ' --use_forward_veff'+\
+                ' --use_forward_reff'+\
+                ' --use_forward_mask'+\
+                ' --init Homogeneous'+\
+                ' --lwc ' + str(lwc) +\
+                ' --log ' + log_name1 +\
+                ' --air_path ' + air_path +\
+                ' --n_jobs '+ str(n_jobs)
+                
+        Inverse_extinction = subprocess.call( cmd, shell=True)
+
+        print("5. done")
+        print(20*'-')
+        print(20*'-')     
+        
+        print("6. Estimate lwc with ground-truth effective radius and effective variance")
+        input_dir = output_dir
+        # log_name defiend above
+        
+        log_name2 = log_name + '_Micro-physical-find_lwc'
+        # numerical parameters:
+        cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_microphysics_lbfgs.py')+\
+                ' --input_dir ' + input_dir + \
+                ' --add_rayleigh'+\
+                ' --use_forward_grid'+\
+                ' --use_forward_veff'+\
+                ' --use_forward_reff'+\
+                ' --init Homogeneous'+\
+                ' --radiance_threshold ' + str(radiance_threshold) +\
+                ' --lwc ' + str(lwc) +\
+                ' --log ' + log_name2 +\
+                ' --air_path ' + air_path +\
+                ' --n_jobs '+ str(n_jobs)
+                
+        Inverse_extinction = subprocess.call( cmd, shell=True)
+
+        print("6. done")
+        print(20*'-')
+        print(20*'-')         
+        
+    if(Microphysical_find_reff):
+            
+        print("7. Estimate lwc with ground-truth effective radius and effective variance and use GT cloud mask")
+        input_dir = output_dir
+        # log_name defiend above
+        
+        n_jobs = 40
+        reff = 1
+        
+        log_name1 = log_name + '_Micro-physical-find_reff-usemaks'
+        # numerical parameters:
+        cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_microphysics_lbfgs.py')+\
+                ' --input_dir ' + input_dir + \
+                ' --add_rayleigh'+\
+                ' --use_forward_grid'+\
+                ' --use_forward_veff'+\
+                ' --use_forward_lwc'+\
+                ' --use_forward_mask'+\
+                ' --init Homogeneous'+\
+                ' --reff ' + str(reff) +\
+                ' --log ' + log_name1 +\
+                ' --air_path ' + air_path +\
+                ' --n_jobs '+ str(n_jobs)
+                
+        Inverse_extinction = subprocess.call( cmd, shell=True)
+
+        print("7. done")
+        print(20*'-')
+        print(20*'-')     
+        
+        print("8. Estimate lwc with ground-truth effective radius and effective variance")
+        input_dir = output_dir
+        # log_name defiend above
+        
+        log_name2 = log_name + '_Micro-physical-find_reff'
+        # numerical parameters:
+        cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_microphysics_lbfgs.py')+\
+                ' --input_dir ' + input_dir + \
+                ' --add_rayleigh'+\
+                ' --use_forward_grid'+\
+                ' --use_forward_veff'+\
+                ' --use_forward_lwc'+\
+                ' --init Homogeneous'+\
+                ' --radiance_threshold ' + str(radiance_threshold) +\
+                ' --reff ' + str(reff) +\
+                ' --log ' + log_name2 +\
+                ' --air_path ' + air_path +\
+                ' --n_jobs '+ str(n_jobs)
+                
+        Inverse_extinction = subprocess.call( cmd, shell=True)
+
+        print("8. done")
+        print(20*'-')
+        print(20*'-')             

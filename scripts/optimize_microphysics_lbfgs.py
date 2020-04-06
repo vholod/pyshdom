@@ -1,7 +1,7 @@
 import os, time
 import numpy as np
 import shdom
-from scripts.optimize_extinction_lbfgs import OptimizationScript as ExtinctionOptimizationScript
+from optimize_extinction_lbfgs import OptimizationScript as ExtinctionOptimizationScript
 
 
 class OptimizationScript(ExtinctionOptimizationScript):

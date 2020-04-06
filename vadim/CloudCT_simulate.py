@@ -121,8 +121,16 @@ axisWidth = 0.02
 axisLenght = 5000  
 
 # sat number:
-SATS_NUMBER = 10
-for SATS_NUMBER in [10, 9, 8, 7, 6, 5, 4, 3]:
+#SATS_NUMBER = 10
+n_jobs = 30
+
+"""
+SAT_CONFIG = [10, 9, 7, 6, 5, 4]
+#or
+SAT_CONFIG = [10]
+"""
+SAT_CONFIG = [10]
+for SATS_NUMBER in SAT_CONFIG:
     # orbit altitude:
     Rsat = 500 # km
     wavelength_micron = 1.6  #0.672 , 1.6
@@ -140,7 +148,7 @@ for SATS_NUMBER in [10, 9, 8, 7, 6, 5, 4, 3]:
     
     
     # forward_dir, where to save evrerything that is related to forward model:
-    forward_dir = './experiments/active_sats_{}_LES_cloud_field_rico_Water_{}nm/monochromatic'.format(SATS_NUMBER,int(1e3*wavelength_micron))
+    forward_dir = './experiments/new_active_sats_{}_LES_cloud_field_rico_Water_{}nm/monochromatic'.format(SATS_NUMBER,int(1e3*wavelength_micron))
     # invers_dir, where to save evrerything that is related to invers model:
     invers_dir = forward_dir
     log_name = 'active_sats_{}_easiest_rico32x37x26_{}'.format(SATS_NUMBER,int(1e3*wavelength_micron))
@@ -177,7 +185,7 @@ for SATS_NUMBER in [10, 9, 8, 7, 6, 5, 4, 3]:
     altitudes = df['Altitude(km)'].to_numpy(dtype=np.float32)
     temperatures = df['Temperature(k)'].to_numpy(dtype=np.float32)
     temperature_profile = shdom.GridData(shdom.Grid(z=altitudes), temperatures)
-    air_grid = shdom.Grid(z=np.linspace(0, air_num_points, air_max_alt))
+    air_grid = shdom.Grid(z=np.linspace(0, air_max_alt ,air_num_points))
     rayleigh = shdom.Rayleigh(wavelength=wavelength_micron)
     rayleigh.set_profile(temperature_profile.resample(air_grid))
     air = rayleigh.get_scatterer()
@@ -186,6 +194,13 @@ for SATS_NUMBER in [10, 9, 8, 7, 6, 5, 4, 3]:
     atmosphere = shdom.Medium(atmospheric_grid)
     atmosphere.add_scatterer(droplets, name='cloud')
     atmosphere.add_scatterer(air, name='air')
+    
+    # Calculate irradiance of the spesific wavelength:
+    # use plank function:
+    temp = 5900 #K
+    L_TOA = 6.8e-5*1e-9*plank(1e-6*wavelength_micron,temp) # units fo W/(m^2)
+    Cosain = np.cos(np.deg2rad((180-sun_zenith)))
+    solar_flux = L_TOA*Cosain
     
     # -----------------------------------------------
     # ---------Calculate camera footprint at nadir --
@@ -295,18 +310,13 @@ for SATS_NUMBER in [10, 9, 8, 7, 6, 5, 4, 3]:
         #numerical_params = shdom.NumericalParameters()
         split_accuracy = 0.1
         if(wavelength_micron == 1.6):
-            split_accuracy = 0.0001
-        if(split_accuracy == 0.672):
+            split_accuracy = 0.001
+        if(wavelength_micron == 0.672):
             split_accuracy = 0.1
             
-        numerical_params = shdom.NumericalParameters(num_mu_bins=16,num_phi_bins=32,
-                                                     split_accuracy=split_accuracy,max_total_mb=100000000.0,solution_accuracy=0.00001)
-        # Calculate irradiance of the spesific wavelength:
-        # use plank function:
-        temp = 5900 #K
-        L_TOA = 6.8e-5*1e-9*plank(1e-6*wavelength_micron,temp) # units fo W/(m^2)
-        Cosain = np.cos(np.deg2rad((180-sun_zenith)))
-        solar_flux = L_TOA*Cosain
+        numerical_params = shdom.NumericalParameters(num_mu_bins=8,num_phi_bins=16,
+                                                     split_accuracy=split_accuracy,max_total_mb=300000.0)
+        
         
         scene_params = shdom.SceneParameters(
             wavelength=mie.wavelength,
@@ -340,34 +350,35 @@ for SATS_NUMBER in [10, 9, 8, 7, 6, 5, 4, 3]:
         """
         camera = shdom.Camera(shdom.RadianceSensor(), CloudCT_VIEWS)
         # render all:
-        images = camera.render(rte_solver, n_jobs=40)
+        images = camera.render(rte_solver, n_jobs=n_jobs)
         
         projection_names = CloudCT_VIEWS.projection_names
         # calculate images maximum:
         images_array = np.array(images)
         MAXI = images_array.max()
-        
+        SEE_IMAGES = False
+        if(SEE_IMAGES):
         # nice plot alternative:
-        fig = plt.figure(figsize=(20, 20))
-        grid = AxesGrid(fig, 111,
-                        nrows_ncols=(2, int(round(np.ceil(SATS_NUMBER/2)))),
-                        axes_pad=0.3,
-                        cbar_mode='single',
-                        cbar_location='right',
-                        cbar_pad=0.1
-                        )  
-        
-        for ax, image, name in zip(grid, images, projection_names):
-            ax.set_axis_off()
-            im = ax.imshow(image,cmap='gray',vmin=0, vmax=MAXI)
-            ax.set_title("{}".format(name))
-         
-        title = "$\lambda$={}nm , $\Phi$={:.2f} , $L$={:.2f}".format(int(1e3*wavelength_micron),sun_zenith,solar_flux)
-        cbar = ax.cax.colorbar(im)
-        cbar = grid.cbar_axes[0].colorbar(im)
-        fig.suptitle(title, size=16,y=0.95) 
+            fig = plt.figure(figsize=(20, 20))
+            grid = AxesGrid(fig, 111,
+                            nrows_ncols=(2, int(round(np.ceil(SATS_NUMBER/2)))),
+                            axes_pad=0.3,
+                            cbar_mode='single',
+                            cbar_location='right',
+                            cbar_pad=0.1
+                            )  
             
-        plt.show()
+            for ax, image, name in zip(grid, images, projection_names):
+                ax.set_axis_off()
+                im = ax.imshow(image,cmap='gray',vmin=0, vmax=MAXI)
+                ax.set_title("{}".format(name))
+             
+            title = "$\lambda$={}nm , $\Phi$={:.2f} , $L$={:.2f}".format(int(1e3*wavelength_micron),sun_zenith,solar_flux)
+            cbar = ax.cax.colorbar(im)
+            cbar = grid.cbar_axes[0].colorbar(im)
+            fig.suptitle(title, size=16,y=0.95) 
+                
+            plt.show()
         
         
         # -----------------------------------------------
@@ -390,8 +401,8 @@ for SATS_NUMBER in [10, 9, 8, 7, 6, 5, 4, 3]:
     Solve inverse problem:
     """
     if(DOINVERSE):
-        SEE_SETUP = False
-        SEE_IMAGES = False
+        SEE_SETUP = True
+        SEE_IMAGES = True
         
         MICROPHYSICS = False
         
@@ -417,30 +428,70 @@ for SATS_NUMBER in [10, 9, 8, 7, 6, 5, 4, 3]:
         
         # show images:
         if(SEE_IMAGES):
-            f, axarr = plt.subplots(2, int(np.ceil(SATS_NUMBER/2)), figsize=(20, 20))
-            axarr = axarr.ravel()
+            
+            """
+            It is a good place to pick the radiance_threshold = Threshold for the radiance to create a cloud mask.
+            So here, we seee the original images and below we will see the images after the radiance_threshold: 
+            """
+            # --------------------------------------------------
+            #  ----------------original:------------------------
+            # --------------------------------------------------
+            RENDERED_IMAGES = measurements.images
             projection_names = CloudCT_VIEWS.projection_names
             # calculate images maximum:
             images_array = np.array(RENDERED_IMAGES)
             MAXI = images_array.max()
             
-            index = 0
-            for ax, image,name in zip(axarr, RENDERED_IMAGES, projection_names):
-                
-                
+            # nice plot alternative:
+            fig = plt.figure(figsize=(20, 20))
+            grid = AxesGrid(fig, 111,
+                            nrows_ncols=(2, int(round(np.ceil(SATS_NUMBER/2)))),
+                            axes_pad=0.3,
+                            cbar_mode='single',
+                            cbar_location='right',
+                            cbar_pad=0.1
+                            )  
+            
+            for ax, image, name in zip(grid, RENDERED_IMAGES, projection_names):
+                ax.set_axis_off()
                 im = ax.imshow(image,cmap='gray',vmin=0, vmax=MAXI)
-                #image_gamma = (image/np.max(image))**0.5
-                #ax.imshow(image_gamma,cmap='gray')
-                if(index > 0):
-                    ax.axis('off')
-                
-                divider = make_axes_locatable(ax)
-                cax = divider.append_axes('right', size='5%', pad=0.05)        
-                f.colorbar(im, cax=cax, orientation='vertical')
-                             
                 ax.set_title("{}".format(name))
-                index = index + 1
+             
+            title = "$\lambda$={}nm , $\Phi$={:.2f} , $L$={:.2f}".format(int(1e3*wavelength_micron),sun_zenith,solar_flux)
+            cbar = ax.cax.colorbar(im)
+            cbar = grid.cbar_axes[0].colorbar(im)
+            fig.suptitle(title, size=16,y=0.95)             
                 
+                
+            # --------------------------------------------------
+            #  ----------------try radiance_threshold value:----
+            # --------------------------------------------------
+            radiance_threshold = 0.05 # Threshold for the radiance to create a cloud mask.
+            # Threshold is either a scalar or a list of length of measurements.
+            if(wavelength_micron == 1.6):
+                radiance_threshold = radiance_threshold/20
+                
+            fig = plt.figure(figsize=(20, 20))
+            grid = AxesGrid(fig, 111,
+                            nrows_ncols=(2, int(round(np.ceil(SATS_NUMBER/2)))),
+                            axes_pad=0.3,
+                            cbar_mode='single',
+                            cbar_location='right',
+                            cbar_pad=0.1
+                            )  
+            
+            for ax, image, name in zip(grid, RENDERED_IMAGES, projection_names):
+                ax.set_axis_off()
+                tmp_image = image
+                tmp_image[tmp_image<=radiance_threshold] = 0
+                im = ax.imshow(image,cmap='gray',vmin=0, vmax=MAXI)
+                ax.set_title("{}".format(name))
+             
+            title = "$After radiance_threshold\n\lambda$={}nm , $\Phi$={:.2f} , $L$={:.2f}".format(int(1e3*wavelength_micron),sun_zenith,solar_flux)
+            cbar = ax.cax.colorbar(im)
+            cbar = grid.cbar_axes[0].colorbar(im)
+            fig.suptitle(title, size=16,y=0.95)                
+            
             plt.show()    
         
         # show the mutli view setup if you want.
@@ -474,7 +525,7 @@ for SATS_NUMBER in [10, 9, 8, 7, 6, 5, 4, 3]:
             # -----------------------------------------------
             # ---------------- inverse parameters:-----------
             # -----------------------------------------------
-            n_jobs = 72
+            
             stokes_weights = [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V].
                     
             # Initialization and Medium parameters:
@@ -500,7 +551,9 @@ for SATS_NUMBER in [10, 9, 8, 7, 6, 5, 4, 3]:
             # usefull for debugging/development.    
             radiance_threshold = 0.05 # Threshold for the radiance to create a cloud mask.
             # Threshold is either a scalar or a list of length of measurements.
-            
+            if(wavelength_micron == 1.6):
+                radiance_threshold = radiance_threshold/20
+                
             # The log_name defined above
             # Write intermediate TensorBoardX results into log_name.
             # The provided string is added as a comment to the specific run.
