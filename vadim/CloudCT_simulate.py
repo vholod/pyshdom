@@ -10,6 +10,8 @@ from shdom import CloudCT_setup
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import subprocess
 from mpl_toolkits.axes_grid1 import AxesGrid
+import time
+import glob
 
 # -----------------------------------------------------------------
 # ------------------------THE FUNCTIONS BELOW----------------------
@@ -161,7 +163,7 @@ for SATS_NUMBER in SAT_CONFIG:
     
     # --------------------------------------------------------
     
-    DOFORWARD = True
+    DOFORWARD = False
     DOINVERSE = True
     
     
@@ -402,9 +404,9 @@ for SATS_NUMBER in SAT_CONFIG:
     """
     if(DOINVERSE):
         SEE_SETUP = False
-        SEE_IMAGES = True
+        SEE_IMAGES = False
         
-        MICROPHYSICS = False
+        MICROPHYSICS = True
         
         # load the measurments to see the rendered images:
         medium, solver, measurements = shdom.load_forward_model(forward_dir)
@@ -466,6 +468,7 @@ for SATS_NUMBER in SAT_CONFIG:
             # --------------------------------------------------
             #  ----------------try radiance_threshold value:----
             # --------------------------------------------------
+            #radiance_threshold = 0.04 # Threshold for the radiance to create a cloud mask.
             radiance_threshold = 0.05 # Threshold for the radiance to create a cloud mask.
             # Threshold is either a scalar or a list of length of measurements.
             if(wavelength_micron == 1.6):
@@ -517,7 +520,7 @@ for SATS_NUMBER in SAT_CONFIG:
             Estimate extinction with (what is known?):
             1. ground truth phase function (use_forward_phase, with mie_base_path)
             2. grid (use_forward_grid)
-            3. cloud mask (use_forward_mask)
+            3. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
             4. known albedo (use_forward_albedo)
             5. rayleigh scattering (add_rayleigh)
             
@@ -539,12 +542,17 @@ for SATS_NUMBER in SAT_CONFIG:
             use_forward_grid = True
             use_forward_albedo = True
             use_forward_phase = True
+            if_save_gt_and_carver_masks = True
+            if_save_final3d = True
+            
             GT_USE = ''
             GT_USE = GT_USE + ' --add_rayleigh' if add_rayleigh else GT_USE
             GT_USE = GT_USE + ' --use_forward_mask' if use_forward_mask else GT_USE
             GT_USE = GT_USE + ' --use_forward_grid' if use_forward_grid else GT_USE
             GT_USE = GT_USE + ' --use_forward_albedo' if use_forward_albedo else GT_USE
             GT_USE = GT_USE + ' --use_forward_phase' if use_forward_phase else GT_USE
+            GT_USE = GT_USE + ' --save_gt_and_carver_masks' if if_save_gt_and_carver_masks else GT_USE
+            GT_USE = GT_USE + ' --save_final3d' if if_save_final3d else GT_USE
             
             # (use_forward_mask, use_forward_grid, use_forward_albedo, use_forward_phase):
             # Use the ground-truth things. This is an inverse crime which is 
@@ -565,7 +573,7 @@ for SATS_NUMBER in SAT_CONFIG:
             
             # optimization:
             globalopt = False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
-            maxiter = 1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+            maxiter = 2 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
             maxls = 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
             disp = True # Display optimization progression.
             
@@ -599,9 +607,157 @@ for SATS_NUMBER in SAT_CONFIG:
             Optimaize1 = subprocess.call( cmd, shell=True)
         
         
-        else:
-            pass
+        else: # if we here, we rec. MICROPHYSICS, but which?
+            REC_lwc = True
+            if(REC_lwc):
+                
+                # -----------------------------------------------
+                # ---------SOLVE for lwc only  ------------------
+                # -----------------------------------------------    
+                """
+                Estimate lwc with (what is known?):
+                1. ground truth phase function (use_forward_phase, with mie_base_path)
+                2. grid (use_forward_grid)
+                3. ground-truth effective radius and variance, Hence,
+                   the albedo should be known.
+                4. rayleigh scattering (add_rayleigh)
+                5. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
+
+                """
+                # -----------------------------------------------
+                # ---------------- inverse parameters:-----------
+                # -----------------------------------------------
+                
+                stokes_weights = [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V].
+                        
+                # Initialization and Medium parameters:
+                lwc = 0.01 # init lwc of the generator
+                # init_generator = 'Homogeneous'# it is the CloudGenerator from shdom.generate.py
+                init = 'Homogeneous'
+                # The mie_base_path is defined at the begining of this script.
+                INIT_USE = ' --init '+ init
+                add_rayleigh = True
+                use_forward_mask = False#True
+                use_forward_grid = True
+                use_forward_reff = True
+                use_forward_veff = True
+                if_save_gt_and_carver_masks = True
+                if_save_final3d = True
+                
+                GT_USE = ''
+                GT_USE = GT_USE + ' --add_rayleigh' if add_rayleigh else GT_USE
+                GT_USE = GT_USE + ' --use_forward_mask' if use_forward_mask else GT_USE
+                GT_USE = GT_USE + ' --use_forward_grid' if use_forward_grid else GT_USE
+                GT_USE = GT_USE + ' --use_forward_reff' if use_forward_reff else GT_USE
+                GT_USE = GT_USE + ' --use_forward_veff' if use_forward_veff else GT_USE                
+                GT_USE = GT_USE + ' --save_gt_and_carver_masks' if if_save_gt_and_carver_masks else GT_USE
+                GT_USE = GT_USE + ' --save_final3d' if if_save_final3d else GT_USE
+                
+                # (use_forward_mask, use_forward_grid, use_forward_albedo, use_forward_phase):
+                # Use the ground-truth things. This is an inverse crime which is 
+                # usefull for debugging/development.    
+                radiance_threshold = 0.05 # Threshold for the radiance to create a cloud mask.
+                # Threshold is either a scalar or a list of length of measurements.
+                if(wavelength_micron == 1.6):
+                    radiance_threshold = radiance_threshold/20
+                    
+                # The log_name defined above
+                # Write intermediate TensorBoardX results into log_name.
+                # The provided string is added as a comment to the specific run.
+                
+                # note that currently, the invers_dir = forward_dir.
+                # In forward_dir, the forward modeling parameters are be saved.
+                # If invers_dir = forward_dir:
+                # The invers_dir directory will be used to save the optimization results and progress.
+                
+                # optimization:
+                globalopt = False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
+                maxiter = 1000 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+                maxls = 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+                disp = True # Display optimization progression.
+                
+                gtol = 1e-16 # Stop criteria for the maximum projected gradient.
+                # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
+                ftol = 1e-16 # Stop criteria for the relative change in loss function.
+                # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
+                loss_type = 'l2'
+                # Different loss functions for optimization. Currently only l2 is supported.
+                
+                #-------------------------------------------------
+                # ---- start working with the above parameters:---
+                #-------------------------------------------------
+                OTHER_PARAMS = ' --input_dir ' + forward_dir + \
+                    ' --lwc ' + str(lwc) +\
+                    ' --log ' + log_name +\
+                    ' --air_path ' + air_path +\
+                    ' --n_jobs '+ str(n_jobs)+\
+                    ' --loss_type '+ str(loss_type)+\
+                    ' --maxls '+ str(maxls)+\
+                    ' --maxiter '+ str(maxiter)+\
+                    ' --radiance_threshold '+ str(radiance_threshold)
+                
+                OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS    
+                
+                # We have: ground_truth, rte_solver, measurements.
+                SCRIPTS_PATH = '../scripts'
+                cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_microphysics_lbfgs.py')+\
+                    OTHER_PARAMS + GT_USE + INIT_USE
+                
+                Optimaize1 = subprocess.call( cmd, shell=True)            
             
+            
+        # that the time to show the results in 3D visualization:
+        VIS_RESULTS3D = True
+        if(VIS_RESULTS3D):    
+            """
+            The forward_dir id a folder that containes:
+            medium, solver, measurements.
+            They loaded before. To see the final state, the medium is not 
+            enough, the medium_estimator is needed.
+            load the measurments to see the rendered images:
+            """
+            
+            
+            # what state to load? I prefere the last one!
+            logs_dir = os.path.join(forward_dir,'logs')
+            logs_prefix = os.path.join(logs_dir,log_name)
+            logs_files = glob.glob(logs_prefix + '-*')
+            
+            times = [i.split('{}-'.format(int(1e3*wavelength_micron)))[-1] for i in logs_files]
+            # sort the times to find the last one.
+            timestamp = [time.mktime(time.strptime(i,"%d-%b-%Y-%H:%M:%S")) for i in times]
+            # time.mktime(t) This is the inverse function of localtime()
+            timestamp.sort()
+            timestamp = [time.strftime("%d-%b-%Y-%H:%M:%S",time.localtime(i)) for i in timestamp]
+            # now, the timestamp are sorted, and I want the last stamp to visualize.
+            connector = '{}-'.format(int(1e3*wavelength_micron))
+            log2load = logs_prefix+'-'+timestamp[-1]
+            # print here the Final results files:
+            Final_results_3Dfiles = glob.glob(log2load + '/FINAL_3D_*.mat')
+            print("{} files with the results in 3D were created:".format(len(Final_results_3Dfiles)))
+            for _file in Final_results_3Dfiles:
+                
+                print(_file)
+                
+            # ---------------------------------------------------------
+            
+            # Don't want to use it now, state2load = os.path.join(log2load,'final_state.ckpt')
+            #Generate the medium estimator:
+            
+            # Define the grid for reconstruction
+            #if use_forward_grid:
+                #extinction_grid = ground_truth.extinction.grid
+                #albedo_grid = ground_truth.albedo.grid
+                #phase_grid = ground_truth.phase.grid
+            #else:
+                #extinction_grid = albedo_grid = phase_grid = self.cloud_generator.get_grid()
+            #grid = extinction_grid + albedo_grid + phase_grid
+            
+            
+            #Optimaizer_not4minimization = shdom.LocalOptimizer(method='L-BFGS-B')
+            #Optimaizer_not4minimization.set_measurements(measurements)
+            #Optimaizer_not4minimization.set_rte_solver(solver)
+            #Optimaizer_not4minimization.set_medium_estimator(medium_estimator)            
             
             
             
@@ -627,6 +783,6 @@ for SATS_NUMBER in SAT_CONFIG:
         #AirGenerator = shdom.generate.AFGLSummerMidLatAir
         #air_generator = AirGenerator(air_path,air_max_alt,air_num_points)
         
-        print("use tensorboard --logdir {}/logs/{} --bind_all".format(invers_dir,log_name))
+        print("use tensorboard --logdir --bind_all".format(log2load))
         
         print("done")

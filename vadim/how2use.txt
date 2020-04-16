@@ -91,3 +91,8 @@ use ECCV_CREATE_GT_102x152.py to create the GT image with highest angular resolu
 
 
 the code use_different_mediums.py is old version not for eccv.
+
+------------------------------------------------------------
+after i installed netcdf I got a problem with vtk:
+I solved it with:
+conda install -c conda-forge pyvista "vtk=8.1.2" "libnetcdf=4.6.2"

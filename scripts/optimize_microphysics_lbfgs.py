@@ -1,6 +1,8 @@
 import os, time
 import numpy as np
 import shdom
+import scipy.io as sio
+
 from optimize_extinction_lbfgs import OptimizationScript as ExtinctionOptimizationScript
 
 
@@ -77,7 +79,7 @@ class OptimizationScript(ExtinctionOptimizationScript):
         parser.add_argument('--veff_scaling',
                             default=1.0,
                             type=np.float32,
-                            help='(default value: %(default)s) Pre-conditioning scale factor for effective variance estimation')
+                            help='(default value: %(default)s) Pre-conditioning scale factor for effective variance estimation')        
         return parser
 
     def get_medium_estimator(self, measurements, ground_truth):
@@ -112,6 +114,12 @@ class OptimizationScript(ExtinctionOptimizationScript):
             carver = shdom.SpaceCarver(measurements)
             mask = carver.carve(grid, agreement=0.9, thresholds=self.args.radiance_threshold)
 
+            # Vadim added: Save the mask3d, just for the case we want to see how good we bound the cloudy voxels.
+            if(self.args.save_gt_and_carver_masks):
+                
+                GT_mask = ground_truth.get_mask(threshold=1.0)
+                sio.savemat(os.path.join(self.args.input_dir,'3D_masks.mat'), {'GT':GT_mask.data,'CARVER':mask.data,'thresholds':self.args.radiance_threshold})
+                        
         # Define micro-physical parameters: either optimize, keep constant at a specified value or use ground-truth
         if self.args.use_forward_lwc:
             lwc = ground_truth.lwc
@@ -190,6 +198,11 @@ class OptimizationScript(ExtinctionOptimizationScript):
         ground_truth = medium.get_scatterer(self.scatterer_name)
         return ground_truth, rte_solver, measurements
 
+    #def get_ground_truth(self):
+        #ground_truth, _, _ = self.load_forward_model(self.args.input_dir)
+        ## here ground_truth is ???.
+        #return ground_truth
+    
     def get_summary_writer(self, measurements, ground_truth):
         """
         Define a SummaryWriter object

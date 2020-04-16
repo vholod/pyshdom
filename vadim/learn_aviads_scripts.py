@@ -264,8 +264,8 @@ if(SEEIMAGES):
 if(DOINVERSE):
     all_known = False
     extinction_nomask = False
-    Microphysical_find_lwc = False
-    Microphysical_find_reff = True
+    Microphysical_find_lwc = True
+    Microphysical_find_reff = False
 
     if(all_known):
         

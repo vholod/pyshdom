@@ -16,7 +16,7 @@ droplets = shdom.MicrophysicalScatterer()
 #droplets.load_from_csv('../synthetic_cloud_fields/jpl_les/rico32x37x26.txt', veff=0.1)
 #droplets.load_from_csv('../synthetic_cloud_fields/small_cloud_les/view55_small.txt', veff=0.1)
 #droplets.load_from_csv('../synthetic_cloud_fields/small_cloud_les/cut_from_dannys_clouds_S1.txt', veff=0.1)
-droplets.load_from_csv('../synthetic_cloud_fields/shdom/les_stcu.txt', veff=0.1)
+droplets.load_from_csv('../synthetic_cloud_fields/shdom/BOMEX_128x128x100_2000CCN_50m_micro_128_0000007200.txt', veff=0.1)
 
 
 droplets.add_mie(mie)
