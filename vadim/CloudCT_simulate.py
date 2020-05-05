@@ -12,109 +12,29 @@ import subprocess
 from mpl_toolkits.axes_grid1 import AxesGrid
 import time
 import glob
+from CloudCT_Utils import *
 
+# importing functools for reduce() 
+import functools  
+# importing operator for operator functions 
+import operator 
 # -----------------------------------------------------------------
-# ------------------------THE FUNCTIONS BELOW----------------------
 # -----------------------------------------------------------------
-def plank(llambda,T):
-    h = 6.62607004e-34 # Planck constant
-    c = 3.0e8
-    k = 1.38064852e-23 # Boltzmann constant
-    # https://en.wikipedia.org/wiki/Planck%27s_law
-    a = 2.0*h*(c**2)
-    b = (h*c)/(llambda*k*T)
-    spectral_radiance = a/ ( (llambda**5) * (np.exp(b) - 1.0) )
-    return spectral_radiance
-
-
-def CALC_MIE_TABLES(where_to_check_path = './mie_tables/polydisperse',wavelength_micron=None):
-    """
-    Check if mie tables exist, if not creat them, if yes skip it is long process.
-    table file name example: mie_tables/polydisperse/Water_<1000*wavelength_micron>nm.scat
-    Parameters
-    ----------
-    where_to_check_path: string, a path to chech (and or create) the mie table.
-    
-    wavelength_micron: float, the wavelength in microns
-    """    
-    
-    # YOU MAY TUNE THE MIE TABLE PARAMETERS HERE:
-    start_reff = 0.05 # Starting effective radius [Micron]
-    end_reff = 25.0
-    num_reff = 100
-    start_veff = 0.01
-    end_veff = 0.2
-    num_veff = 50
-    radius_cutoff = 65.0 # The cutoff radius for the pdf averaging [Micron]
-    
-    
-    # --------------------------------------------------------------
-    wavelength_list = [wavelength_micron]# I still work in monochromatic, TODO move it to poly.
-    assert wavelength_micron is not None, "You must provied the wavelength"
-    
-    if(os.path.exists(where_to_check_path)):
-        import glob        
-        mie_tables_paths = sorted(glob.glob(where_to_check_path + '/Water_*.scat'))
-        mie_tables_names = [os.path.split(i)[-1] for i in mie_tables_paths]
-        # extract the wavelength:
-        import re
-        exist_wavelengths_list = [re.findall('Water_(\d*)nm.scat', i)[0] for i in mie_tables_names]# wavelength that already has mie table.
-        exist_wavelengths_list = [int(i) for i in exist_wavelengths_list]# convert to integer 
-        # the wavelength_list is in microne. the exist_wavelengths_list is in nm
-        wavelength_list_final = []
-        for _wavelength_ in wavelength_list:
-            print('Check if wavelength {}um has already a table.'.format(_wavelength_))
-            if(1e3*_wavelength_ in exist_wavelengths_list):
-                print('Does exist, skip its creation\n')
-            else:
-                print('Does not exist, it will be created\n')
-                wavelength_list_final.append(_wavelength_)
-                
-        wavelength_list = wavelength_list_final
-            
-    
-    if(not (wavelength_list==[])):
-        
-        # importing functools for reduce() 
-        import functools  
-        # importing operator for operator functions 
-        import operator 
-        
-        wavelength_string = functools.reduce(operator.add,[str(j)+" " for j in wavelength_list]).rstrip()
-        wavelength_arg = ' --wavelength '+wavelength_string
-        
-        """
-        wavelength:
-        Wavelengths [Micron] for which to compute the polarized mie table' \
-        'The output file name is formated as: Water_<wavelength[nm]>nm.scat<pol>
-        """
-        
-        #------------
-        SCRIPTS_PATH = '../scripts'
-        cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'generate_mie_tables.py')+\
-                ' --start_reff '+ str(start_reff) +\
-                ' --end_reff '+ str(end_reff) +\
-                ' --num_reff '+ str(num_reff) +\
-                ' --start_veff '+ str(start_veff) +\
-                ' --end_veff '+ str(end_veff) +\
-                ' --num_veff '+ str(num_veff) +\
-                ' --radius_cutoff '+ str(radius_cutoff) +\
-                wavelength_arg
-        
-        Generate_Mie_scat = subprocess.call( cmd, shell=True)
-        
-    print('Mie table is calculated.')
-
-    print(20*'-')
-    print(20*'-')
-    mie_base_path = where_to_check_path+'/Water_{}nm.scat'.\
-        format(int(1e3*wavelength_micron))
-    
-    return mie_base_path
-    
-# -----------------------------------------------------------------
-# ------------------------THE FUNCTIONS ABOVE----------------------
-# -----------------------------------------------------------------
+# mia table parameters:
+start_reff = 1
+end_reff = 25.0
+start_veff = 0.05
+end_veff = 0.4
+radius_cutoff = 65.0
+mie_options = {
+    'start_reff': start_reff,# Starting effective radius [Micron]
+    'end_reff': end_reff,
+    'num_reff': int((end_reff-start_reff)/0.25 + 1),
+    'start_veff': start_veff,
+    'end_veff': end_veff,
+    'num_veff': int((end_veff-start_veff)/0.003 + 1),
+    'radius_cutoff': radius_cutoff # The cutoff radius for the pdf averaging [Micron]
+}
 
 # visualization params:
 VISSETUP = False
@@ -126,165 +46,169 @@ axisLenght = 5000
 #SATS_NUMBER = 10
 n_jobs = 30
 
+
+# orbit altitude:
+Rsat = 500 # km
+wavelengths_micron = [0.672, 0.95]  #0.672 , 1.6
+sun_azimuth = 45
+sun_zenith = 150
+#azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
+#zenith: Solar beam zenith angle in range (90,180]  
+
+SATS_NUMBER_SETUP = 10 # satellites number to build the setup, for the inverse, we can use less satellites.
+SATS_NUMBER_INVERSE = SATS_NUMBER_SETUP#10 # how much satelliets will be used for the inverse.
+
 """
-SAT_CONFIG = [10, 9, 7, 6, 5, 4]
-#or
-SAT_CONFIG = [10]
+Check if mie tables exist, if not creat them, if yes skip it is long process.
+table file name example: mie_tables/polydisperse/Water_<1000*wavelength_micron>nm.scat
 """
-SAT_CONFIG = [10]
-for SATS_NUMBER in SAT_CONFIG:
-    # orbit altitude:
-    Rsat = 500 # km
-    wavelength_micron = 1.6  #0.672 , 1.6
-    sun_azimuth = 45
-    sun_zenith = 150
-    """
-    Check if mie tables exist, if not creat them, if yes skip it is long process.
-    table file name example: mie_tables/polydisperse/Water_<1000*wavelength_micron>nm.scat
-    """
-    where_to_check_path = './mie_tables/polydisperse'
-    mie_base_path = CALC_MIE_TABLES(where_to_check_path,\
-                    wavelength_micron)
-    # for example, mie_base_path = './mie_tables/polydisperse/Water_672nm.scat'
-    
-    
-    
+MieTablesPath = os.path.abspath("./mie_tables")
+mie_base_path = CALC_MIE_TABLES(MieTablesPath,wavelengths_micron,mie_options)
+#mie_base_path = mie_base_path[0]
+# for example, mie_base_path = './mie_tables/polydisperse/Water_672nm.scat'
+
+
+if(isinstance(wavelengths_micron, list)):
+    wavelengths_micron.sort()# just for convenience, let's have it sorted.
+    wavelengths_string = functools.reduce(operator.add,[str(int(1e3*j))+"_" for j in wavelengths_micron]).rstrip('_')
     # forward_dir, where to save evrerything that is related to forward model:
-    forward_dir = './experiments/new_active_sats_{}_LES_cloud_field_rico_Water_{}nm/monochromatic'.format(SATS_NUMBER,int(1e3*wavelength_micron))
-    # invers_dir, where to save evrerything that is related to invers model:
-    invers_dir = forward_dir
-    log_name = 'active_sats_{}_easiest_rico32x37x26_{}'.format(SATS_NUMBER,int(1e3*wavelength_micron))
-    # Write intermediate TensorBoardX results into log_name.
-    # The provided string is added as a comment to the specific run.
-    
-    air_path = './ancillary_data/AFGL_summer_mid_lat.txt' # Path to csv file which contains temperature measurements
-    air_num_points = 20 # Number of altitude grid points for the air volume
-    air_max_alt = 5 # in km ,Maximum altitude for the air volume
-    
-    # --------------------------------------------------------
-    
-    DOFORWARD = False
-    DOINVERSE = True
-    
-    
-    
-    # ---------------------------------------------------------------
-    # -------------LOAD SOME MEDIUM TO RECONSTRUCT--------------------------------
-    # ---------------------------------------------------------------
-    
-    # Mie scattering for water droplets
-    mie = shdom.MiePolydisperse()
-    mie.read_table(file_path = mie_base_path)
-    
-    # Generate a Microphysical medium
-    droplets = shdom.MicrophysicalScatterer()
-    droplets.load_from_csv('../synthetic_cloud_fields/jpl_les/rico32x37x26.txt', veff=0.1)
-    
-    droplets.add_mie(mie)
-    
-    # Rayleigh scattering for air molecules up to 20 km
-    df = pd.read_csv(air_path, comment='#', sep=' ')
-    altitudes = df['Altitude(km)'].to_numpy(dtype=np.float32)
-    temperatures = df['Temperature(k)'].to_numpy(dtype=np.float32)
-    temperature_profile = shdom.GridData(shdom.Grid(z=altitudes), temperatures)
-    air_grid = shdom.Grid(z=np.linspace(0, air_max_alt ,air_num_points))
-    rayleigh = shdom.Rayleigh(wavelength=wavelength_micron)
-    rayleigh.set_profile(temperature_profile.resample(air_grid))
-    air = rayleigh.get_scatterer()
-    
-    atmospheric_grid = droplets.grid + air.grid # Add two grids by finding the common grid which maintains the higher resolution grid.
-    atmosphere = shdom.Medium(atmospheric_grid)
-    atmosphere.add_scatterer(droplets, name='cloud')
-    atmosphere.add_scatterer(air, name='air')
-    
-    # Calculate irradiance of the spesific wavelength:
-    # use plank function:
-    temp = 5900 #K
-    L_TOA = 6.8e-5*1e-9*plank(1e-6*wavelength_micron,temp) # units fo W/(m^2)
-    Cosain = np.cos(np.deg2rad((180-sun_zenith)))
-    solar_flux = L_TOA*Cosain
-    
-    # -----------------------------------------------
-    # ---------Calculate camera footprint at nadir --
-    # -----------------------------------------------
-    
-    dx = atmospheric_grid.dx
-    dy = atmospheric_grid.dy
-    
-    nz = atmospheric_grid.nz
-    nx = atmospheric_grid.nx
-    ny = atmospheric_grid.ny
-    
-    Lx = atmospheric_grid.bounding_box.xmax - atmospheric_grid.bounding_box.xmin
-    Ly = atmospheric_grid.bounding_box.ymax - atmospheric_grid.bounding_box.ymin
-    Lz = atmospheric_grid.bounding_box.zmax - atmospheric_grid.bounding_box.zmin
-    L = max(Lx,Ly)
-    Lz_droplets = droplets.grid.bounding_box.zmax - droplets.grid.bounding_box.zmin
-    dz = Lz_droplets/nz
-    
-    #USED FOV, RESOLUTION and SAT_LOOKATS:
-    PIXEL_FOOTPRINT = 0.02 # km
+    forward_dir = './experiments/polychromatic_unity_flux_active_sats_{}_LES_cloud_field_rico_Water_{}nm'.format(SATS_NUMBER_SETUP,wavelengths_string)
+else: # if wavelengths_micron is scalar
+    forward_dir = './experiments/polychromatic_unity_flux_active_sats_{}_LES_cloud_field_rico_Water_{}nm'.format(SATS_NUMBER_SETUP,int(1e3*wavelengths_micron))
+
+# invers_dir, where to save evrerything that is related to invers model:
+invers_dir = forward_dir
+log_name_base = 'active_sats_{}_easiest_rico32x37x26'.format(SATS_NUMBER_SETUP)
+# Write intermediate TensorBoardX results into log_name.
+# The provided string is added as a comment to the specific run.
+
+# --------------------------------------------------------
+# Similation flags
+DOFORWARD = True
+DOINVERSE = True
+
+# ---------------------------------------------------------------
+# -------------LOAD SOME MEDIUM TO RECONSTRUCT--------------------------------
+# ---------------------------------------------------------------
+
+CloudFieldFile = '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
+AirFieldFile = './ancillary_data/AFGL_summer_mid_lat.txt' # Path to csv file which contains temperature measurements
+atmosphere = CloudCT_setup.Prepare_Medium(CloudFieldFile,AirFieldFile,
+                             MieTablesPath,wavelengths_micron)
+droplets = atmosphere.get_scatterer('cloud')
+
+# -----------------------------------------------
+# ---------Point the cameras and ----------------
+# ---------Calculate camera footprint at nadir --
+# -----------------------------------------------
+atmospheric_grid = atmosphere.grid
+dx = atmospheric_grid.dx
+dy = atmospheric_grid.dy
+
+nz = atmospheric_grid.nz
+nx = atmospheric_grid.nx
+ny = atmospheric_grid.ny
+
+Lx = atmospheric_grid.bounding_box.xmax - atmospheric_grid.bounding_box.xmin
+Ly = atmospheric_grid.bounding_box.ymax - atmospheric_grid.bounding_box.ymin
+Lz = atmospheric_grid.bounding_box.zmax - atmospheric_grid.bounding_box.zmin
+L = max(Lx,Ly)
+
+Lz_droplets = droplets.grid.bounding_box.zmax - droplets.grid.bounding_box.zmin
+dz = Lz_droplets/nz
+
+#USED FOV, RESOLUTION and SAT_LOOKATS:
+PIXEL_FOOTPRINT = 0.01 # km
+fov = 2*np.rad2deg(np.arctan(0.5*L/(Rsat)))
+cny = int(np.floor(L/PIXEL_FOOTPRINT))
+cnx = int(np.floor(L/PIXEL_FOOTPRINT))
+
+CENTER_OF_MEDIUM_BOTTOM = [0.5*nx*dx , 0.5*ny*dy , 0]
+
+# Somtimes it is more convinent to use wide fov to see the whole cloud
+# from all the view points. so the FOV is aslo tuned:
+IFTUNE_CAM = True
+# --- TUNE FOV, CNY,CNX:
+if(IFTUNE_CAM):
+    L = 1.5*L
     fov = 2*np.rad2deg(np.arctan(0.5*L/(Rsat)))
     cny = int(np.floor(L/PIXEL_FOOTPRINT))
-    cnx = int(np.floor(L/PIXEL_FOOTPRINT))
+    cnx = int(np.floor(L/PIXEL_FOOTPRINT))    
+
+# not for all the mediums the CENTER_OF_MEDIUM_BOTTOM is a good place to lookat.
+# tuning is applied by the variavle LOOKAT.
+LOOKAT = CENTER_OF_MEDIUM_BOTTOM
+if(IFTUNE_CAM):
+    LOOKAT[2] = 0.68*nx*dz # tuning. if IFTUNE_CAM = False, just lookat the bottom
+        
+SAT_LOOKATS = np.array(SATS_NUMBER_SETUP*LOOKAT).reshape(-1,3)# currently, all satellites lookat the same point.
     
-    CENTER_OF_MEDIUM_BOTTOM = [0.5*nx*dx , 0.5*ny*dy , 0]
-    
-    # Somtimes it is more convinent to use wide fov to see the whole cloud
-    # from all the view points. so the FOV is aslo tuned:
-    IFTUNE_CAM = True
-    # --- TUNE FOV, CNY,CNX:
-    if(IFTUNE_CAM):
-        L = 1.5*L
-        fov = 2*np.rad2deg(np.arctan(0.5*L/(Rsat)))
-        cny = int(np.floor(L/PIXEL_FOOTPRINT))
-        cnx = int(np.floor(L/PIXEL_FOOTPRINT))    
-    
-    print(20*"-")
-    print(20*"-")
-    print(20*"-")
-    
-    print("CAMERA intrinsics summary")
-    print("fov = {}[deg], cnx = {}[pixels],cny ={}[pixels]".format(fov,cnx,cny))
-    
-    print(20*"-")
-    print(20*"-")
-    print(20*"-")
-    
-    print("Medium summary")
-    print("nx = {}, ny = {},nz ={}".format(nx,ny,nz))
-    print("dx = {}, dy = {},dz ={}".format(dx,dy,dz))
-    print("Lx = {}, Ly = {},Lz ={}".format(Lx,Ly,Lz))
-    x_min = atmospheric_grid.bounding_box.xmin
-    x_max = atmospheric_grid.bounding_box.xmax
-    
-    y_min = atmospheric_grid.bounding_box.ymin
-    y_max = atmospheric_grid.bounding_box.ymax
-    
-    z_min = atmospheric_grid.bounding_box.zmin
-    z_max = atmospheric_grid.bounding_box.zmax 
-    print("xmin = {}, ymin = {},zmin ={}".format(x_min,y_min,z_min))
-    print("xmax = {}, ymax = {},zmax ={}".format(x_max,y_max,z_max))
-    
-    print(20*"-")
-    print(20*"-")
-    print(20*"-")
+print(20*"-")
+print(20*"-")
+print(20*"-")
+
+print("CAMERA intrinsics summary")
+print("fov = {}[deg], cnx = {}[pixels],cny ={}[pixels]".format(fov,cnx,cny))
+
+print(20*"-")
+print(20*"-")
+print(20*"-")
+
+print("Medium summary")
+print("nx = {}, ny = {},nz ={}".format(nx,ny,nz))
+print("dx = {}, dy = {},dz ={}".format(dx,dy,dz))
+print("Lx = {}, Ly = {},Lz ={}".format(Lx,Ly,Lz))
+x_min = atmospheric_grid.bounding_box.xmin
+x_max = atmospheric_grid.bounding_box.xmax
+
+y_min = atmospheric_grid.bounding_box.ymin
+y_max = atmospheric_grid.bounding_box.ymax
+
+z_min = atmospheric_grid.bounding_box.zmin
+z_max = atmospheric_grid.bounding_box.zmax 
+print("xmin = {}, ymin = {},zmin ={}".format(x_min,y_min,z_min))
+print("xmax = {}, ymax = {},zmax ={}".format(x_max,y_max,z_max))
+
+print(20*"-")
+print(20*"-")
+print(20*"-")
+
+if(DOFORWARD):   
     # ---------------------------------------------------------------
     # ---------------CREATE THE SETUP----------------------------
     # ---------------------------------------------------------------
+    """
+    Currently, in pyshdom we can define few cameras with different resolution in one setup.
+    What we also whant to do is to define different bands and resolution to different sateliites.
+    For now all the cameras are identicale and have the same spectral channels.
+    Each camera has camera_wavelengths_list.
+    """  
+    if(np.isscalar(wavelengths_micron)):
+        wavelengths_micron = [wavelengths_micron]
+    setup_wavelengths_list = SATS_NUMBER_SETUP*[wavelengths_micron]
+    # Calculate irradiance of the spesific wavelength:
+    # use plank function:
+    temp = 5900 #K
+    L_TOA = []
+    Cosain = np.cos(np.deg2rad((180-sun_zenith)))
+    for wavelengths_per_view in setup_wavelengths_list:
+        # loop over the dimensios of the views
+        L_TOA_per_view = []
+        for wavelength in wavelengths_per_view:
+            # loop over the wavelengths is a view
+            L_TOA_per_view.append(Cosain*6.8e-5*1e-9*CloudCT_setup.plank(1e-6*wavelength,temp)) # units fo W/(m^2))
+        
+        L_TOA.append(L_TOA_per_view)
     
-    VISSETUP = False
-    # not for all the mediums the CENTER_OF_MEDIUM_BOTTOM is a good place to lookat.
-    # tuning is applied by the variavle LOOKAT.
-    LOOKAT = CENTER_OF_MEDIUM_BOTTOM
-    LOOKAT[2] = 0.5*nx*dz # tuning
-    
-    SAT_LOOKATS = np.array(SATS_NUMBER*LOOKAT).reshape(-1,3)       
+    solar_flux_scale = L_TOA # the forward simulation will run with unity flux,
+    # this is a scale that we should consider to apply on the output images.
+    # Rigth now, lets skip it.
     
     # create CloudCT setup:
-    CloudCT_VIEWS = CloudCT_setup.Create(\
-        SATS_NUMBER = SATS_NUMBER,ORBIT_ALTITUDE = Rsat, \
-        CAM_FOV = fov, CAM_RES = (cnx,cny), SAT_LOOKATS = SAT_LOOKATS, VISSETUP = VISSETUP)
+    CloudCT_VIEWS, near_nadir_view_index = CloudCT_setup.Create(\
+        SATS_NUMBER = SATS_NUMBER_SETUP, ORBIT_ALTITUDE = Rsat, \
+        CAM_FOV = fov, CAM_RES = (cnx,cny), SAT_LOOKATS = SAT_LOOKATS, \
+        SATS_WAVELENGTHS_LIST = setup_wavelengths_list, SOLAR_FLUX_LIST = solar_flux_scale, VISSETUP = VISSETUP)
     """ 
     How to randomly choose N views from the total views:
     for i in range(10):
@@ -293,238 +217,244 @@ for SATS_NUMBER in SAT_CONFIG:
         figh = mlab.gcf()
         mlab.orientation_axes(figure=figh)    
         mlab.show()
+        
+    The update of the solar fluxes per wavelength can be done also by:
+    CloudCT_VIEWS.update_solar_irradiances(solar_flux_scale)
     """ 
     
-    """
-    Solve the forward model:
-    """
-    if(DOFORWARD):            
-        # -----------------------------------------------
-        # -----------------------------------------------
-        # -----------------------------------------------
-            
-        # -----------------------------------------------
-        # ---------initilize an RteSolver object------------
-        # -----------------------------------------------
-            
-            
-            
-        #numerical_params = shdom.NumericalParameters()
-        split_accuracy = 0.1
-        if(wavelength_micron == 1.6):
-            split_accuracy = 0.001
-        if(wavelength_micron == 0.672):
-            split_accuracy = 0.1
-            
-        numerical_params = shdom.NumericalParameters(num_mu_bins=8,num_phi_bins=16,
-                                                     split_accuracy=split_accuracy,max_total_mb=300000.0)
+    # ----------------------------------------------------------
+    # ---------numerical & scene Parameters---------------------
+    # ---------for RTE solver and initializtion of the solver---
+    # ----------------------------------------------------------
+    solar_fluxes = np.full_like(wavelengths_micron, 1.0)# unity flux
+    split_accuracies = np.full_like(wavelengths_micron, 0.1) 
+    surface_albedos = np.full_like(wavelengths_micron, 0.05) # later we must update it since it depends on the wavelegth.
+    # split_accuracy of 0.1 gives nice results, For the rico cloud i didn't see that decreasing the split accuracy improves the rec.
+    # so fo the rico loud Let's use split_accuracy = 0.1.
+    num_mu = 16
+    num_phi = 32
+    # note: whae num_mu, num_phi are 16,32, the retrievals look better than with 8,16.
+    adapt_grid_factor = 5
+    solution_accuracy = 0.0001
+    max_total_mb = 100000.0
+    # Generate a solver array for a multispectral solution.
+    # it is greate that we can use the parallel solution of all solvers.
+    rte_solvers = shdom.RteSolverArray()
+    
+    for wavelength,split_accuracy,solar_flux,surface_albedo in \
+        zip(wavelengths_micron,split_accuracies,solar_fluxes,surface_albedos):
         
+    
+        numerical_params = shdom.NumericalParameters(num_mu_bins=num_mu,num_phi_bins=num_phi,
+                                                     split_accuracy=split_accuracy,max_total_mb=max_total_mb)
         
         scene_params = shdom.SceneParameters(
-            wavelength=mie.wavelength,
-            surface=shdom.LambertianSurface(albedo=0.05),
-            source=shdom.SolarSource(azimuth = sun_azimuth,
-                                     zenith = sun_zenith,flux = solar_flux)
-        )
-        #azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
-        #zenith: Solar beam zenith angle in range (90,180]   
-        
+            wavelength=wavelength,
+            surface=shdom.LambertianSurface(albedo=surface_albedo),
+            source=shdom.SolarSource(azimuth=sun_azimuth, zenith=sun_zenith,flux=solar_flux)
+        ) 
+        # ---------initilize an RteSolver object---------    
         rte_solver = shdom.RteSolver(scene_params, numerical_params)
         rte_solver.set_medium(atmosphere)
-        print(rte_solver.info)
+        rte_solvers.add_solver(rte_solver)
         
-        print(20*"-")
-        print(20*"-")
-        print(20*"-")  
-        
-        # -----------------------------------------------
-        # ---------RTE SOLVE ----------------------------
-        # -----------------------------------------------
-        
-        rte_solver.solve(maxiter=100)
-            
-        
-        # -----------------------------------------------
-        # ---------RENDER IMAGES FOR CLOUDCT SETUP ------
-        # -----------------------------------------------
-        """
-        Each projection in CloudCT_VIEWS is A Perspective projection (pinhole camera).
-        """
-        camera = shdom.Camera(shdom.RadianceSensor(), CloudCT_VIEWS)
-        # render all:
-        images = camera.render(rte_solver, n_jobs=n_jobs)
-        
-        projection_names = CloudCT_VIEWS.projection_names
-        # calculate images maximum:
-        images_array = np.array(images)
-        MAXI = images_array.max()
-        SEE_IMAGES = False
-        if(SEE_IMAGES):
-        # nice plot alternative:
-            fig = plt.figure(figsize=(20, 20))
-            grid = AxesGrid(fig, 111,
-                            nrows_ncols=(2, int(round(np.ceil(SATS_NUMBER/2)))),
-                            axes_pad=0.3,
-                            cbar_mode='single',
-                            cbar_location='right',
-                            cbar_pad=0.1
-                            )  
-            
-            for ax, image, name in zip(grid, images, projection_names):
-                ax.set_axis_off()
-                im = ax.imshow(image,cmap='gray',vmin=0, vmax=MAXI)
-                ax.set_title("{}".format(name))
-             
-            title = "$\lambda$={}nm , $\Phi$={:.2f} , $L$={:.2f}".format(int(1e3*wavelength_micron),sun_zenith,solar_flux)
-            cbar = ax.cax.colorbar(im)
-            cbar = grid.cbar_axes[0].colorbar(im)
-            fig.suptitle(title, size=16,y=0.95) 
-                
-            plt.show()
-        
-        
-        # -----------------------------------------------
-        # ---------SAVE EVERYTHING FOR THIS SETUP -------
-        # -----------------------------------------------
-        """
-        It is bad that:
-        type(camera.projection)
-        <class 'CloudCT_setup.SpaceMultiView'>
-        """
-        measurements = shdom.Measurements(camera, images=images, wavelength=rte_solver.wavelength)
-        medium = atmosphere
-        shdom.save_forward_model(forward_dir, medium, rte_solver, measurements)
-    
     
     # -----------------------------------------------
-    # ---------SOLVE INVERSE ------------------------
+    # ---------RTE SOLVE ----------------------------
+    # -----------------------------------------------
+    
+    rte_solvers.solve(maxiter=100)
+        
+    
+    # -----------------------------------------------
+    # ---------RENDER IMAGES FOR CLOUDCT SETUP ------
     # -----------------------------------------------
     """
-    Solve inverse problem:
+    Each projection in CloudCT_VIEWS is A Perspective projection (pinhole camera).
+    The method CloudCT_VIEWS.update_measurements(...) takes care of the rendering and updating the measurments.
     """
-    if(DOINVERSE):
-        SEE_SETUP = False
-        SEE_IMAGES = False
+    CloudCT_VIEWS.update_measurements(sensor=shdom.RadianceSensor(), projection = CloudCT_VIEWS, rte_solver = rte_solvers, n_jobs=n_jobs)
+    # see the rendered images:
+    SEE_IMAGES = False
+    if(SEE_IMAGES):
+        CloudCT_VIEWS.show_measurements(compare_for_test = False)
+        # don't use the compare_for_test =  True, it is not mature enougth.
         
-        MICROPHYSICS = True
         
-        # load the measurments to see the rendered images:
-        medium, solver, measurements = shdom.load_forward_model(forward_dir)
-        # A Measurements object bundles together the imaging geometry and sensor measurements for later optimization.
-        USED_CAMERA = measurements.camera
-        RENDERED_IMAGES = measurements.images    
-        THIS_MULTI_VIEW_SETUP = USED_CAMERA.projection
+        #It is a good place to pick the radiance_threshold = Threshold for the radiance to create a cloud mask.
+        #So here, we see the original images and below we will see the images after the radiance_threshold: 
+        # --------------------------------------------------
+        #  ----------------try radiance_threshold value:----
+        # --------------------------------------------------
+        #radiance_threshold = 0.04 # Threshold for the radiance to create a cloud mask.
+        radiance_threshold = [0.023,0.02] # Threshold for the radiance to create a cloud mask.
+        # Threshold is either a scalar or a list of length of measurements.
+        CloudCT_VIEWS.show_measurements(radiance_threshold=radiance_threshold,compare_for_test = False)    
         
-        # Get optical medium ground-truth
-        scatterer_name='cloud'
-        ground_truth = medium.get_scatterer(scatterer_name)
-        if isinstance(ground_truth, shdom.MicrophysicalScatterer):
-            ground_truth = ground_truth.get_optical_scatterer(measurements.wavelength)
+        plt.show()
+        
+    
+    # -----------------------------------------------
+    # ---------SAVE EVERYTHING FOR THIS SETUP -------
+    # -----------------------------------------------
+    
+    medium = atmosphere
+    shdom.save_forward_model(forward_dir, medium, rte_solvers, CloudCT_VIEWS.measurements)
+        
+    print('DONE forwared simulation')
+
+
+# -----------------------------------------------
+# ---------SOLVE INVERSE ------------------------
+# -----------------------------------------------
+"""
+Solve inverse problem:
+"""
+if(DOINVERSE):
+    
+    # load the measurments to see the rendered images:
+    medium, solver, measurements = shdom.load_forward_model(forward_dir)
+    # A Measurements object bundles together the imaging geometry and sensor measurements for later optimization.
+    USED_CAMERA = measurements.camera
+    RENDERED_IMAGES = measurements.images    
+    THIS_MULTI_VIEW_SETUP = USED_CAMERA.projection
+    
+    # ---------what to optimize----------------------------
+    radiance_threshold = [0.023,0.02] # check these values befor inverse.
+    SEE_SETUP = False
+    SEE_IMAGES = True
+    MICROPHYSICS = True
+    # ------------------------------------------------
+
+    # show the mutli view setup if you want.
+    if(SEE_SETUP):
+        THIS_MULTI_VIEW_SETUP.show_setup(scale=scale ,axisWidth=axisWidth ,axisLenght=axisLenght,FullCone = True)
+        figh = mlab.gcf()
+        mlab.orientation_axes(figure=figh)    
+        mlab.show()    
+        
+    
+    # ----------------------------------------------------------
+    
+    """
+    Work with the optimization:
+    """
+    
+    if not MICROPHYSICS:
+    
+        # -----------------------------------------------
+        # ---------SOLVE for extinction only  -----------
+        # -----------------------------------------------    
+        """
+        Estimate extinction with (what is known?):
+        1. ground truth phase function (use_forward_phase, with mie_base_path)
+        2. grid (use_forward_grid)
+        3. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
+        4. known albedo (use_forward_albedo)
+        5. rayleigh scattering (add_rayleigh)
         
         """
-        IMPORTANT:
-        Later on, We need to add niose to the measurements
-        we can do it here, like: 
-        measurements = noise.apply(measurements)
-        """      
+        log_name = "extinction_only_"+log_name_base
+        # -----------------------------------------------
+        # ---------------- inverse parameters:-----------
+        # -----------------------------------------------
         
-        # show images:
-        if(SEE_IMAGES):
-            
-            """
-            It is a good place to pick the radiance_threshold = Threshold for the radiance to create a cloud mask.
-            So here, we seee the original images and below we will see the images after the radiance_threshold: 
-            """
-            # --------------------------------------------------
-            #  ----------------original:------------------------
-            # --------------------------------------------------
-            RENDERED_IMAGES = measurements.images
-            projection_names = CloudCT_VIEWS.projection_names
-            # calculate images maximum:
-            images_array = np.array(RENDERED_IMAGES)
-            MAXI = images_array.max()
-            
-            # nice plot alternative:
-            fig = plt.figure(figsize=(20, 20))
-            grid = AxesGrid(fig, 111,
-                            nrows_ncols=(2, int(round(np.ceil(SATS_NUMBER/2)))),
-                            axes_pad=0.3,
-                            cbar_mode='single',
-                            cbar_location='right',
-                            cbar_pad=0.1
-                            )  
-            
-            for ax, image, name in zip(grid, RENDERED_IMAGES, projection_names):
-                ax.set_axis_off()
-                im = ax.imshow(image,cmap='gray',vmin=0, vmax=MAXI)
-                ax.set_title("{}".format(name))
-             
-            title = "$\lambda$={}nm , $\Phi$={:.2f} , $L$={:.2f}".format(int(1e3*wavelength_micron),sun_zenith,solar_flux)
-            cbar = ax.cax.colorbar(im)
-            cbar = grid.cbar_axes[0].colorbar(im)
-            fig.suptitle(title, size=16,y=0.95)             
+        stokes_weights = [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V].
                 
-                
-            # --------------------------------------------------
-            #  ----------------try radiance_threshold value:----
-            # --------------------------------------------------
-            #radiance_threshold = 0.04 # Threshold for the radiance to create a cloud mask.
-            radiance_threshold = 0.05 # Threshold for the radiance to create a cloud mask.
-            # Threshold is either a scalar or a list of length of measurements.
-            if(wavelength_micron == 1.6):
-                radiance_threshold = 0.005
-                
-            fig = plt.figure(figsize=(20, 20))
-            grid = AxesGrid(fig, 111,
-                            nrows_ncols=(2, int(round(np.ceil(SATS_NUMBER/2)))),
-                            axes_pad=0.3,
-                            cbar_mode='single',
-                            cbar_location='right',
-                            cbar_pad=0.1
-                            )  
+        # Initialization and Medium parameters:
+        extinction = 0.01 # init extinction of the generator
+        # init_generator = 'Homogeneous'# it is the CloudGenerator from shdom.generate.py
+        init = 'Homogeneous'
+        # The mie_base_path is defined at the begining of this script.
+        INIT_USE = ' --init '+ init
+        add_rayleigh = True
+        use_forward_mask = False#True
+        use_forward_grid = True
+        use_forward_albedo = True
+        use_forward_phase = True
+        if_save_gt_and_carver_masks = True
+        if_save_final3d = True
+        
+        GT_USE = ''
+        GT_USE = GT_USE + ' --add_rayleigh' if add_rayleigh else GT_USE
+        GT_USE = GT_USE + ' --use_forward_mask' if use_forward_mask else GT_USE
+        GT_USE = GT_USE + ' --use_forward_grid' if use_forward_grid else GT_USE
+        GT_USE = GT_USE + ' --use_forward_albedo' if use_forward_albedo else GT_USE
+        GT_USE = GT_USE + ' --use_forward_phase' if use_forward_phase else GT_USE
+        GT_USE = GT_USE + ' --save_gt_and_carver_masks' if if_save_gt_and_carver_masks else GT_USE
+        GT_USE = GT_USE + ' --save_final3d' if if_save_final3d else GT_USE
+        
+        # (use_forward_mask, use_forward_grid, use_forward_albedo, use_forward_phase):
+        # Use the ground-truth things. This is an inverse crime which is 
+        # usefull for debugging/development.    
+        
             
-            for ax, image, name in zip(grid, RENDERED_IMAGES, projection_names):
-                ax.set_axis_off()
-                tmp_image = image
-                tmp_image[tmp_image<=radiance_threshold] = 0
-                im = ax.imshow(tmp_image,cmap='gray',vmin=0, vmax=MAXI)
-                ax.set_title("{}".format(name))
-             
-            title = "After radiance_threshold of {}\n$\lambda$={}nm , $\Phi$={:.2f} , $L$={:.2f}".format(radiance_threshold,int(1e3*wavelength_micron),sun_zenith,solar_flux)
-            cbar = ax.cax.colorbar(im)
-            cbar = grid.cbar_axes[0].colorbar(im)
-            fig.suptitle(title, size=16,y=0.95)                
+        # The log_name defined above
+        # Write intermediate TensorBoardX results into log_name.
+        # The provided string is added as a comment to the specific run.
+        
+        # note that currently, the invers_dir = forward_dir.
+        # In forward_dir, the forward modeling parameters are be saved.
+        # If invers_dir = forward_dir:
+        # The invers_dir directory will be used to save the optimization results and progress.
+        
+        # optimization:
+        globalopt = False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
+        maxiter = 1000 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+        maxls = 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+        disp = True # Display optimization progression.
+        
+        gtol = 1e-16 # Stop criteria for the maximum projected gradient.
+        # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
+        ftol = 1e-16 # Stop criteria for the relative change in loss function.
+        # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
+        loss_type = 'l2'
+        # Different loss functions for optimization. Currently only l2 is supported.
+        
+        #-------------------------------------------------
+        # ---- start working with the above parameters:---
+        #-------------------------------------------------
+        OTHER_PARAMS = ' --input_dir ' + forward_dir + \
+            ' --extinction ' + str(extinction) +\
+            ' --log ' + log_name +\
+            ' --air_path ' + AirFieldFile +\
+            ' --n_jobs '+ str(n_jobs)+\
+            ' --loss_type '+ str(loss_type)+\
+            ' --maxls '+ str(maxls)+\
+            ' --maxiter '+ str(maxiter)+\
+            ' --radiance_threshold '+ str(radiance_threshold)
+        
+        OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS    
+        
+        # We have: ground_truth, rte_solver, measurements.
+        SCRIPTS_PATH = '../scripts'
+        cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_extinction_lbfgs.py')+\
+            OTHER_PARAMS + GT_USE + INIT_USE
+        
+        Optimaize1 = subprocess.call( cmd, shell=True)
+    
+    
+    else: # if we here, we rec. MICROPHYSICS, but which?
+        REC_only_lwc = False
+        REC_only_reff = False
+        REC_only_veff = False
+        REC_all = True
+        if(REC_only_lwc):
             
-            plt.show()    
-        
-        # show the mutli view setup if you want.
-        if(SEE_SETUP):
-            THIS_MULTI_VIEW_SETUP.show_setup(scale=scale ,axisWidth=axisWidth ,axisLenght=axisLenght,FullCone = True)
-            figh = mlab.gcf()
-            mlab.orientation_axes(figure=figh)    
-            mlab.show()    
-            
-        
-        # ----------------------------------------------------------
-        
-        """
-        Work with the optimization:
-        """
-        
-        if not MICROPHYSICS:
-        
             # -----------------------------------------------
-            # ---------SOLVE for extinction only  -----------
+            # ---------SOLVE for lwc only  ------------------
             # -----------------------------------------------    
             """
-            Estimate extinction with (what is known?):
+            Estimate lwc with (what is known?):
             1. ground truth phase function (use_forward_phase, with mie_base_path)
             2. grid (use_forward_grid)
-            3. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
-            4. known albedo (use_forward_albedo)
-            5. rayleigh scattering (add_rayleigh)
-            
+            3. ground-truth effective radius and variance, Hence,
+               the albedo should be known.
+            4. rayleigh scattering (add_rayleigh)
+            5. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
+
             """
+            log_name = "lwc_only_"+log_name_base
             # -----------------------------------------------
             # ---------------- inverse parameters:-----------
             # -----------------------------------------------
@@ -532,7 +462,7 @@ for SATS_NUMBER in SAT_CONFIG:
             stokes_weights = [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V].
                     
             # Initialization and Medium parameters:
-            extinction = 0.01 # init extinction of the generator
+            lwc = 0.01 # init lwc of the generator
             # init_generator = 'Homogeneous'# it is the CloudGenerator from shdom.generate.py
             init = 'Homogeneous'
             # The mie_base_path is defined at the begining of this script.
@@ -540,8 +470,8 @@ for SATS_NUMBER in SAT_CONFIG:
             add_rayleigh = True
             use_forward_mask = False#True
             use_forward_grid = True
-            use_forward_albedo = True
-            use_forward_phase = True
+            use_forward_reff = True
+            use_forward_veff = True
             if_save_gt_and_carver_masks = True
             if_save_final3d = True
             
@@ -549,31 +479,14 @@ for SATS_NUMBER in SAT_CONFIG:
             GT_USE = GT_USE + ' --add_rayleigh' if add_rayleigh else GT_USE
             GT_USE = GT_USE + ' --use_forward_mask' if use_forward_mask else GT_USE
             GT_USE = GT_USE + ' --use_forward_grid' if use_forward_grid else GT_USE
-            GT_USE = GT_USE + ' --use_forward_albedo' if use_forward_albedo else GT_USE
-            GT_USE = GT_USE + ' --use_forward_phase' if use_forward_phase else GT_USE
+            GT_USE = GT_USE + ' --use_forward_reff' if use_forward_reff else GT_USE
+            GT_USE = GT_USE + ' --use_forward_veff' if use_forward_veff else GT_USE                
             GT_USE = GT_USE + ' --save_gt_and_carver_masks' if if_save_gt_and_carver_masks else GT_USE
             GT_USE = GT_USE + ' --save_final3d' if if_save_final3d else GT_USE
             
-            # (use_forward_mask, use_forward_grid, use_forward_albedo, use_forward_phase):
-            # Use the ground-truth things. This is an inverse crime which is 
-            # usefull for debugging/development.    
-            radiance_threshold = 0.05 # Threshold for the radiance to create a cloud mask.
-            # Threshold is either a scalar or a list of length of measurements.
-            if(wavelength_micron == 1.6):
-                radiance_threshold = radiance_threshold/20
-                
-            # The log_name defined above
-            # Write intermediate TensorBoardX results into log_name.
-            # The provided string is added as a comment to the specific run.
-            
-            # note that currently, the invers_dir = forward_dir.
-            # In forward_dir, the forward modeling parameters are be saved.
-            # If invers_dir = forward_dir:
-            # The invers_dir directory will be used to save the optimization results and progress.
-            
             # optimization:
             globalopt = False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
-            maxiter = 2 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+            maxiter = 1000 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
             maxls = 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
             disp = True # Display optimization progression.
             
@@ -588,9 +501,9 @@ for SATS_NUMBER in SAT_CONFIG:
             # ---- start working with the above parameters:---
             #-------------------------------------------------
             OTHER_PARAMS = ' --input_dir ' + forward_dir + \
-                ' --extinction ' + str(extinction) +\
+                ' --lwc ' + str(lwc) +\
                 ' --log ' + log_name +\
-                ' --air_path ' + air_path +\
+                ' --air_path ' + AirFieldFile +\
                 ' --n_jobs '+ str(n_jobs)+\
                 ' --loss_type '+ str(loss_type)+\
                 ' --maxls '+ str(maxls)+\
@@ -601,188 +514,294 @@ for SATS_NUMBER in SAT_CONFIG:
             
             # We have: ground_truth, rte_solver, measurements.
             SCRIPTS_PATH = '../scripts'
-            cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_extinction_lbfgs.py')+\
+            cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_microphysics_lbfgs.py')+\
                 OTHER_PARAMS + GT_USE + INIT_USE
             
-            Optimaize1 = subprocess.call( cmd, shell=True)
+            Optimaize1 = subprocess.call( cmd, shell=True)            
         
         
-        else: # if we here, we rec. MICROPHYSICS, but which?
-            REC_lwc = True
-            if(REC_lwc):
-                
-                # -----------------------------------------------
-                # ---------SOLVE for lwc only  ------------------
-                # -----------------------------------------------    
-                """
-                Estimate lwc with (what is known?):
-                1. ground truth phase function (use_forward_phase, with mie_base_path)
-                2. grid (use_forward_grid)
-                3. ground-truth effective radius and variance, Hence,
-                   the albedo should be known.
-                4. rayleigh scattering (add_rayleigh)
-                5. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
+        if(REC_only_reff):
+            
+            # -----------------------------------------------
+            # ---------SOLVE for reff only  ------------------
+            # -----------------------------------------------    
+            """
+            Estimate reff with (what is known?):
+            1. ground truth phase function (use_forward_phase, with mie_base_path)
+            2. grid (use_forward_grid)
+            3. ground-truth effective variance and lwc.
+            4. rayleigh scattering (add_rayleigh)
+            5. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
 
-                """
-                # -----------------------------------------------
-                # ---------------- inverse parameters:-----------
-                # -----------------------------------------------
-                
-                stokes_weights = [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V].
-                        
-                # Initialization and Medium parameters:
-                lwc = 0.01 # init lwc of the generator
-                # init_generator = 'Homogeneous'# it is the CloudGenerator from shdom.generate.py
-                init = 'Homogeneous'
-                # The mie_base_path is defined at the begining of this script.
-                INIT_USE = ' --init '+ init
-                add_rayleigh = True
-                use_forward_mask = False#True
-                use_forward_grid = True
-                use_forward_reff = True
-                use_forward_veff = True
-                if_save_gt_and_carver_masks = True
-                if_save_final3d = True
-                
-                GT_USE = ''
-                GT_USE = GT_USE + ' --add_rayleigh' if add_rayleigh else GT_USE
-                GT_USE = GT_USE + ' --use_forward_mask' if use_forward_mask else GT_USE
-                GT_USE = GT_USE + ' --use_forward_grid' if use_forward_grid else GT_USE
-                GT_USE = GT_USE + ' --use_forward_reff' if use_forward_reff else GT_USE
-                GT_USE = GT_USE + ' --use_forward_veff' if use_forward_veff else GT_USE                
-                GT_USE = GT_USE + ' --save_gt_and_carver_masks' if if_save_gt_and_carver_masks else GT_USE
-                GT_USE = GT_USE + ' --save_final3d' if if_save_final3d else GT_USE
-                
-                # (use_forward_mask, use_forward_grid, use_forward_albedo, use_forward_phase):
-                # Use the ground-truth things. This is an inverse crime which is 
-                # usefull for debugging/development.    
-                radiance_threshold = 0.05 # Threshold for the radiance to create a cloud mask.
-                # Threshold is either a scalar or a list of length of measurements.
-                if(wavelength_micron == 1.6):
-                    radiance_threshold = radiance_threshold/20
+            """
+            log_name = "reff_only_"+log_name_base
+            # -----------------------------------------------
+            # ---------------- inverse parameters:-----------
+            # -----------------------------------------------
+            
+            stokes_weights = [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V].
                     
-                # The log_name defined above
-                # Write intermediate TensorBoardX results into log_name.
-                # The provided string is added as a comment to the specific run.
-                
-                # note that currently, the invers_dir = forward_dir.
-                # In forward_dir, the forward modeling parameters are be saved.
-                # If invers_dir = forward_dir:
-                # The invers_dir directory will be used to save the optimization results and progress.
-                
-                # optimization:
-                globalopt = False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
-                maxiter = 1000 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
-                maxls = 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
-                disp = True # Display optimization progression.
-                
-                gtol = 1e-16 # Stop criteria for the maximum projected gradient.
-                # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
-                ftol = 1e-16 # Stop criteria for the relative change in loss function.
-                # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
-                loss_type = 'l2'
-                # Different loss functions for optimization. Currently only l2 is supported.
-                
-                #-------------------------------------------------
-                # ---- start working with the above parameters:---
-                #-------------------------------------------------
-                OTHER_PARAMS = ' --input_dir ' + forward_dir + \
-                    ' --lwc ' + str(lwc) +\
-                    ' --log ' + log_name +\
-                    ' --air_path ' + air_path +\
-                    ' --n_jobs '+ str(n_jobs)+\
-                    ' --loss_type '+ str(loss_type)+\
-                    ' --maxls '+ str(maxls)+\
-                    ' --maxiter '+ str(maxiter)+\
-                    ' --radiance_threshold '+ str(radiance_threshold)
-                
-                OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS    
-                
-                # We have: ground_truth, rte_solver, measurements.
-                SCRIPTS_PATH = '../scripts'
-                cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_microphysics_lbfgs.py')+\
-                    OTHER_PARAMS + GT_USE + INIT_USE
-                
-                Optimaize1 = subprocess.call( cmd, shell=True)            
+            # Initialization and Medium parameters:
+            reff = 15 # init reff of the generator
+            # init_generator = 'Homogeneous'# it is the CloudGenerator from shdom.generate.py
+            init = 'Homogeneous'
+            # The mie_base_path is defined at the begining of this script.
+            INIT_USE = ' --init '+ init
+            add_rayleigh = True
+            use_forward_mask = False#True
+            use_forward_grid = True
+            use_forward_lwc = True
+            use_forward_veff = True
+            if_save_gt_and_carver_masks = True
+            if_save_final3d = True
             
+            GT_USE = ''
+            GT_USE = GT_USE + ' --add_rayleigh' if add_rayleigh else GT_USE
+            GT_USE = GT_USE + ' --use_forward_mask' if use_forward_mask else GT_USE
+            GT_USE = GT_USE + ' --use_forward_grid' if use_forward_grid else GT_USE
+            GT_USE = GT_USE + ' --use_forward_lwc' if use_forward_lwc else GT_USE
+            GT_USE = GT_USE + ' --use_forward_veff' if use_forward_veff else GT_USE                
+            GT_USE = GT_USE + ' --save_gt_and_carver_masks' if if_save_gt_and_carver_masks else GT_USE
+            GT_USE = GT_USE + ' --save_final3d' if if_save_final3d else GT_USE
             
-        # that the time to show the results in 3D visualization:
-        VIS_RESULTS3D = True
-        if(VIS_RESULTS3D):    
+
+            # optimization:
+            globalopt = False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
+            maxiter = 1000 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+            maxls = 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+            disp = True # Display optimization progression.
+            
+            gtol = 1e-16 # Stop criteria for the maximum projected gradient.
+            # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
+            ftol = 1e-16 # Stop criteria for the relative change in loss function.
+            # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
+            loss_type = 'l2'
+            # Different loss functions for optimization. Currently only l2 is supported.
+            
+            #-------------------------------------------------
+            # ---- start working with the above parameters:---
+            #-------------------------------------------------
+            OTHER_PARAMS = ' --input_dir ' + forward_dir + \
+                ' --reff ' + str(reff) +\
+                ' --log ' + log_name +\
+                ' --air_path ' + AirFieldFile +\
+                ' --n_jobs '+ str(n_jobs)+\
+                ' --loss_type '+ str(loss_type)+\
+                ' --maxls '+ str(maxls)+\
+                ' --maxiter '+ str(maxiter)+\
+                ' --radiance_threshold '+ str(radiance_threshold)
+            
+            OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS    
+            
+            # We have: ground_truth, rte_solver, measurements.
+            SCRIPTS_PATH = '../scripts'
+            cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_microphysics_lbfgs.py')+\
+                OTHER_PARAMS + GT_USE + INIT_USE
+            
+            Optimaize1 = subprocess.call( cmd, shell=True)  
+            
+        if(REC_only_veff):
+            
+            # -----------------------------------------------
+            # ---------SOLVE for veff only  ------------------
+            # -----------------------------------------------    
             """
-            The forward_dir id a folder that containes:
-            medium, solver, measurements.
-            They loaded before. To see the final state, the medium is not 
-            enough, the medium_estimator is needed.
-            load the measurments to see the rendered images:
+            Estimate veff with (what is known?):
+            1. ground truth phase function (use_forward_phase, with mie_base_path)
+            2. grid (use_forward_grid)
+            3. ground-truth effective radius and lwc.
+            4. rayleigh scattering (add_rayleigh)
+            5. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
+
             """
+            log_name = "veff_only_"+log_name_base
+            # -----------------------------------------------
+            # ---------------- inverse parameters:-----------
+            # -----------------------------------------------
             
+            stokes_weights = [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V].
+                    
+            # Initialization and Medium parameters:
+            veff = 0.19 # init veff of the generator
+            # init_generator = 'Homogeneous'# it is the CloudGenerator from shdom.generate.py
+            init = 'Homogeneous'
+            # The mie_base_path is defined at the begining of this script.
+            INIT_USE = ' --init '+ init
+            add_rayleigh = True
+            use_forward_mask = True#True
+            use_forward_grid = True
+            use_forward_reff = True
+            use_forward_lwc = True
+            if_save_gt_and_carver_masks = True
+            if_save_final3d = True
             
-            # what state to load? I prefere the last one!
-            logs_dir = os.path.join(forward_dir,'logs')
-            logs_prefix = os.path.join(logs_dir,log_name)
-            logs_files = glob.glob(logs_prefix + '-*')
+            GT_USE = ''
+            GT_USE = GT_USE + ' --add_rayleigh' if add_rayleigh else GT_USE
+            GT_USE = GT_USE + ' --use_forward_mask' if use_forward_mask else GT_USE
+            GT_USE = GT_USE + ' --use_forward_grid' if use_forward_grid else GT_USE
+            GT_USE = GT_USE + ' --use_forward_lwc' if use_forward_lwc else GT_USE
+            GT_USE = GT_USE + ' --use_forward_reff' if use_forward_reff else GT_USE                
+            GT_USE = GT_USE + ' --save_gt_and_carver_masks' if if_save_gt_and_carver_masks else GT_USE
+            GT_USE = GT_USE + ' --save_final3d' if if_save_final3d else GT_USE
             
-            times = [i.split('{}-'.format(int(1e3*wavelength_micron)))[-1] for i in logs_files]
-            # sort the times to find the last one.
-            timestamp = [time.mktime(time.strptime(i,"%d-%b-%Y-%H:%M:%S")) for i in times]
-            # time.mktime(t) This is the inverse function of localtime()
-            timestamp.sort()
-            timestamp = [time.strftime("%d-%b-%Y-%H:%M:%S",time.localtime(i)) for i in timestamp]
-            # now, the timestamp are sorted, and I want the last stamp to visualize.
-            connector = '{}-'.format(int(1e3*wavelength_micron))
-            log2load = logs_prefix+'-'+timestamp[-1]
-            # print here the Final results files:
-            Final_results_3Dfiles = glob.glob(log2load + '/FINAL_3D_*.mat')
-            print("{} files with the results in 3D were created:".format(len(Final_results_3Dfiles)))
-            for _file in Final_results_3Dfiles:
-                
-                print(_file)
-                
-            # ---------------------------------------------------------
+            # optimization:
+            globalopt = False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
+            maxiter = 1000 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+            maxls = 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+            disp = True # Display optimization progression.
             
-            # Don't want to use it now, state2load = os.path.join(log2load,'final_state.ckpt')
-            #Generate the medium estimator:
+            gtol = 1e-16 # Stop criteria for the maximum projected gradient.
+            # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
+            ftol = 1e-16 # Stop criteria for the relative change in loss function.
+            # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
+            loss_type = 'l2'
+            # Different loss functions for optimization. Currently only l2 is supported.
             
-            # Define the grid for reconstruction
-            #if use_forward_grid:
-                #extinction_grid = ground_truth.extinction.grid
-                #albedo_grid = ground_truth.albedo.grid
-                #phase_grid = ground_truth.phase.grid
-            #else:
-                #extinction_grid = albedo_grid = phase_grid = self.cloud_generator.get_grid()
-            #grid = extinction_grid + albedo_grid + phase_grid
+            #-------------------------------------------------
+            # ---- start working with the above parameters:---
+            #-------------------------------------------------
+            OTHER_PARAMS = ' --input_dir ' + forward_dir + \
+                ' --veff ' + str(veff) +\
+                ' --log ' + log_name +\
+                ' --air_path ' + AirFieldFile +\
+                ' --n_jobs '+ str(n_jobs)+\
+                ' --loss_type '+ str(loss_type)+\
+                ' --maxls '+ str(maxls)+\
+                ' --maxiter '+ str(maxiter)+\
+                ' --radiance_threshold '+ str(radiance_threshold)
             
+            OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS    
             
-            #Optimaizer_not4minimization = shdom.LocalOptimizer(method='L-BFGS-B')
-            #Optimaizer_not4minimization.set_measurements(measurements)
-            #Optimaizer_not4minimization.set_rte_solver(solver)
-            #Optimaizer_not4minimization.set_medium_estimator(medium_estimator)            
+            # We have: ground_truth, rte_solver, measurements.
+            SCRIPTS_PATH = '../scripts'
+            cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_microphysics_lbfgs.py')+\
+                OTHER_PARAMS + GT_USE + INIT_USE
             
+            Optimaize1 = subprocess.call( cmd, shell=True)  
             
+              
+        if(REC_all):
             
-        #import sys
-        #sys.path.append("../scripts")    
-        #import optimize_extinction_lbfgs as OptimizExt
-        #import argparse
+            # -----------------------------------------------
+            # ---------SOLVE for lwc only  ------------------
+            # -----------------------------------------------    
+            """
+            Estimate lwc with (what is known?):
+            1. ground truth phase function (use_forward_phase, with mie_base_path)
+            2. grid (use_forward_grid)
+            3. rayleigh scattering (add_rayleigh)
+            4. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
+
+            """
+            log_name = "rec_all_"+log_name_base
+            # -----------------------------------------------
+            # ---------------- inverse parameters:-----------
+            # -----------------------------------------------
+            
+            stokes_weights = [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V].
+                    
+            # Initialization and Medium parameters:
+            lwc = 0.01 # init lwc of the generator
+            reff = 12 # init reff of the generator
+            #veff = 0.15 # init veff of the generator
+            
+            # init_generator = 'Homogeneous'# it is the CloudGenerator from shdom.generate.py
+            init = 'Homogeneous'
+            # The mie_base_path is defined at the begining of this script.
+            INIT_USE = ' --init '+ init
+            add_rayleigh = True
+            use_forward_mask = True#True
+            use_forward_grid = True
+            if_save_gt_and_carver_masks = True
+            if_save_final3d = True
+            
+            GT_USE = ''
+            GT_USE = GT_USE + ' --use_forward_veff --lwc_scaling 15 --reff_scaling 0.01'# -----------------                       
+            GT_USE = GT_USE + ' --add_rayleigh' if add_rayleigh else GT_USE
+            GT_USE = GT_USE + ' --use_forward_mask' if use_forward_mask else GT_USE
+            GT_USE = GT_USE + ' --use_forward_grid' if use_forward_grid else GT_USE               
+            GT_USE = GT_USE + ' --save_gt_and_carver_masks' if if_save_gt_and_carver_masks else GT_USE
+            GT_USE = GT_USE + ' --save_final3d' if if_save_final3d else GT_USE
+            
+            # optimization:
+            globalopt = False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
+            maxiter = 1000 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+            maxls = 100 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+            disp = True # Display optimization progression.
+            
+            gtol = 1e-16 # Stop criteria for the maximum projected gradient.
+            # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
+            ftol = 1e-16 # Stop criteria for the relative change in loss function.
+            # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
+            loss_type = 'l2'
+            # Different loss functions for optimization. Currently only l2 is supported.
+            
+            #-------------------------------------------------
+            # ---- start working with the above parameters:---
+            #-------------------------------------------------
+            # ' --veff ' + str(veff) +\
+            OTHER_PARAMS = ' --input_dir ' + forward_dir + \
+                ' --lwc ' + str(lwc) +\
+                ' --reff ' + str(reff) +\
+                ' --log ' + log_name +\
+                ' --air_path ' + AirFieldFile +\
+                ' --n_jobs '+ str(n_jobs)+\
+                ' --loss_type '+ str(loss_type)+\
+                ' --maxls '+ str(maxls)+\
+                ' --maxiter '+ str(maxiter)
+                #' --radiance_threshold '+ str(radiance_threshold)
+            
+            OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS    
+            
+            # We have: ground_truth, rte_solver, measurements.
+            SCRIPTS_PATH = '../scripts'
+            cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_microphysics_lbfgs.py')+\
+                OTHER_PARAMS + GT_USE + INIT_USE
+            
+            Optimaize1 = subprocess.call( cmd, shell=True)            
+              
+#-------------------------------------------------
+#-------------------------------------------------
+#-------------------------------------------------    
+
+    # that the time to show the results in 3D visualization:
+    VIS_RESULTS3D = False
+    if(VIS_RESULTS3D):    
+        """
+        The forward_dir id a folder that containes:
+        medium, solver, measurements.
+        They loaded before. To see the final state, the medium is not 
+        enough, the medium_estimator is needed.
+        load the measurments to see the rendered images:
+        """
         
-        #OptimizationScript = OptimizExt.OptimizationScript(scatterer_name='cloud')
-        #OptimizationScript.parse_arguments()
-        #OptimizationScript.main()
-        #parser = argparse.ArgumentParser()
-        #args = parser.parse_args()
-        #parser = OptimizationScript.optimization_args(parser)
-        #parser = OptimizationScript.medium_args(parser)
-        # Initialize air and cloud medium:
-        #CloudGenerator = getattr(shdom.generate, init)
-        #cloud_generator = CloudGenerator(self.args) if CloudGenerator is not None else None
         
-        #args.air_path = air_path
-        #args.air_max_alt = air_max_alt
-        #args.air_num_points = air_num_points
-        #AirGenerator = shdom.generate.AFGLSummerMidLatAir
-        #air_generator = AirGenerator(air_path,air_max_alt,air_num_points)
+        # what state to load? I prefere the last one!
+        logs_dir = os.path.join(forward_dir,'logs')
+        logs_prefix = os.path.join(logs_dir,log_name)
+        logs_files = glob.glob(logs_prefix + '-*')
         
-        print("use tensorboard --logdir --bind_all".format(log2load))
+        times = [i.split('{}-'.format(int(1e3*wavelength_micron)))[-1] for i in logs_files]
+        # sort the times to find the last one.
+        timestamp = [time.mktime(time.strptime(i,"%d-%b-%Y-%H:%M:%S")) for i in times]
+        # time.mktime(t) This is the inverse function of localtime()
+        timestamp.sort()
+        timestamp = [time.strftime("%d-%b-%Y-%H:%M:%S",time.localtime(i)) for i in timestamp]
+        # now, the timestamp are sorted, and I want the last stamp to visualize.
+        connector = '{}-'.format(int(1e3*wavelength_micron))
+        log2load = logs_prefix+'-'+timestamp[-1]
+        # print here the Final results files:
+        Final_results_3Dfiles = glob.glob(log2load + '/FINAL_3D_*.mat')
+        print("{} files with the results in 3D were created:".format(len(Final_results_3Dfiles)))
+        for _file in Final_results_3Dfiles:
+            
+            print(_file)
+            
+        # ---------------------------------------------------------
         
-        print("done")
+        # Don't want to use it now, state2load = os.path.join(log2load,'final_state.ckpt')
+        
+    
+        print("use tensorboard --logdir {} --bind_all".format(log2load))
+    
+    print("done")

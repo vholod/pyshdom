@@ -231,6 +231,9 @@ class OptimizationScript(ExtinctionOptimizationScript):
             writer.monitor_scatter_plot(estimator_name=self.scatterer_name, ground_truth=ground_truth, dilute_percent=0.4, parameters=['lwc'])
             writer.monitor_horizontal_mean(estimator_name=self.scatterer_name, ground_truth=ground_truth, ground_truth_mask=ground_truth.get_mask(threshold=0.01))
 
+            # vadim added:
+            writer.monitor_images(measurements=measurements, ckpt_period=5 * 60)
+            
         return writer
 
 

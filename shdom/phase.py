@@ -685,8 +685,9 @@ class MiePolydisperse(object):
        - notebooks/Make Mie Table.ipynb for usage examples. 
        - notebooks/Make Mie Table Polarized.ipynb for usage examples. 
     """    
-    def __init__(self, mono_disperse=MieMonodisperse(), size_distribution=SizeDistribution()):
+    def __init__(self, mono_disperse=None, size_distribution=SizeDistribution()):
         self._table_type = None
+        mono_disperse = shdom.MieMonodisperse() if mono_disperse is None else mono_disperse
         self.set_mono_disperse(mono_disperse)
         self.set_size_distribution(size_distribution)
         self._extinct = None

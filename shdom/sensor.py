@@ -103,6 +103,7 @@ class Sensor(object):
             total_ext=rte_solver._total_ext[:rte_solver._npts],
             npart=rte_solver._npart)    
         
+        print(output.shape)
         return output
 
     @property
@@ -646,7 +647,12 @@ class PerspectiveProjection(HomographyProjection):
                             [0, 0, 1]], dtype=np.float32)
         self._inv_k = np.linalg.inv(self._k)
         self._rotation_matrix = np.eye(3)
-        x_c, y_c, z_c = np.meshgrid(np.linspace(-1, 1, nx), np.linspace(-1, 1, ny), 1.0)        
+        
+        M = max(nx,ny)
+        R = np.array([nx,ny])/M # R will be used to scale the sensor meshgrid.
+        self._dy = 2*R[1]/ny # pixel length in y direction in the normalized image plane.
+        self._dx = 2*R[0]/nx # pixel length in x direction in the normalized image plane.            
+        x_c, y_c, z_c = np.meshgrid(np.linspace(-R[0], R[0]-self._dx, nx), np.linspace(-R[1], R[1]-self._dy, ny), 1.0)                
         self._homogeneous_coordinates = np.stack([x_c.ravel(), y_c.ravel(), z_c.ravel()])
         self.update_global_coordinates()
         
@@ -1021,6 +1027,7 @@ class Measurements(object):
         self._pixels = pixels
         self._num_channels = num_channels
 
+        
     def save(self, path):
         """
         Save Measurements to file.

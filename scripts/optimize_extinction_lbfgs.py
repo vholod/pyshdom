@@ -421,7 +421,7 @@ class OptimizationScript(object):
                 dy = parameter.grid.dy
                 nz = parameter.grid.nz
                 dz = (parameter.grid.zmax - parameter.grid.zmin)/nz
-                GT_parameter = ground_truth.__getattribute__(parameter_name)
+                GT_parameter = ground_truth.__getattribute__(parameter_name).data
                 sio.savemat(os.path.join(save_dir,'FINAL_3D_{}.mat'.format(parameter_name)), {'GT':GT_parameter,parameter_name:rec_param,'dx':dx,'dy':dy,'dz':dz})
             
 
