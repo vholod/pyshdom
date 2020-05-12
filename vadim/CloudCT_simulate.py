@@ -49,7 +49,7 @@ n_jobs = 30
 
 # orbit altitude:
 Rsat = 500 # km
-wavelengths_micron = [0.672, 0.95]  #0.672 , 1.6
+wavelengths_micron = [0.452, 1.6]  #0.672 , 1.6
 sun_azimuth = 45
 sun_zenith = 150
 #azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
