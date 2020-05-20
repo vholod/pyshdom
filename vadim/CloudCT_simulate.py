@@ -49,7 +49,7 @@ n_jobs = 30
 
 # orbit altitude:
 Rsat = 500 # km
-wavelengths_micron = [0.452, 1.6]  #0.672 , 1.6
+wavelengths_micron = [0.672, 1.6]  #0.672 , 1.6
 sun_azimuth = 45
 sun_zenith = 150
 #azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
@@ -726,7 +726,7 @@ if(DOINVERSE):
             # optimization:
             globalopt = False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
             maxiter = 1000 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
-            maxls = 100 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+            maxls = 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
             disp = True # Display optimization progression.
             
             gtol = 1e-16 # Stop criteria for the maximum projected gradient.
