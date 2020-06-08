@@ -38,6 +38,7 @@ mie_options = {
 
 # visualization params:
 VISSETUP = False
+CENCEL_AIR = False # just for debuging, in rutine it must be false.
 scale = 500
 axisWidth = 0.02
 axisLenght = 5000  
@@ -49,6 +50,7 @@ n_jobs = 30
 
 # orbit altitude:
 Rsat = 500 # km
+GSD = 0.02 # in km, it is the ground spatial resolution.
 wavelengths_micron = [0.672, 1.6]  #0.672 , 1.6
 sun_azimuth = 45
 sun_zenith = 150
@@ -72,9 +74,9 @@ if(isinstance(wavelengths_micron, list)):
     wavelengths_micron.sort()# just for convenience, let's have it sorted.
     wavelengths_string = functools.reduce(operator.add,[str(int(1e3*j))+"_" for j in wavelengths_micron]).rstrip('_')
     # forward_dir, where to save evrerything that is related to forward model:
-    forward_dir = './experiments/polychromatic_unity_flux_active_sats_{}_LES_cloud_field_rico_Water_{}nm'.format(SATS_NUMBER_SETUP,wavelengths_string)
+    forward_dir = './experiments/polychromatic_unity_flux_active_sats_{}_GSD_{}m_LES_cloud_field_rico_Water_{}nm'.format(SATS_NUMBER_SETUP,int(1e3*GSD),wavelengths_string)
 else: # if wavelengths_micron is scalar
-    forward_dir = './experiments/polychromatic_unity_flux_active_sats_{}_LES_cloud_field_rico_Water_{}nm'.format(SATS_NUMBER_SETUP,int(1e3*wavelengths_micron))
+    forward_dir = './experiments/monochromatic_unity_flux_active_sats_{}_GSD_{}m_LES_cloud_field_rico_Water_{}nm'.format(SATS_NUMBER_SETUP,int(1e3*GSD),int(1e3*wavelengths_micron))
 
 # invers_dir, where to save evrerything that is related to invers model:
 invers_dir = forward_dir
@@ -92,7 +94,12 @@ DOINVERSE = True
 # ---------------------------------------------------------------
 
 CloudFieldFile = '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
-AirFieldFile = './ancillary_data/AFGL_summer_mid_lat.txt' # Path to csv file which contains temperature measurements
+if(CENCEL_AIR):
+    AirFieldFile = None # here the atmosphere will note condsider any air.
+    
+else:
+    AirFieldFile = './ancillary_data/AFGL_summer_mid_lat.txt' # Path to csv file which contains temperature measurements
+    
 atmosphere = CloudCT_setup.Prepare_Medium(CloudFieldFile,AirFieldFile,
                              MieTablesPath,wavelengths_micron)
 droplets = atmosphere.get_scatterer('cloud')
@@ -118,7 +125,7 @@ Lz_droplets = droplets.grid.bounding_box.zmax - droplets.grid.bounding_box.zmin
 dz = Lz_droplets/nz
 
 #USED FOV, RESOLUTION and SAT_LOOKATS:
-PIXEL_FOOTPRINT = 0.01 # km
+PIXEL_FOOTPRINT = GSD # km
 fov = 2*np.rad2deg(np.arctan(0.5*L/(Rsat)))
 cny = int(np.floor(L/PIXEL_FOOTPRINT))
 cnx = int(np.floor(L/PIXEL_FOOTPRINT))
@@ -683,7 +690,7 @@ if(DOINVERSE):
         if(REC_all):
             
             # -----------------------------------------------
-            # ---------SOLVE for lwc only  ------------------
+            # ---------SOLVE for lwc and reff  ------------------
             # -----------------------------------------------    
             """
             Estimate lwc with (what is known?):
@@ -709,8 +716,8 @@ if(DOINVERSE):
             init = 'Homogeneous'
             # The mie_base_path is defined at the begining of this script.
             INIT_USE = ' --init '+ init
-            add_rayleigh = True
-            use_forward_mask = True#True
+            add_rayleigh = False if CENCEL_AIR else True
+            use_forward_mask = True#False#True
             use_forward_grid = True
             if_save_gt_and_carver_masks = True
             if_save_final3d = True
@@ -744,7 +751,6 @@ if(DOINVERSE):
                 ' --lwc ' + str(lwc) +\
                 ' --reff ' + str(reff) +\
                 ' --log ' + log_name +\
-                ' --air_path ' + AirFieldFile +\
                 ' --n_jobs '+ str(n_jobs)+\
                 ' --loss_type '+ str(loss_type)+\
                 ' --maxls '+ str(maxls)+\
@@ -752,7 +758,7 @@ if(DOINVERSE):
                 #' --radiance_threshold '+ str(radiance_threshold)
             
             OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS    
-            
+            OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if (CENCEL_AIR == False) else OTHER_PARAMS
             # We have: ground_truth, rte_solver, measurements.
             SCRIPTS_PATH = '../scripts'
             cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_microphysics_lbfgs.py')+\

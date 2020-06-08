@@ -108,7 +108,18 @@ def CALC_MIE_TABLES(where_to_check_path = './mie_tables/polydisperse',wavelength
     return mie_base_path
 
 
-    
+
+
+def SatSpeed(orbit = 100e3):
+    """
+    Determine the speed, (later, acceleration and orbital period) of the satellite.
+    """
+    Rsat = orbit # in meters.
+    R = r_earth + Rsat #  the orbital radius
+    # The orbital speed of the satellite using the following equation:
+    # v = SQRT [ (G*M_earth ) / R ]
+    V = np.sqrt((G*M_earth)/R) # units of [m/sec]
+    return V    
 # -----------------------------------------------------------------
 # ------------------------THE FUNCTIONS ABOVE----------------------
 # -----------------------------------------------------------------

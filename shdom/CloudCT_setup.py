@@ -95,7 +95,7 @@ class SpaceMultiView(shdom.MultiViewProjection):
                             )  
             
             for ax, name in zip(grid, projection_names):
-                image = self._IMAGES_DICT[name][wavelength]
+                image = self._IMAGES_DICT[name][wavelength].copy()
                 if(radiance_threshold is not None):
                     if(isinstance(radiance_threshold, list)):
                         image[image<=radiance_threshold[WI]] = 0
@@ -430,17 +430,20 @@ def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, MieTablesPath=None,
     
     # Air part
     air = shdom.MultispectralScatterer()
-    assert AirFieldFile is not None, "You must provied the air field for the simulation."
+    if(AirFieldFile is None):
+        print("You did not provied the air field for the simulation. The atmospher will not include Molecular Rayleigh scattering.")
+
     # user may tune:
     air_num_points = 20 # Number of altitude grid points for the air volume
     air_max_alt = 5 # in km ,Maximum altitude for the air volume
     # ----------------------------------------------------------------
     # Rayleigh scattering for air molecules
-    df = pd.read_csv(AirFieldFile, comment='#', sep=' ')
-    altitudes = df['Altitude(km)'].to_numpy(dtype=np.float32)
-    temperatures = df['Temperature(k)'].to_numpy(dtype=np.float32)
-    temperature_profile = shdom.GridData(shdom.Grid(z=altitudes), temperatures)
-    air_grid = shdom.Grid(z=np.linspace(0, air_max_alt, air_num_points))
+    if(AirFieldFile is not None):
+        df = pd.read_csv(AirFieldFile, comment='#', sep=' ')
+        altitudes = df['Altitude(km)'].to_numpy(dtype=np.float32)
+        temperatures = df['Temperature(k)'].to_numpy(dtype=np.float32)
+        temperature_profile = shdom.GridData(shdom.Grid(z=altitudes), temperatures)
+        air_grid = shdom.Grid(z=np.linspace(0, air_max_alt, air_num_points))
     
     assert MieTablesPath is not None, "You must provied the path of the mie tables for the simulation."    
     for wavelength in wavelengths_micron: 
@@ -448,9 +451,10 @@ def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, MieTablesPath=None,
         format(int(1e3 * wavelength)))
         
         # Molecular Rayleigh scattering
-        rayleigh = shdom.Rayleigh(wavelength)
-        rayleigh.set_profile(temperature_profile.resample(air_grid))
-        air.add_scatterer(rayleigh.get_scatterer())
+        if(AirFieldFile is not None):
+            rayleigh = shdom.Rayleigh(wavelength)
+            rayleigh.set_profile(temperature_profile.resample(air_grid))
+            air.add_scatterer(rayleigh.get_scatterer())
         
         # Droplet Mie scattering
         mie = shdom.MiePolydisperse()
@@ -462,11 +466,16 @@ def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, MieTablesPath=None,
         
         
     # Generate an atmospheric medium with both scatterers
-    atmospheric_grid = droplets.grid + air.grid
+    if(AirFieldFile is not None):
+        atmospheric_grid = droplets.grid + air.grid
+    else:
+        atmospheric_grid = droplets.grid
+        
     # atmospheric_grid = droplets.grid # in a case I don't ant the air in the simulation.
     atmosphere = shdom.Medium(atmospheric_grid)
     atmosphere.add_scatterer(droplets, name='cloud')
-    atmosphere.add_scatterer(air, name='air')    
+    if(AirFieldFile is not None):
+        atmosphere.add_scatterer(air, name='air')    
     
     return atmosphere
     
