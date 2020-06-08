@@ -118,6 +118,7 @@ got thiw strange warning:
 warning: Not setting branch refactoring as its own upstream.
 so I did:
 git fetch upstream 
+git merge upstream/polarized
 then:
 git pull origin refactoring # all worked
 
