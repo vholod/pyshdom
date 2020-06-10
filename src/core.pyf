@@ -1,0 +1,1027 @@
+!    -*- f90 -*-
+! Note: the context of this file is case sensitive.
+
+python module core ! in 
+    interface  ! in :core
+        subroutine start_mpi(masterproc) ! in :core:src/shdom_nompi.f
+            logical intent(out) :: masterproc
+        end subroutine start_mpi
+        subroutine end_shdom_mpi(npts,gridpos,npx,npy,xstart,ystart,delx,dely,npxt,npyt) ! in :core:src/shdom_nompi.f
+            integer intent(in) :: npts
+            real dimension(3,*),intent(in) :: gridpos
+            integer intent(in) :: npx
+            integer intent(in) :: npy
+            real intent(in) :: xstart
+            real intent(in) :: ystart
+            real intent(in) :: delx
+            real intent(in) :: dely
+            integer intent(in) :: npxt
+            integer intent(in) :: npyt
+        end subroutine end_shdom_mpi
+        subroutine space_carve(nx,ny,nz,npts,ncells,xgrid,ygrid,zgrid,gridpos,gridptr,neighptr,treeptr,cellflags,bcflag,ipflag,camx,camy,camz,cammu,camphi,npix,volume) ! in :core:src/shdomsub5.f
+            integer intent(in) :: nx
+            integer intent(in) :: ny
+            integer intent(in) :: nz
+            integer intent(in) :: npts
+            integer intent(in) :: ncells
+            real dimension(*),intent(in) :: xgrid
+            real dimension(*),intent(in) :: ygrid
+            real dimension(*),intent(in) :: zgrid
+            real dimension(3,*),intent(in) :: gridpos
+            integer dimension(8,*),intent(in) :: gridptr
+            integer dimension(6,*),intent(in) :: neighptr
+            integer dimension(2,*),intent(in) :: treeptr
+            integer*2 dimension(*),intent(in) :: cellflags
+            integer intent(in) :: bcflag
+            integer intent(in) :: ipflag
+            real dimension(*),intent(in) :: camx
+            real dimension(*),intent(in) :: camy
+            real dimension(*),intent(in) :: camz
+            real dimension(*),intent(in) :: cammu
+            real dimension(*),intent(in) :: camphi
+            integer intent(in) :: npix
+            integer dimension(npts),intent(out),depend(npts) :: volume
+        end subroutine space_carve
+        subroutine rayleigh_extinct(nzt,zlevels,temp,raysfcpres,raylcoef,extrayl) ! in :core:src/shdomsub5.f
+            integer, optional,intent(in),check(len(zlevels)>=nzt),depend(zlevels) :: nzt=len(zlevels)
+            real dimension(nzt),intent(in) :: zlevels
+            real dimension(nzt),intent(in),depend(nzt) :: temp
+            real intent(in) :: raysfcpres
+            real intent(in) :: raylcoef
+            real dimension(nzt),intent(out),depend(nzt) :: extrayl
+        end subroutine rayleigh_extinct
+        subroutine make_direct_derivative(npts,bcflag,npx,npy,npz,delx,dely,xstart,ystart,gridpos,zlevels,ipdirect,di,dj,dk,cx,cy,cz,cxinv,cyinv,czinv,epss,epsz,xdomain,ydomain,uniformzlev,delxd,delyd,dpath,dptr) ! in :core:src/shdomsub5.f
+            integer intent(in) :: npts
+            integer intent(in) :: bcflag
+            integer intent(in) :: npx
+            integer intent(in) :: npy
+            integer intent(in) :: npz
+            real intent(in) :: delx
+            real intent(in) :: dely
+            real intent(in) :: xstart
+            real intent(in) :: ystart
+            real dimension(3,*),intent(in) :: gridpos
+            real dimension(*),intent(in) :: zlevels
+            integer intent(in) :: ipdirect
+            integer intent(in) :: di
+            integer intent(in) :: dj
+            integer intent(in) :: dk
+            double precision intent(in) :: cx
+            double precision intent(in) :: cy
+            double precision intent(in) :: cz
+            double precision intent(in) :: cxinv
+            double precision intent(in) :: cyinv
+            double precision intent(in) :: czinv
+            double precision intent(in) :: epss
+            double precision intent(in) :: epsz
+            double precision intent(in) :: xdomain
+            double precision intent(in) :: ydomain
+            double precision intent(in) :: uniformzlev
+            double precision intent(in) :: delxd
+            double precision intent(in) :: delyd
+            real dimension(8*(npx+npy+npz),npts),intent(out),depend(npx,npy,npz,npts) :: dpath
+            integer dimension(8*(npx+npy+npz),npts),intent(out),depend(npx,npy,npz,npts) :: dptr
+        end subroutine make_direct_derivative
+        subroutine transfer_pa_to_grid(ml,mm,maxig,nleg,numphase,deltam,srctype,units,waveno,wavelen,temp,planck,extinct,albedo,legen,iphase,npts,gridpos,npx,npy,npz,delx,dely,xstart,ystart,zlevels,tempp,extinctp,nbpts,albedop,legenp,iphasep,nzckd,zckd,gasabs,npart,total_ext,extmin,scatmin,albmax,nstleg) ! in :core:src/unpolarized/shdomsub1.f
+            threadsafe
+            integer intent(in) :: ml
+            integer intent(in) :: mm
+            integer intent(in) :: maxig
+            integer intent(in) :: nleg
+            integer intent(in) :: numphase
+            logical intent(in) :: deltam
+            character*1 intent(in) :: srctype
+            character*1 intent(in) :: units
+            real dimension(2),intent(in) :: waveno
+            real intent(in) :: wavelen
+            real dimension(maxig),intent(out),depend(maxig) :: temp
+            real dimension(maxig,npart),intent(out),depend(maxig,npart) :: planck
+            real dimension(maxig,npart),intent(out),depend(maxig,npart) :: extinct
+            real dimension(maxig,npart),intent(out),depend(maxig,npart) :: albedo
+            real dimension(nleg + 1,numphase),intent(out),depend(nleg,numphase) :: legen
+            integer dimension(maxig,npart),intent(out),depend(maxig,npart) :: iphase
+            integer intent(in) :: npts
+            real dimension(3,*),intent(in) :: gridpos
+            integer intent(in) :: npx
+            integer intent(in) :: npy
+            integer intent(in) :: npz
+            real intent(in) :: delx
+            real intent(in) :: dely
+            real intent(in) :: xstart
+            real intent(in) :: ystart
+            real dimension(*),intent(in) :: zlevels
+            real dimension(nbpts),intent(in) :: tempp
+            real dimension(nbpts,npart),intent(in),depend(nbpts) :: extinctp
+            integer, optional,intent(in),check(len(tempp)>=nbpts),depend(tempp) :: nbpts=len(tempp)
+            real dimension(nbpts,npart),intent(in),depend(nbpts,npart) :: albedop
+            real dimension(*),intent(in) :: legenp
+            integer dimension(nbpts,npart),intent(in),depend(nbpts,npart) :: iphasep
+            integer intent(in) :: nzckd
+            real dimension(*),intent(in) :: zckd
+            real dimension(*),intent(in) :: gasabs
+            integer, optional,intent(in),check(shape(extinctp,1)==npart),depend(extinctp) :: npart=shape(extinctp,1)
+            real dimension(maxig),intent(out),depend(maxig) :: total_ext
+            double precision intent(out) :: extmin
+            double precision intent(out) :: scatmin
+            real intent(out) :: albmax
+            integer intent(in) :: nstleg
+        end subroutine transfer_pa_to_grid
+        subroutine init_solution(nx,ny,nz,nx1,ny1,nang,ml,mm,maxiv,maxic,maxig,maxido,shacc,ncs,nlm,nmu,nphi,nleg,numphase,nphi0,mu,phi,wtdo,bcflag,ipflag,deltam,srctype,solarflux,solarmu,solaraz,skyrad,sfctype,gndtemp,gndalbedo,nxsfc,nysfc,delxsfc,delysfc,nsfcpar,sfcparms,sfcgridparms,units,waveno,wavelen,accelflag,xgrid,ygrid,zgrid,temp,planck,extinct,albedo,legen,iphase,maxnbc,maxbcrad,ntoppts,nbotpts,bcptr,npts,gridpos,ncells,gridptr,treeptr,rshptr,shptr,oshptr,source,delsource,radiance,fluxes,dirflux,ylmsun,uniformzlev,npx,npy,npz,delx,dely,xstart,ystart,zlevels,tempp,extinctp,nbpts,albedop,legenp,extdirp,iphasep,nzckd,zckd,gasabs,npart,total_ext,bcrad,cx,cy,cz,cxinv,cyinv,czinv,ipdirect,di,dj,dk,nphi0max,epss,epsz,xdomain,ydomain,delxd,delyd,deljdot,deljold,deljnew,jnorm,nbcells,fftflag,cmu1,cmu2,wtmu,cphi1,cphi2,wphisave,maxsfcpars,work,work1,work2,nstleg,nstokes,uniform_sfc_brdf,sfc_brdf_do,maxir) ! in :core:src/unpolarized/shdomsub1.f
+            threadsafe
+            integer intent(in) :: nx
+            integer intent(in) :: ny
+            integer intent(in) :: nz
+            integer intent(in) :: nx1
+            integer intent(in) :: ny1
+            integer intent(out) :: nang
+            integer intent(in) :: ml
+            integer intent(in) :: mm
+            integer*8 intent(in) :: maxiv
+            integer*8 intent(in) :: maxic
+            integer*8, optional,intent(in),check(shape(planck,0)==maxig),depend(planck) :: maxig=shape(planck,0)
+            integer*8 intent(in) :: maxido
+            real intent(in) :: shacc
+            integer intent(in) :: ncs
+            integer intent(in) :: nlm
+            integer intent(in) :: nmu
+            integer intent(in) :: nphi
+            integer, optional,intent(in),check((shape(legen,0)-1)==nleg),depend(legen) :: nleg=(shape(legen,0)-1)
+            integer, optional,intent(in),check(shape(legen,1)==numphase),depend(legen) :: numphase=shape(legen,1)
+            integer dimension(nmu),intent(out),depend(nmu) :: nphi0
+            real dimension(nmu),intent(out),depend(nmu) :: mu
+            real dimension(nmu,nphi),intent(out),depend(nmu,nphi) :: phi
+            real dimension(nmu,nphi),intent(out),depend(nmu,nphi) :: wtdo
+            integer intent(in) :: bcflag
+            integer intent(in) :: ipflag
+            logical intent(in) :: deltam
+            character*1 intent(in) :: srctype
+            real intent(in) :: solarflux
+            real intent(in) :: solarmu
+            real intent(in) :: solaraz
+            real intent(in) :: skyrad
+            character*2 intent(in) :: sfctype
+            real intent(in) :: gndtemp
+            real intent(in) :: gndalbedo
+            integer intent(in) :: nxsfc
+            integer intent(in) :: nysfc
+            real intent(in) :: delxsfc
+            real intent(in) :: delysfc
+            integer intent(in) :: nsfcpar
+            real dimension(*),intent(in) :: sfcparms
+            real dimension(maxsfcpars*maxnbc),intent(out),depend(maxnbc,maxsfcpars) :: sfcgridparms
+            character*1 intent(in) :: units
+            real dimension(2),intent(in) :: waveno
+            real intent(in) :: wavelen
+            logical intent(in) :: accelflag
+            real dimension(*),intent(in) :: xgrid
+            real dimension(*),intent(in) :: ygrid
+            real dimension(*),intent(in) :: zgrid
+            real dimension(*),intent(in) :: temp
+            real dimension(maxig,npart),intent(in) :: planck
+            real dimension(maxig,npart),intent(in),depend(maxig,npart) :: extinct
+            real dimension(maxig,npart),intent(in),depend(maxig,npart) :: albedo
+            real dimension(nleg + 1,numphase),intent(in) :: legen
+            integer dimension(maxig,npart),intent(in),depend(maxig,npart) :: iphase
+            integer intent(in) :: maxnbc
+            integer intent(in) :: maxbcrad
+            integer intent(out) :: ntoppts
+            integer intent(out) :: nbotpts
+            integer dimension(maxnbc,2),intent(out),depend(maxnbc) :: bcptr
+            integer intent(in) :: npts
+            real dimension(3,*),intent(in) :: gridpos
+            integer intent(in) :: ncells
+            integer dimension(8,*),intent(in) :: gridptr
+            integer dimension(2,*),intent(in) :: treeptr
+            integer dimension(maxig + 2),intent(out),depend(maxig) :: rshptr
+            integer dimension(maxig + 1),intent(out),depend(maxig) :: shptr
+            integer dimension(maxig + 1),intent(out),depend(maxig) :: oshptr
+            real dimension(maxiv),intent(out),depend(maxiv) :: source
+            real dimension(maxiv),intent(out),depend(maxiv) :: delsource
+            real dimension(maxir),intent(out),depend(maxir) :: radiance
+            real dimension(2,maxig),intent(out),depend(maxig) :: fluxes
+            real dimension(maxig),intent(out),depend(maxig) :: dirflux
+            real dimension(nlm),intent(out),depend(nlm) :: ylmsun
+            double precision intent(out) :: uniformzlev
+            integer intent(in) :: npx
+            integer intent(in) :: npy
+            integer intent(in) :: npz
+            real intent(in) :: delx
+            real intent(in) :: dely
+            real intent(in) :: xstart
+            real intent(in) :: ystart
+            real dimension(*),intent(in) :: zlevels
+            real dimension(nbpts),intent(in) :: tempp
+            real dimension(nbpts,npart),intent(in),depend(nbpts,npart) :: extinctp
+            integer, optional,intent(in),check(len(tempp)>=nbpts),depend(tempp) :: nbpts=len(tempp)
+            real dimension(nbpts,npart),intent(in),depend(nbpts,npart) :: albedop
+            real dimension(*),intent(in) :: legenp
+            real dimension(nbpts),intent(out),depend(nbpts) :: extdirp
+            integer dimension(nbpts,npart),intent(in),depend(nbpts,npart) :: iphasep
+            integer intent(in) :: nzckd
+            real dimension(*),intent(in) :: zckd
+            real dimension(*),intent(in) :: gasabs
+            integer, optional,intent(in),check(shape(planck,1)==npart),depend(planck) :: npart=shape(planck,1)
+            real dimension(maxig),intent(in),depend(maxig) :: total_ext
+            real dimension(maxbcrad),intent(out),depend(maxbcrad) :: bcrad
+            double precision intent(out) :: cx
+            double precision intent(out) :: cy
+            double precision intent(out) :: cz
+            double precision intent(out) :: cxinv
+            double precision intent(out) :: cyinv
+            double precision intent(out) :: czinv
+            integer intent(out) :: ipdirect
+            integer intent(out) :: di
+            integer intent(out) :: dj
+            integer intent(out) :: dk
+            integer intent(in) :: nphi0max
+            double precision intent(out) :: epss
+            double precision intent(out) :: epsz
+            double precision intent(out) :: xdomain
+            double precision intent(out) :: ydomain
+            double precision intent(out) :: delxd
+            double precision intent(out) :: delyd
+            real intent(out) :: deljdot
+            real intent(out) :: deljold
+            real intent(out) :: deljnew
+            real intent(out) :: jnorm
+            integer intent(in) :: nbcells
+            logical dimension(nmu),intent(out),depend(nmu) :: fftflag
+            real dimension(nlm,nmu),intent(out),depend(nlm,nmu) :: cmu1
+            real dimension(nmu,nlm),intent(out),depend(nmu,nlm) :: cmu2
+            real dimension(nmu),intent(out),depend(nmu) :: wtmu
+            real dimension(33,32,nmu),intent(out),depend(nmu) :: cphi1
+            real dimension(32,33,nmu),intent(out),depend(nmu) :: cphi2
+            real dimension(3 * nphi0max + 15,nmu),intent(out),depend(nphi0max,nmu) :: wphisave
+            integer intent(in) :: maxsfcpars
+            real dimension(maxido),intent(out),depend(maxido) :: work
+            integer dimension(8 * maxig),intent(out),depend(maxig) :: work1
+            real dimension(maxig),intent(out),depend(maxig) :: work2
+            integer intent(in) :: nstleg
+            integer intent(in) :: nstokes
+            logical intent(out) :: uniform_sfc_brdf
+            real intent(out) :: sfc_brdf_do
+            integer*8 intent(in) :: maxir
+        end subroutine init_solution
+        subroutine solution_iterations(nstokes,nx,ny,nz,nx1,ny1,nang,ml,mm,ncs,nlm,nmu,nphi,nleg,nstleg,numphase,nphi0,mu,phi,wtdo,maxiv,maxic,maxig,maxido,bcflag,ipflag,deltam,srctype,highorderrad,solarflux,solarmu,solaraz,skyrad,sfctype,gndtemp,gndalbedo,nxsfc,nysfc,delxsfc,delysfc,nsfcpar,sfcparms,sfcgridparms,units,waveno,wavelen,accelflag,solacc,maxiter,solcrit,iter,splitacc,shacc,xgrid,ygrid,zgrid,temp,planck,extinct,albedo,legen,iphase,maxnbc,maxbcrad,ntoppts,nbotpts,bcptr,bcrad,npts,gridpos,ncells,gridptr,neighptr,treeptr,cellflags,rshptr,shptr,oshptr,source,delsource,radiance,fluxes,dirflux,ylmsun,verbose,runname,uniformzlev,npx,npy,npz,delx,dely,xstart,ystart,zlevels,tempp,extinctp,nbpts,albedop,legenp,extdirp,iphasep,nzckd,zckd,gasabs,oldnpts,npart,total_ext,extmin,scatmin,cx,cy,cz,cxinv,cyinv,czinv,ipdirect,di,dj,dk,nphi0max,epss,epsz,xdomain,ydomain,delxd,delyd,albmax,deljdot,deljold,deljnew,jnorm,fftflag,cmu1,cmu2,wtmu,cphi1,cphi2,wphisave,work,work1,work2,uniform_sfc_brdf,sfc_brdf_do) ! in :core:src/unpolarized/shdomsub1.f
+            threadsafe 
+            integer intent(in) :: nstokes
+            integer intent(in) :: nx
+            integer intent(in) :: ny
+            integer intent(in) :: nz
+            integer intent(in) :: nx1
+            integer intent(in) :: ny1
+            integer intent(in) :: nang
+            integer intent(in) :: ml
+            integer intent(in) :: mm
+            integer intent(in) :: ncs
+            integer, optional,intent(in),check(shape(cmu1,0)==nlm),depend(cmu1) :: nlm=shape(cmu1,0)
+            integer, optional,intent(in),check(len(nphi0)>=nmu),depend(nphi0) :: nmu=len(nphi0)
+            integer intent(in) :: nphi
+            integer, optional,intent(in),check((shape(legen,0)-1)==nleg),depend(legen) :: nleg=(shape(legen,0)-1)
+            integer intent(in) :: nstleg
+            integer, optional,intent(in),check(shape(legen,1)==numphase),depend(legen) :: numphase=shape(legen,1)
+            integer dimension(nmu),intent(in) :: nphi0
+            real dimension(nmu),intent(in),depend(nmu) :: mu
+            real dimension(nmu,*),intent(in),depend(nmu) :: phi
+            real dimension(nmu,*),intent(in),depend(nmu) :: wtdo
+            integer*8 intent(in) :: maxiv
+            integer*8 intent(in) :: maxic
+            integer*8, optional,intent(in),check(shape(planck,0)==maxig),depend(planck) :: maxig=shape(planck,0)
+            integer*8 intent(in) :: maxido
+            integer intent(in) :: bcflag
+            integer intent(in) :: ipflag
+            logical intent(in) :: deltam
+            character*1 intent(in) :: srctype
+            logical intent(in) :: highorderrad
+            real intent(in) :: solarflux
+            real intent(in) :: solarmu
+            real intent(in) :: solaraz
+            real intent(in) :: skyrad
+            character*2 intent(in) :: sfctype
+            real intent(in) :: gndtemp
+            real intent(in) :: gndalbedo
+            integer intent(in) :: nxsfc
+            integer intent(in) :: nysfc
+            real intent(in) :: delxsfc
+            real intent(in) :: delysfc
+            integer intent(in) :: nsfcpar
+            real dimension(*),intent(in) :: sfcparms
+            real dimension(*),intent(in,out) :: sfcgridparms
+            character*1 intent(in) :: units
+            real dimension(2),intent(in) :: waveno
+            real intent(in) :: wavelen
+            logical intent(in) :: accelflag
+            real intent(in) :: solacc
+            integer intent(in) :: maxiter
+            real intent(in,out) :: solcrit
+            integer intent(out) :: iter
+            real intent(in) :: splitacc
+            real intent(in) :: shacc
+            real dimension(*),intent(in) :: xgrid
+            real dimension(*),intent(in) :: ygrid
+            real dimension(*),intent(in) :: zgrid
+            real dimension(*),intent(in,out) :: temp
+            real dimension(maxig,npart),intent(in,out) :: planck
+            real dimension(maxig,npart),intent(in,out),depend(maxig,npart) :: extinct
+            real dimension(maxig,npart),intent(in,out),depend(maxig,npart) :: albedo
+            real dimension(nleg + 1,numphase),intent(in,out) :: legen
+            integer dimension(maxig,npart),intent(in,out),depend(maxig,npart) :: iphase
+            integer, optional,intent(in),check(shape(bcptr,0)==maxnbc),depend(bcptr) :: maxnbc=shape(bcptr,0)
+            integer intent(in) :: maxbcrad
+            integer intent(in,out) :: ntoppts
+            integer intent(in,out) :: nbotpts
+            integer dimension(maxnbc,2),intent(in,out) :: bcptr
+            real dimension(*),intent(in,out) :: bcrad
+            integer intent(in,out) :: npts
+            real dimension(3,*),intent(in,out) :: gridpos
+            integer intent(in,out) :: ncells
+            integer dimension(8,*),intent(in,out) :: gridptr
+            integer dimension(6,*),intent(in,out) :: neighptr
+            integer dimension(2,*),intent(in,out) :: treeptr
+            integer*2 dimension(*),intent(in,out) :: cellflags
+            integer dimension(*),intent(in,out) :: rshptr
+            integer dimension(*),intent(in,out) :: shptr
+            integer dimension(*),intent(in,out) :: oshptr
+            real dimension(*),intent(in,out) :: source
+            real dimension(*),intent(in,out) :: delsource
+            real dimension(*),intent(in,out) :: radiance
+            real dimension(2,*),intent(in,out) :: fluxes
+            real dimension(*),intent(in,out) :: dirflux
+            real dimension(*),intent(in) :: ylmsun
+            logical intent(in) :: verbose
+            character*(*) intent(in) :: runname
+            double precision intent(in,out) :: uniformzlev
+            integer intent(in) :: npx
+            integer intent(in) :: npy
+            integer intent(in) :: npz
+            real intent(in) :: delx
+            real intent(in) :: dely
+            real intent(in) :: xstart
+            real intent(in) :: ystart
+            real dimension(*),intent(in) :: zlevels
+            real dimension(*),intent(in) :: tempp
+            real dimension(nbpts,npart),intent(in),depend(npart) :: extinctp
+            integer, optional,intent(in),check(shape(extinctp,0)==nbpts),depend(extinctp) :: nbpts=shape(extinctp,0)
+            real dimension(nbpts,npart),intent(in),depend(nbpts,npart) :: albedop
+            real dimension(*),intent(in) :: legenp
+            real dimension(*),intent(in,out) :: extdirp
+            integer dimension(nbpts,npart),intent(in),depend(nbpts,npart) :: iphasep
+            integer intent(in) :: nzckd
+            real dimension(*),intent(in) :: zckd
+            real dimension(*),intent(in) :: gasabs
+            integer intent(in,out) :: oldnpts
+            integer, optional,intent(in),check(shape(planck,1)==npart),depend(planck) :: npart=shape(planck,1)
+            real dimension(maxig),intent(in,out),depend(maxig) :: total_ext
+            double precision intent(in) :: extmin
+            double precision intent(in) :: scatmin
+            double precision intent(in) :: cx
+            double precision intent(in) :: cy
+            double precision intent(in) :: cz
+            double precision intent(in) :: cxinv
+            double precision intent(in) :: cyinv
+            double precision intent(in) :: czinv
+            integer intent(in) :: ipdirect
+            integer intent(in) :: di
+            integer intent(in) :: dj
+            integer intent(in) :: dk
+            integer, optional,intent(in),check((shape(wphisave,0)-15)/(3)==nphi0max),depend(wphisave) :: nphi0max=(shape(wphisave,0)-15)/(3)
+            double precision intent(in) :: epss
+            double precision intent(in) :: epsz
+            double precision intent(in) :: xdomain
+            double precision intent(in) :: ydomain
+            double precision intent(in) :: delxd
+            double precision intent(in) :: delyd
+            real intent(in) :: albmax
+            real intent(in,out) :: deljdot
+            real intent(in,out) :: deljold
+            real intent(in,out) :: deljnew
+            real intent(in,out) :: jnorm
+            logical dimension(nmu),intent(in),depend(nmu) :: fftflag
+            real dimension(nlm,nmu),intent(in),depend(nmu) :: cmu1
+            real dimension(nmu,nlm),intent(in),depend(nmu,nlm) :: cmu2
+            real dimension(nmu),intent(in),depend(nmu) :: wtmu
+            real dimension(33,32,nmu),intent(in),depend(nmu) :: cphi1
+            real dimension(32,33,nmu),intent(in),depend(nmu) :: cphi2
+            real dimension(3 * nphi0max + 15,nmu),intent(in),depend(nmu) :: wphisave
+            real dimension(*),intent(in,out) :: work
+            integer dimension(*),intent(in,out) :: work1
+            real dimension(*),intent(in,out) :: work2
+            logical intent(in) :: uniform_sfc_brdf
+            real intent(in) :: sfc_brdf_do
+        end subroutine solution_iterations
+        subroutine compute_top_radiances(srctype,skyrad,waveno,wavelen,units,ntoppts,bcrad) ! in :core:src/unpolarized/shdomsub1.f
+            character*1 intent(in) :: srctype
+            real intent(in) :: skyrad
+            real dimension(2),intent(in) :: waveno
+            real intent(in) :: wavelen
+            character*1 intent(in) :: units
+            integer intent(in) :: ntoppts
+            real dimension(*),intent(in,out) :: bcrad
+        end subroutine compute_top_radiances
+        subroutine fixed_lambertian_boundary(nbotpts,bcptr,dirflux,fluxes,srctype,gndtemp,gndalbedo,waveno,wavelen,units,bcrad) ! in :core:src/unpolarized/shdomsub1.f
+            integer intent(in) :: nbotpts
+            integer dimension(*),intent(in) :: bcptr
+            real dimension(*),intent(in) :: dirflux
+            real dimension(2,*),intent(in) :: fluxes
+            character*1 intent(in) :: srctype
+            real intent(in) :: gndtemp
+            real intent(in) :: gndalbedo
+            real dimension(2),intent(in) :: waveno
+            real intent(in) :: wavelen
+            character*1 intent(in) :: units
+            real dimension(*),intent(in,out) :: bcrad
+        end subroutine fixed_lambertian_boundary
+        subroutine variable_lambertian_boundary(nbotpts,bcptr,dirflux,fluxes,srctype,nsfcpar,sfcgridparms,bcrad) ! in :core:src/unpolarized/shdomsub1.f
+            integer, optional,intent(in),check(shape(sfcgridparms,1)==nbotpts),depend(sfcgridparms) :: nbotpts=shape(sfcgridparms,1)
+            integer dimension(*),intent(in) :: bcptr
+            real dimension(*),intent(in) :: dirflux
+            real dimension(2,*),intent(in) :: fluxes
+            character*1 intent(in) :: srctype
+            integer, optional,intent(in),check(shape(sfcgridparms,0)==nsfcpar),depend(sfcgridparms) :: nsfcpar=shape(sfcgridparms,0)
+            real dimension(nsfcpar,nbotpts),intent(in) :: sfcgridparms
+            real dimension(*),intent(in,out) :: bcrad
+        end subroutine variable_lambertian_boundary
+        subroutine new_grids(bcflag,gridtype,npx,npy,npz,nx,ny,nz,xstart,ystart,delxp,delyp,zlevels,xgrid,ygrid,zgrid) ! in :core:src/unpolarized/shdomsub2.f
+            integer intent(in) :: bcflag
+            character*1 intent(in) :: gridtype
+            integer intent(in) :: npx
+            integer intent(in) :: npy
+            integer, optional,intent(in),check(len(zlevels)>=npz),depend(zlevels) :: npz=len(zlevels)
+            integer intent(in) :: nx
+            integer intent(in) :: ny
+            integer intent(in) :: nz
+            real intent(in) :: xstart
+            real intent(in) :: ystart
+            real intent(in) :: delxp
+            real intent(in) :: delyp
+            real dimension(npz),intent(in) :: zlevels
+            real dimension(nx + 1),intent(out),depend(nx) :: xgrid
+            real dimension(ny + 1),intent(out),depend(ny) :: ygrid
+            real dimension(nz),intent(out),depend(nz) :: zgrid
+        end subroutine new_grids
+        subroutine init_cell_structure(bcflag,ipflag,nx,ny,nz,nx1,ny1,npts,ncells,xgrid,ygrid,zgrid,gridpos,maxic,maxig,gridptr,neighptr,treeptr,cellflags) ! in :core:src/unpolarized/shdomsub2.f
+            integer intent(in) :: bcflag
+            integer intent(in) :: ipflag
+            integer intent(in) :: nx
+            integer intent(in) :: ny
+            integer, optional,intent(in),check(len(zgrid)>=nz),depend(zgrid) :: nz=len(zgrid)
+            integer, optional,intent(in),check(len(xgrid)>=nx1),depend(xgrid) :: nx1=len(xgrid)
+            integer, optional,intent(in),check(len(ygrid)>=ny1),depend(ygrid) :: ny1=len(ygrid)
+            integer intent(out) :: npts
+            integer intent(out) :: ncells
+            real dimension(nx1),intent(in) :: xgrid
+            real dimension(ny1),intent(in) :: ygrid
+            real dimension(nz),intent(in) :: zgrid
+            real dimension(3,maxig),intent(out),depend(maxig) :: gridpos
+            integer intent(in) :: maxic
+            integer intent(in) :: maxig
+            integer dimension(8,maxic),intent(out),depend(maxic) :: gridptr
+            integer dimension(6,maxic),intent(out),depend(maxic) :: neighptr
+            integer dimension(2,maxic),intent(out),depend(maxic) :: treeptr
+            integer*2 dimension(maxic),intent(out),depend(maxic) :: cellflags
+        end subroutine init_cell_structure
+        subroutine make_direct(npts,bcflag,ipflag,deltam,ml,nstleg,nleg,solarflux,solarmu,solaraz,gridpos,dirflux,npx,npy,npz,numphase,delx,dely,xstart,ystart,zlevels,tempp,extinctp,albedop,legenp,extdirp,iphasep,nzckd,zckd,gasabs,cx,cy,cz,cxinv,cyinv,czinv,di,dj,dk,ipdirect,delxd,delyd,xdomain,ydomain,epss,epsz,uniformzlev,npart,nbpts) ! in :core:src/unpolarized/shdomsub2.f
+            integer intent(in) :: npts
+            integer intent(in) :: bcflag
+            integer intent(in) :: ipflag
+            logical intent(in) :: deltam
+            integer intent(in) :: ml
+            integer intent(in) :: nstleg
+            integer intent(in) :: nleg
+            real intent(in) :: solarflux
+            real intent(in) :: solarmu
+            real intent(in) :: solaraz
+            real dimension(3,*),intent(in) :: gridpos
+            real dimension(*),intent(in,out) :: dirflux
+            integer intent(in) :: npx
+            integer intent(in) :: npy
+            integer intent(in) :: npz
+            integer intent(in) :: numphase
+            real intent(in) :: delx
+            real intent(in) :: dely
+            real intent(in) :: xstart
+            real intent(in) :: ystart
+            real dimension(*),intent(in) :: zlevels
+            real dimension(*),intent(in) :: tempp
+            real dimension(nbpts,npart),intent(in) :: extinctp
+            real dimension(nbpts,npart),intent(in),depend(nbpts,npart) :: albedop
+            real dimension(*),intent(in) :: legenp
+            real dimension(*),intent(in,out) :: extdirp
+            integer dimension(nbpts,npart),intent(in),depend(nbpts,npart) :: iphasep
+            integer intent(in) :: nzckd
+            real dimension(*),intent(in) :: zckd
+            real dimension(*),intent(in) :: gasabs
+            double precision intent(out) :: cx
+            double precision intent(out) :: cy
+            double precision intent(out) :: cz
+            double precision intent(out) :: cxinv
+            double precision intent(out) :: cyinv
+            double precision intent(out) :: czinv
+            integer intent(out) :: di
+            integer intent(out) :: dj
+            integer intent(out) :: dk
+            integer intent(out) :: ipdirect
+            double precision intent(out) :: delxd
+            double precision intent(out) :: delyd
+            double precision intent(out) :: xdomain
+            double precision intent(out) :: ydomain
+            double precision intent(out) :: epss
+            double precision intent(out) :: epsz
+            double precision intent(out) :: uniformzlev
+            integer, optional,intent(in),check(shape(extinctp,1)==npart),depend(extinctp) :: npart=shape(extinctp,1)
+            integer, optional,intent(in),check(shape(extinctp,0)==nbpts),depend(extinctp) :: nbpts=shape(extinctp,0)
+        end subroutine make_direct
+        subroutine check_input_parmeters(nmu,nphi,deltam,maxasym,gridtype,srctype,units,solarflux,solarmu,waveno,wavelen,gndtemp,gndalbedo,splitacc,shacc) ! in :core:src/unpolarized/shdomsub3.f
+            integer intent(in) :: nmu
+            integer intent(in) :: nphi
+            logical intent(in) :: deltam
+            real intent(in) :: maxasym
+            character*1 intent(in) :: gridtype
+            character*1 intent(in) :: srctype
+            character*1 intent(in) :: units
+            real intent(in) :: solarflux
+            real intent(in) :: solarmu
+            real dimension(2),intent(in) :: waveno
+            real intent(in) :: wavelen
+            real intent(in) :: gndtemp
+            real intent(in) :: gndalbedo
+            real intent(in) :: splitacc
+            real intent(in) :: shacc
+        end subroutine check_input_parmeters
+        subroutine render(nstokes,nx,ny,nz,npts,ncells,ml,mm,ncs,nlm,nstleg,nleg,numphase,nmu,nphi0max,nphi0,mu,phi,wtdo,bcflag,ipflag,srctype,deltam,solarmu,solaraz,sfctype,nsfcpar,sfcgridparms,maxnbc,ntoppts,nbotpts,bcptr,bcrad,gndtemp,gndalbedo,skyrad,waveno,wavelen,units,xgrid,ygrid,zgrid,gridpos,gridptr,neighptr,treeptr,cellflags,extinct,albedo,legen,iphase,dirflux,fluxes,shptr,source,camx,camy,camz,cammu,camphi,npix,npart,total_ext,visout,nscatangle,ylmsun,phasetab,nstphase) ! in :core:src/unpolarized/shdomsub4.f
+            threadsafe 
+            integer intent(in) :: nstokes
+            integer intent(in) :: nx
+            integer intent(in) :: ny
+            integer intent(in) :: nz
+            integer, optional,intent(in),check(shape(extinct,0)==npts),depend(extinct) :: npts=shape(extinct,0)
+            integer intent(in) :: ncells
+            integer intent(in) :: ml
+            integer intent(in) :: mm
+            integer intent(in) :: ncs
+            integer, optional,intent(in),check(len(ylmsun)>=nlm),depend(ylmsun) :: nlm=len(ylmsun)
+            integer intent(in) :: nstleg
+            integer, optional,intent(in),check((shape(legen,0)-1)==nleg),depend(legen) :: nleg=(shape(legen,0)-1)
+            integer, optional,intent(in),check(shape(phasetab,0)==numphase),depend(phasetab) :: numphase=shape(phasetab,0)
+            integer, optional,intent(in),check(shape(phi,0)==nmu),depend(phi) :: nmu=shape(phi,0)
+            integer intent(in) :: nphi0max
+            integer dimension(*),intent(in) :: nphi0
+            real dimension(*),intent(in) :: mu
+            real dimension(nmu,*),intent(in) :: phi
+            real dimension(nmu,*),intent(in),depend(nmu) :: wtdo
+            integer intent(in) :: bcflag
+            integer intent(in) :: ipflag
+            character*1 intent(in) :: srctype
+            logical intent(in) :: deltam
+            real intent(in) :: solarmu
+            real intent(in) :: solaraz
+            character*2 intent(in) :: sfctype
+            integer intent(in) :: nsfcpar
+            real dimension(*),intent(in) :: sfcgridparms
+            integer, optional,intent(in),check(shape(bcptr,0)==maxnbc),depend(bcptr) :: maxnbc=shape(bcptr,0)
+            integer intent(in) :: ntoppts
+            integer intent(in) :: nbotpts
+            integer dimension(maxnbc,2),intent(in) :: bcptr
+            real dimension(*),intent(in) :: bcrad
+            real intent(in) :: gndtemp
+            real intent(in) :: gndalbedo
+            real intent(in) :: skyrad
+            real dimension(2),intent(in) :: waveno
+            real intent(in) :: wavelen
+            character*1 intent(in) :: units
+            real dimension(*),intent(in) :: xgrid
+            real dimension(*),intent(in) :: ygrid
+            real dimension(*),intent(in) :: zgrid
+            real dimension(3,*),intent(in) :: gridpos
+            integer dimension(8,*),intent(in) :: gridptr
+            integer dimension(6,*),intent(in) :: neighptr
+            integer dimension(2,*),intent(in) :: treeptr
+            integer*2 dimension(*),intent(in) :: cellflags
+            real dimension(npts,npart),intent(in) :: extinct
+            real dimension(npts,npart),intent(in),depend(npts,npart) :: albedo
+            real dimension(nleg + 1,*),intent(in) :: legen
+            integer dimension(npts,npart),intent(in),depend(npts,npart) :: iphase
+            real dimension(*),intent(in) :: dirflux
+            real dimension(2,*),intent(in) :: fluxes
+            integer dimension(*),intent(in) :: shptr
+            real dimension(*),intent(in) :: source
+            real dimension(*),intent(in) :: camx
+            real dimension(*),intent(in) :: camy
+            real dimension(*),intent(in) :: camz
+            double precision dimension(*),intent(in) :: cammu
+            double precision dimension(*),intent(in) :: camphi
+            integer intent(in) :: npix
+            integer, optional,intent(in),check(shape(extinct,1)==npart),depend(extinct) :: npart=shape(extinct,1)
+            real dimension(npts),intent(in),depend(npts) :: total_ext
+            real dimension(npix),intent(out),depend(npix) :: visout
+            integer, optional,intent(in),check(shape(phasetab,1)==nscatangle),depend(phasetab) :: nscatangle=shape(phasetab,1)
+            real dimension(nlm),intent(in) :: ylmsun
+            real dimension(numphase,nscatangle),intent(in) :: phasetab
+            integer intent(in) :: nstphase
+        end subroutine render
+        subroutine rayleigh_phase_function(wavelen,raylegcoef,table_type) ! in :core:src/unpolarized/shdomsub4.f
+            real intent(in) :: wavelen
+            real dimension(3),intent(out) :: raylegcoef
+            character*6 intent(out) :: table_type
+        end subroutine rayleigh_phase_function
+        subroutine gradient_normcorr(nstokes,nx,ny,nz,npts,nbpts,ncells,nbcells,ml,mm,ncs,nlm,nstleg,nleg,numphase,nmu,nphi0max,nphi0,mu,phi,wtdo,bcflag,ipflag,srctype,deltam,solarmu,solaraz,sfctype,nsfcpar,sfcgridparms,maxnbc,ntoppts,nbotpts,bcptr,bcrad,gndtemp,gndalbedo,skyrad,waveno,wavelen,units,xgrid,ygrid,zgrid,gridpos,gridptr,neighptr,treeptr,cellflags,extinct,albedo,legen,iphase,dirflux,fluxes,shptr,source,camx,camy,camz,cammu,camphi,npix,grad1,grad2,norm1,norm2,cost,measurements,rshptr,stokesout,npart,total_ext,radiance,numder,partder,dext,dalb,diphase,dleg,nscatangle,ylmsun,phasetab,nstphase,dphasetab,dnumphase,solarflux,npx,npy,npz,delx,dely,xstart,ystart,zlevels,extdirp,uniformzlev,dpath,dptr,exact_single_scatter,weights) ! in :core:src/unpolarized/shdomsub4.f
+            threadsafe 
+            integer, optional,intent(in),check(shape(bcrad,0)==nstokes),depend(bcrad) :: nstokes=shape(bcrad,0)
+            integer intent(in) :: nx
+            integer intent(in) :: ny
+            integer intent(in) :: nz
+            integer, optional,intent(in),check(shape(extinct,0)==npts),depend(extinct) :: npts=shape(extinct,0)
+            integer, optional,intent(in),check(shape(dext,0)==nbpts),depend(dext) :: nbpts=shape(dext,0)
+            integer intent(in) :: ncells
+            integer intent(in) :: nbcells
+            integer intent(in) :: ml
+            integer intent(in) :: mm
+            integer intent(in) :: ncs
+            integer, optional,intent(in),check(shape(ylmsun,1)==nlm),depend(ylmsun) :: nlm=shape(ylmsun,1)
+            integer, optional,intent(in),check(shape(legen,0)==nstleg),depend(legen) :: nstleg=shape(legen,0)
+            integer, optional,intent(in),check((shape(legen,1)-1)==nleg),depend(legen) :: nleg=(shape(legen,1)-1)
+            integer, optional,intent(in),check(shape(phasetab,1)==numphase),depend(phasetab) :: numphase=shape(phasetab,1)
+            integer, optional,intent(in),check(shape(phi,0)==nmu),depend(phi) :: nmu=shape(phi,0)
+            integer intent(in) :: nphi0max
+            integer dimension(*),intent(in) :: nphi0
+            real dimension(*),intent(in) :: mu
+            real dimension(nmu,*),intent(in) :: phi
+            real dimension(nmu,*),intent(in),depend(nmu) :: wtdo
+            integer intent(in) :: bcflag
+            integer intent(in) :: ipflag
+            character*1 intent(in) :: srctype
+            logical intent(in) :: deltam
+            real intent(in) :: solarmu
+            real intent(in) :: solaraz
+            character*2 intent(in) :: sfctype
+            integer intent(in) :: nsfcpar
+            real dimension(*),intent(in) :: sfcgridparms
+            integer, optional,intent(in),check(shape(bcptr,0)==maxnbc),depend(bcptr) :: maxnbc=shape(bcptr,0)
+            integer intent(in) :: ntoppts
+            integer intent(in) :: nbotpts
+            integer dimension(maxnbc,2),intent(in) :: bcptr
+            real dimension(nstokes,*),intent(in) :: bcrad
+            real intent(in) :: gndtemp
+            real intent(in) :: gndalbedo
+            real intent(in) :: skyrad
+            real dimension(2),intent(in) :: waveno
+            real intent(in) :: wavelen
+            character*1 intent(in) :: units
+            real dimension(*),intent(in) :: xgrid
+            real dimension(*),intent(in) :: ygrid
+            real dimension(*),intent(in) :: zgrid
+            real dimension(3,*),intent(in) :: gridpos
+            integer dimension(8,*),intent(in) :: gridptr
+            integer dimension(6,*),intent(in) :: neighptr
+            integer dimension(2,*),intent(in) :: treeptr
+            integer*2 dimension(*),intent(in) :: cellflags
+            real dimension(npts,npart),intent(in) :: extinct
+            real dimension(npts,npart),intent(in),depend(npts,npart) :: albedo
+            real dimension(nstleg,nleg + 1,*),intent(in) :: legen
+            integer dimension(npts,npart),intent(in),depend(npts,npart) :: iphase
+            real dimension(*),intent(in) :: dirflux
+            real dimension(2,*),intent(in) :: fluxes
+            integer dimension(*),intent(in) :: shptr
+            real dimension(nstokes,*),intent(in),depend(nstokes) :: source
+            real dimension(*),intent(in) :: camx
+            real dimension(*),intent(in) :: camy
+            real dimension(*),intent(in) :: camz
+            double precision dimension(*),intent(in) :: cammu
+            double precision dimension(*),intent(in) :: camphi
+            integer intent(in) :: npix
+            real dimension(nstokes,nbpts,numder),intent(out),depend(nstokes,nbpts,numder) :: grad1
+            real dimension(nstokes,nbpts,numder),intent(out),depend(nstokes,nbpts,numder) :: grad2
+            real dimension(nstokes),intent(out),depend(nstokes) :: norm1
+            real dimension(nstokes),intent(out),depend(nstokes) :: norm2
+            real dimension(nstokes),intent(out),depend(nstokes) :: cost
+            real dimension(nstokes,*),intent(in),depend(nstokes) :: measurements
+            integer dimension(*),intent(in) :: rshptr
+            real dimension(nstokes,npix),intent(out),depend(nstokes,npix) :: stokesout
+            integer, optional,intent(in),check(shape(extinct,1)==npart),depend(extinct) :: npart=shape(extinct,1)
+            real dimension(npts),intent(in),depend(npts) :: total_ext
+            real dimension(nstokes,*),intent(in),depend(nstokes) :: radiance
+            integer, optional,intent(in),check(len(partder)>=numder),depend(partder) :: numder=len(partder)
+            integer dimension(numder),intent(in) :: partder
+            real dimension(nbpts,numder),intent(in),depend(numder) :: dext
+            real dimension(nbpts,numder),intent(in),depend(nbpts,numder) :: dalb
+            integer dimension(nbpts,numder),intent(in),depend(nbpts,numder) :: diphase
+            real dimension(nstleg,nleg + 1,dnumphase),intent(in),depend(nstleg,nleg) :: dleg
+            integer, optional,intent(in),check(shape(phasetab,2)==nscatangle),depend(phasetab) :: nscatangle=shape(phasetab,2)
+            real dimension(nstleg,nlm),intent(in),depend(nstleg) :: ylmsun
+            real dimension(nstphase,numphase,nscatangle),intent(in) :: phasetab
+            integer, optional,intent(in),check(shape(phasetab,0)==nstphase),depend(phasetab) :: nstphase=shape(phasetab,0)
+            real dimension(nstphase,dnumphase,nscatangle),intent(in),depend(nstphase,dnumphase,nscatangle) :: dphasetab
+            integer, optional,intent(in),check(shape(dleg,2)==dnumphase),depend(dleg) :: dnumphase=shape(dleg,2)
+            real intent(in) :: solarflux
+            integer :: npx
+            integer intent(in) :: npy
+            integer intent(in) :: npz
+            real intent(in) :: delx
+            real intent(in) :: dely
+            real intent(in) :: xstart
+            real intent(in) :: ystart
+            real dimension(*),intent(in) :: zlevels
+            real dimension(*),intent(in) :: extdirp
+            double precision intent(in) :: uniformzlev
+            real dimension(8*(npx+npy+npz),*),intent(in),depend(npx,npy,npz) :: dpath
+            integer dimension(8*(npx+npy+npz),*),intent(in),depend(npx,npy,npz) :: dptr
+            logical intent(in) :: exact_single_scatter
+            real dimension(nstokes),intent(in),depend(nstokes) :: weights
+        end subroutine gradient_normcorr
+        subroutine gradient_l2(nstokes,nx,ny,nz,npts,nbpts,ncells,nbcells,ml,mm,ncs,nlm,nstleg,nleg,numphase,nmu,nphi0max,nphi0,mu,phi,wtdo,bcflag,ipflag,srctype,deltam,solarmu,solaraz,sfctype,nsfcpar,sfcgridparms,maxnbc,ntoppts,nbotpts,bcptr,bcrad,gndtemp,gndalbedo,skyrad,waveno,wavelen,units,xgrid,ygrid,zgrid,gridpos,gridptr,neighptr,treeptr,cellflags,extinct,albedo,legen,iphase,dirflux,fluxes,shptr,source,camx,camy,camz,cammu,camphi,npix,gradout,cost,measurements,rshptr,visout,npart,total_ext,radiance,numder,partder,dext,dalb,diphase,dleg,nscatangle,ylmsun,phasetab,nstphase,dphasetab,dnumphase,solarflux,npx,npy,npz,delx,dely,xstart,ystart,zlevels,extdirp,uniformzlev,dpath,dptr,exact_single_scatter,weights) ! in :core:src/unpolarized/shdomsub4.f
+            threadsafe 
+            integer, optional,intent(in),check(len(weights)>=nstokes),depend(weights) :: nstokes=len(weights)
+            integer intent(in) :: nx
+            integer intent(in) :: ny
+            integer intent(in) :: nz
+            integer, optional,intent(in),check(shape(extinct,0)==npts),depend(extinct) :: npts=shape(extinct,0)
+            integer, optional,intent(in),check(shape(dext,0)==nbpts),depend(dext) :: nbpts=shape(dext,0)
+            integer intent(in) :: ncells
+            integer intent(in) :: nbcells
+            integer intent(in) :: ml
+            integer intent(in) :: mm
+            integer intent(in) :: ncs
+            integer, optional,intent(in),check(len(ylmsun)>=nlm),depend(ylmsun) :: nlm=len(ylmsun)
+            integer intent(in) :: nstleg
+            integer, optional,intent(in),check((shape(legen,0)-1)==nleg),depend(legen) :: nleg=(shape(legen,0)-1)
+            integer, optional,intent(in),check(shape(phasetab,0)==numphase),depend(phasetab) :: numphase=shape(phasetab,0)
+            integer, optional,intent(in),check(shape(phi,0)==nmu),depend(phi) :: nmu=shape(phi,0)
+            integer intent(in) :: nphi0max
+            integer dimension(*),intent(in) :: nphi0
+            real dimension(*),intent(in) :: mu
+            real dimension(nmu,*),intent(in) :: phi
+            real dimension(nmu,*),intent(in),depend(nmu) :: wtdo
+            integer intent(in) :: bcflag
+            integer intent(in) :: ipflag
+            character*1 intent(in) :: srctype
+            logical intent(in) :: deltam
+            real intent(in) :: solarmu
+            real intent(in) :: solaraz
+            character*2 intent(in) :: sfctype
+            integer intent(in) :: nsfcpar
+            real dimension(*),intent(in) :: sfcgridparms
+            integer, optional,intent(in),check(shape(bcptr,0)==maxnbc),depend(bcptr) :: maxnbc=shape(bcptr,0)
+            integer intent(in) :: ntoppts
+            integer intent(in) :: nbotpts
+            integer dimension(maxnbc,2),intent(in) :: bcptr
+            real dimension(*),intent(in) :: bcrad
+            real intent(in) :: gndtemp
+            real intent(in) :: gndalbedo
+            real intent(in) :: skyrad
+            real dimension(2),intent(in) :: waveno
+            real intent(in) :: wavelen
+            character*1 intent(in) :: units
+            real dimension(*),intent(in) :: xgrid
+            real dimension(*),intent(in) :: ygrid
+            real dimension(*),intent(in) :: zgrid
+            real dimension(3,*),intent(in) :: gridpos
+            integer dimension(8,*),intent(in) :: gridptr
+            integer dimension(6,*),intent(in) :: neighptr
+            integer dimension(2,*),intent(in) :: treeptr
+            integer*2 dimension(*),intent(in) :: cellflags
+            real dimension(npts,npart),intent(in) :: extinct
+            real dimension(npts,npart),intent(in),depend(npts,npart) :: albedo
+            real dimension(nleg + 1,*),intent(in) :: legen
+            integer dimension(npts,npart),intent(in),depend(npts,npart) :: iphase
+            real dimension(*),intent(in) :: dirflux
+            real dimension(2,*),intent(in) :: fluxes
+            integer dimension(*),intent(in) :: shptr
+            real dimension(*),intent(in) :: source
+            real dimension(*),intent(in) :: camx
+            real dimension(*),intent(in) :: camy
+            real dimension(*),intent(in) :: camz
+            double precision dimension(*),intent(in) :: cammu
+            double precision dimension(*),intent(in) :: camphi
+            integer intent(in) :: npix
+            double precision dimension(nbpts,numder),intent(out),depend(nbpts,numder) :: gradout
+            double precision intent(out) :: cost
+            real dimension(*),intent(in) :: measurements
+            integer dimension(*),intent(in) :: rshptr
+            real dimension(npix),intent(out),depend(npix) :: visout
+            integer, optional,intent(in),check(shape(extinct,1)==npart),depend(extinct) :: npart=shape(extinct,1)
+            real dimension(npts),intent(in),depend(npts) :: total_ext
+            real dimension(*),intent(in) :: radiance
+            integer, optional,intent(in),check(len(partder)>=numder),depend(partder) :: numder=len(partder)
+            integer dimension(numder),intent(in) :: partder
+            real dimension(nbpts,numder),intent(in),depend(numder) :: dext
+            real dimension(nbpts,numder),intent(in),depend(nbpts,numder) :: dalb
+            integer dimension(nbpts,numder),intent(in),depend(nbpts,numder) :: diphase
+            real dimension(nleg + 1,dnumphase),intent(in),depend(nleg) :: dleg
+            integer, optional,intent(in),check(shape(phasetab,1)==nscatangle),depend(phasetab) :: nscatangle=shape(phasetab,1)
+            real dimension(nlm),intent(in) :: ylmsun
+            real dimension(numphase,nscatangle),intent(in) :: phasetab
+            integer intent(in) :: nstphase
+            real dimension(dnumphase,nscatangle),intent(in),depend(dnumphase,nscatangle) :: dphasetab
+            integer, optional,intent(in),check(shape(dleg,1)==dnumphase),depend(dleg) :: dnumphase=shape(dleg,1)
+            real intent(in) :: solarflux
+            integer :: npx
+            integer intent(in) :: npy
+            integer intent(in) :: npz
+            real intent(in) :: delx
+            real intent(in) :: dely
+            real intent(in) :: xstart
+            real intent(in) :: ystart
+            real dimension(*),intent(in) :: zlevels
+            real dimension(*),intent(in) :: extdirp
+            double precision intent(in) :: uniformzlev
+            real dimension(8*(npx+npy+npz),*),intent(in),depend(npx,npy,npz) :: dpath
+            integer dimension(8*(npx+npy+npz),*),intent(in),depend(npx,npy,npz) :: dptr
+            logical intent(in) :: exact_single_scatter
+            real dimension(nstokes),intent(in) :: weights
+        end subroutine gradient_l2
+        subroutine precompute_phase_check(nscatangle,numphase,nstphase,nstokes,ml,nlm,nstleg,nleg,legen,phasetab,deltam,negcheck) ! in :core:src/unpolarized/shdomsub4.f
+            integer intent(in) :: nscatangle
+            integer, optional,intent(in),check(shape(legen,1)==numphase),depend(legen) :: numphase=shape(legen,1)
+            integer intent(in) :: nstphase
+            integer intent(in) :: nstokes
+            integer intent(in) :: ml
+            integer intent(in) :: nlm
+            integer intent(in) :: nstleg
+            integer, optional,intent(in),check((shape(legen,0)-1)==nleg),depend(legen) :: nleg=(shape(legen,0)-1)
+            real dimension(nleg + 1,numphase),intent(in) :: legen
+            real dimension(numphase,nscatangle),intent(out),depend(numphase,nscatangle) :: phasetab
+            logical intent(in) :: deltam
+            logical intent(in) :: negcheck
+        end subroutine precompute_phase_check
+        subroutine precompute_phase_check_grad(nscatangle,nstphase,nstokes,ml,nlm,nstleg,nleg,dphasetab,deltam,negcheck,dnumphase,dleg) ! in :core:src/unpolarized/shdomsub4.f
+            integer intent(in) :: nscatangle
+            integer intent(in) :: nstphase
+            integer intent(in) :: nstokes
+            integer intent(in) :: ml
+            integer intent(in) :: nlm
+            integer intent(in) :: nstleg
+            integer, optional,intent(in),check((shape(dleg,0)-1)==nleg),depend(dleg) :: nleg=(shape(dleg,0)-1)
+            real dimension(dnumphase,nscatangle),intent(out),depend(dnumphase,nscatangle) :: dphasetab
+            logical intent(in) :: deltam
+            logical intent(in) :: negcheck
+            integer, optional,check(shape(dleg,1)==dnumphase),depend(dleg) :: dnumphase=shape(dleg,1)
+            real dimension(nleg + 1,dnumphase),intent(in) :: dleg
+        end subroutine precompute_phase_check_grad
+        subroutine get_mie_table(nretab,maxleg,wavelen1,wavelen2,wavelencen,deltawave,pardens,sretab,eretab,alpha,gamma,maxradius,rindex,partype,avgflag,distflag,reff,extinct,ssalb,nleg,legcoef,logre) ! in :core:src/unpolarized/make_mie_table.f90
+            integer :: nretab
+            integer intent(in) :: maxleg
+            real :: wavelen1
+            real :: wavelen2
+            real :: wavelencen
+            real :: deltawave
+            real :: pardens
+            real :: sretab
+            real :: eretab
+            real :: alpha
+            real :: gamma
+            real :: maxradius
+            complex :: rindex
+            character*1 intent(in) :: partype
+            character*1 intent(in) :: avgflag
+            character*1 intent(in) :: distflag
+            real dimension(nretab),intent(out),depend(nretab) :: reff
+            real dimension(nretab),intent(out),depend(nretab) :: extinct
+            real dimension(nretab),intent(out),depend(nretab) :: ssalb
+            real dimension(nretab),intent(out),depend(nretab) :: nleg
+            real dimension(maxleg + 1,nretab),intent(out),depend(maxleg,nretab) :: legcoef
+            logical :: logre
+        end subroutine get_mie_table
+        subroutine get_nsize(sretab,maxradius,wavelen,nsize) ! in :core:src/unpolarized/make_mie_table.f90
+            real intent(in) :: sretab
+            real intent(in) :: maxradius
+            real intent(in) :: wavelen
+            integer intent(out) :: nsize
+        end subroutine get_nsize
+        subroutine get_sizes(sretab,maxradius,wavelen,nsize,radii) ! in :core:src/unpolarized/make_mie_table.f90
+            real intent(in) :: sretab
+            real intent(in) :: maxradius
+            real intent(in) :: wavelen
+            integer intent(in) :: nsize
+            real dimension(nsize),intent(out),depend(nsize) :: radii
+        end subroutine get_sizes
+        subroutine get_center_wavelen(wavelen1,wavelen2,wavelencen) ! in :core:src/unpolarized/make_mie_table.f90
+            real intent(in) :: wavelen1
+            real intent(in) :: wavelen2
+            real intent(out) :: wavelencen
+        end subroutine get_center_wavelen
+        subroutine get_refract_index(partype,wavelen1,wavelen2,rindex) ! in :core:src/unpolarized/make_mie_table.f90
+            character*1 intent(in) :: partype
+            real intent(in) :: wavelen1
+            real intent(in) :: wavelen2
+            complex intent(out) :: rindex
+        end subroutine get_refract_index
+        subroutine compute_mie_all_sizes(avgflag,wavelen1,wavelen2,deltawave,partype,wavelencen,rindex,nsize,radii,maxleg,extinct1,scatter1,nleg1,legen1,table_type) ! in :core:src/unpolarized/make_mie_table.f90
+            character*1 intent(in) :: avgflag
+            real intent(in) :: wavelen1
+            real intent(in) :: wavelen2
+            real intent(in) :: deltawave
+            character*1 intent(in) :: partype
+            real intent(in) :: wavelencen
+            complex intent(in) :: rindex
+            integer, optional,intent(in),check(len(radii)>=nsize),depend(radii) :: nsize=len(radii)
+            real dimension(nsize),intent(in) :: radii
+            integer intent(in) :: maxleg
+            real dimension(nsize),intent(out),depend(nsize) :: extinct1
+            real dimension(nsize),intent(out),depend(nsize) :: scatter1
+            integer dimension(nsize),intent(out),depend(nsize) :: nleg1
+            real dimension(maxleg + 1,nsize),intent(out),depend(maxleg,nsize) :: legen1
+            character*6 intent(out) :: table_type
+        end subroutine compute_mie_all_sizes
+        subroutine make_multi_size_dist(distflag,pardens,nsize,radii,reff,alpha,gamma,nd,ndist) ! in :core:src/unpolarized/make_mie_table.f90
+            character*1 intent(in) :: distflag
+            real intent(in) :: pardens
+            integer, optional,intent(in),check(len(radii)>=nsize),depend(radii) :: nsize=len(radii)
+            real dimension(nsize),intent(in) :: radii
+            real dimension(ndist),intent(in) :: reff
+            real dimension(ndist),intent(in),depend(ndist) :: alpha
+            real intent(in) :: gamma
+            real dimension(nsize,ndist),intent(out),depend(nsize,ndist) :: nd
+            integer, optional,intent(in),check(len(reff)>=ndist),depend(reff) :: ndist=len(reff)
+        end subroutine make_multi_size_dist
+        subroutine write_poly_table(mietabfile,wavelen1,wavelen2,deltawave,partype,pardens,rindex,distflag,alpha,gamma,nretab,nvetab,reff,veff,extinct,ssalb,nleg,legcoef,ndist,maxleg) ! in :core:src/unpolarized/make_mie_table.f90
+            character*(*) intent(in) :: mietabfile
+            real intent(in) :: wavelen1
+            real intent(in) :: wavelen2
+            real intent(in) :: deltawave
+            character*1 intent(in) :: partype
+            real intent(in) :: pardens
+            complex intent(in) :: rindex
+            character*1 intent(in) :: distflag
+            real dimension(nvetab),intent(in) :: alpha
+            real intent(in) :: gamma
+            integer, optional,intent(in),check(len(reff)>=nretab),depend(reff) :: nretab=len(reff)
+            integer, optional,intent(in),check(len(alpha)>=nvetab),depend(alpha) :: nvetab=len(alpha)
+            real dimension(nretab),intent(in) :: reff
+            real dimension(nvetab),intent(in),depend(nvetab) :: veff
+            real dimension(ndist),intent(in) :: extinct
+            real dimension(ndist),intent(in),depend(ndist) :: ssalb
+            integer dimension(ndist),intent(in),depend(ndist) :: nleg
+            real dimension(maxleg + 1,ndist),intent(in),depend(ndist) :: legcoef
+            integer, optional,intent(in),check(len(extinct)>=ndist),depend(extinct) :: ndist=len(extinct)
+            integer, optional,intent(in),check((shape(legcoef,0)-1)==maxleg),depend(legcoef) :: maxleg=(shape(legcoef,0)-1)
+        end subroutine write_poly_table
+        subroutine read_poly_table(mietabfile,nretab,nvetab,ndist,reff,veff,extinct,ssalb,nleg,legcoef,maxleg,table_type) ! in :core:src/unpolarized/make_mie_table.f90
+            character*(*) intent(in) :: mietabfile
+            integer intent(in) :: nretab
+            integer intent(in) :: nvetab
+            integer intent(in) :: ndist
+            real dimension(nretab),intent(out),depend(nretab) :: reff
+            real dimension(nvetab),intent(out),depend(nvetab) :: veff
+            real dimension(ndist),intent(out),depend(ndist) :: extinct
+            real dimension(ndist),intent(out),depend(ndist) :: ssalb
+            integer dimension(ndist),intent(out),depend(ndist) :: nleg
+            real dimension(maxleg + 1,ndist),intent(out),depend(maxleg,ndist) :: legcoef
+            integer intent(in) :: maxleg
+            character*6 intent(out) :: table_type
+        end subroutine read_poly_table
+        subroutine transform_leg_to_phase(maxleg,nphasepol,pelem,nleg,legcoef,nangle,angle,phase) ! in :core:src/unpolarized/make_mie_table.f90
+            integer, optional,intent(in),check((len(legcoef)-1)>=maxleg),depend(legcoef) :: maxleg=(len(legcoef)-1)
+            integer intent(in) :: nphasepol
+            integer intent(in) :: pelem
+            integer intent(in) :: nleg
+            real dimension(maxleg + 1),intent(in) :: legcoef
+            integer, optional,intent(in),check(len(angle)>=nangle),depend(angle) :: nangle=len(angle)
+            real dimension(nangle),intent(in) :: angle
+            real dimension(nangle),intent(out),depend(nangle) :: phase
+        end subroutine transform_leg_to_phase
+        subroutine read_mono_table(mietabfile,nrtab,radius,extinct,scatter,nleg,legcoef,maxleg,table_type) ! in :core:src/unpolarized/make_mie_table.f90
+            character*(*) intent(in) :: mietabfile
+            integer intent(in) :: nrtab
+            real dimension(nrtab),intent(out),depend(nrtab) :: radius
+            real dimension(nrtab),intent(out),depend(nrtab) :: extinct
+            real dimension(nrtab),intent(out),depend(nrtab) :: scatter
+            integer dimension(nrtab),intent(out),depend(nrtab) :: nleg
+            real dimension(maxleg + 1,nrtab),intent(out),depend(maxleg,nrtab) :: legcoef
+            integer intent(in) :: maxleg
+            character*6 intent(out) :: table_type
+        end subroutine read_mono_table
+        subroutine write_mono_table(mietabfile,wavelen1,wavelen2,deltawave,partype,pardens,rindex,nrtab,radii,extinct,scatter,nleg,maxleg,legcoef) ! in :core:src/unpolarized/make_mie_table.f90
+            character*(*) intent(in) :: mietabfile
+            real intent(in) :: wavelen1
+            real intent(in) :: wavelen2
+            real intent(in) :: deltawave
+            character*1 intent(in) :: partype
+            real intent(in) :: pardens
+            complex intent(in) :: rindex
+            integer, optional,intent(in),check(len(radii)>=nrtab),depend(radii) :: nrtab=len(radii)
+            real dimension(nrtab),intent(in) :: radii
+            real dimension(nrtab),intent(in),depend(nrtab) :: extinct
+            real dimension(nrtab),intent(in),depend(nrtab) :: scatter
+            integer dimension(nrtab),intent(in),depend(nrtab) :: nleg
+            integer, optional,intent(in),check((shape(legcoef,0)-1)==maxleg),depend(legcoef) :: maxleg=(shape(legcoef,0)-1)
+            real dimension(maxleg + 1,nrtab),intent(in),depend(nrtab) :: legcoef
+        end subroutine write_mono_table
+        subroutine get_poly_table(nd,ndist,nsize,maxleg,nleg1,extinct1,scatter1,legcoef1,extinct,ssalb,nleg,legcoef) ! in :core:src/unpolarized/make_mie_table.f90
+            real dimension(nsize,ndist),intent(in) :: nd
+            integer, optional,intent(in),check(shape(nd,1)==ndist),depend(nd) :: ndist=shape(nd,1)
+            integer, optional,intent(in),check(shape(nd,0)==nsize),depend(nd) :: nsize=shape(nd,0)
+            integer, optional,intent(in),check((shape(legcoef1,0)-1)==maxleg),depend(legcoef1) :: maxleg=(shape(legcoef1,0)-1)
+            integer dimension(nsize),intent(in),depend(nsize) :: nleg1
+            real dimension(nsize),intent(in),depend(nsize) :: extinct1
+            real dimension(nsize),intent(in),depend(nsize) :: scatter1
+            real dimension(maxleg + 1,nsize),intent(in),depend(nsize) :: legcoef1
+            real dimension(ndist),intent(out),depend(ndist) :: extinct
+            real dimension(ndist),intent(out),depend(ndist) :: ssalb
+            real dimension(ndist),intent(out),depend(ndist) :: nleg
+            real dimension(maxleg + 1,ndist),intent(out),depend(maxleg,ndist) :: legcoef
+        end subroutine get_poly_table
+    end interface 
+end python module core
+
+! This file was auto-generated with f2py (version:2).
+! See http://cens.ioc.ee/projects/f2py2e/
