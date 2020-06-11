@@ -49,13 +49,13 @@ n_jobs = 30
 
 # orbit altitude:
 Rsat = 500 # km
-wavelengths_micron = [0.452, 1.6]  #0.672 , 1.6
+wavelengths_micron = [1.6]  #0.672 , 1.6
 sun_azimuth = 45
 sun_zenith = 150
 #azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
 #zenith: Solar beam zenith angle in range (90,180]  
 
-SATS_NUMBER_SETUP = 16 # satellites number to build the setup, for the inverse, we can use less satellites.
+SATS_NUMBER_SETUP = 10 # satellites number to build the setup, for the inverse, we can use less satellites.
 SATS_NUMBER_INVERSE = SATS_NUMBER_SETUP#10 # how much satelliets will be used for the inverse.
 
 """
@@ -72,9 +72,9 @@ if(isinstance(wavelengths_micron, list)):
     wavelengths_micron.sort()# just for convenience, let's have it sorted.
     wavelengths_string = functools.reduce(operator.add,[str(int(1e3*j))+"_" for j in wavelengths_micron]).rstrip('_')
     # forward_dir, where to save evrerything that is related to forward model:
-    forward_dir = './experiments/polychromatic_unity_flux_active_sats_{}_LES_cloud_field_rico_Water_{}nm'.format(SATS_NUMBER_SETUP,wavelengths_string)
+    forward_dir = './experiments/retry_polychromatic_unity_flux_active_sats_{}_LES_cloud_field_rico_Water_{}nm'.format(SATS_NUMBER_SETUP,wavelengths_string)
 else: # if wavelengths_micron is scalar
-    forward_dir = './experiments/polychromatic_unity_flux_active_sats_{}_LES_cloud_field_rico_Water_{}nm'.format(SATS_NUMBER_SETUP,int(1e3*wavelengths_micron))
+    forward_dir = './experiments/retry_polychromatic_unity_flux_active_sats_{}_LES_cloud_field_rico_Water_{}nm'.format(SATS_NUMBER_SETUP,int(1e3*wavelengths_micron))
 
 # invers_dir, where to save evrerything that is related to invers model:
 invers_dir = forward_dir
@@ -118,7 +118,7 @@ Lz_droplets = droplets.grid.bounding_box.zmax - droplets.grid.bounding_box.zmin
 dz = Lz_droplets/nz
 
 #USED FOV, RESOLUTION and SAT_LOOKATS:
-PIXEL_FOOTPRINT = 0.01 # km
+PIXEL_FOOTPRINT = 0.02 # km
 fov = 2*np.rad2deg(np.arctan(0.5*L/(Rsat)))
 cny = int(np.floor(L/PIXEL_FOOTPRINT))
 cnx = int(np.floor(L/PIXEL_FOOTPRINT))

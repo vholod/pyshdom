@@ -310,7 +310,7 @@ class SpaceMultiView(shdom.MultiViewProjection):
 # -----------------------------------------------------------------
 # ------------------------THE FUNCTIONS BELOW----------------------
 # -----------------------------------------------------------------
-def plank(llambda,T):
+def plank(llambda,T=5800):
     h = 6.62607004e-34 # Planck constant
     c = 3.0e8
     k = 1.38064852e-23 # Boltzmann constant

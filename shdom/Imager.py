@@ -1,23 +1,29 @@
 import os 
 import sys
-import mayavi.mlab as mlab
 import scipy.io as sio
 import matplotlib.pyplot as plt
 import numpy as np
 import shdom 
+from shdom import float_round
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpl_toolkits.axes_grid1 import AxesGrid
 import time
 import glob
 import json
-from CloudCT_Utils import *
-from CloudCT_setup import plank
-
-
+from shdom.CloudCT_Utils import *
+import pandas as pd
+from scipy.interpolate import InterpolatedUnivariateSpline
+from collections import OrderedDict
+from math import log, exp, tan, atan, acos, pi, ceil, atan2
 # -------------------------------------------------------------------------------
 # ----------------------CONSTANTS------------------------------------------
 # -------------------------------------------------------------------------------
 integration_Dlambda = 10
+# h is the Planck's constant, c the speed of light,
+h = 6.62607004e-34 #J*s is the Planck constant
+c = 3.0e8 #m/s speed of litght
+k = 1.38064852e-23 #J/K is the Boltzmann constant
+
 
 """
 This packege helps to define the imager to be simulated.
@@ -51,6 +57,7 @@ The maximum exposur time derivied only from the pixel footprint and orbital spee
 TOADD...
 
 """
+
 
 class SensorPFA(object):
     
@@ -316,14 +323,14 @@ class LensSimple(object):
         self._SPECTRUM = self._TRANSMISSION['<wavelength [nm]>'].values
         self._wave_diffraction = 1e-3*min(2.44*self._SPECTRUM)*(self._FOCAL_LENGTH/self._DIAMETER)
         # https://www.edmundoptics.com/knowledge-center/application-notes/imaging/limitations-on-resolution-and-contrast-the-airy-disk/
-        print("----> Spot size becous of the diffraction is {}[micro m]".format(Utils.float_round(self._wave_diffraction,3)))
+        print("----> Spot size becous of the diffraction is {}[micro m]".format(float_round(self._wave_diffraction)))
     
     def assume_UNITY_TRANSMISSION(self,spectrum):
         """
         Some times we don't know the lens transmmision or don't want to set lens at the begining.
         So here, we just assume transmmision of 1 or maybe 0.99 (alfa).
         """
-        alfa = 0.99
+        alfa = 0.96
         start = spectrum[0]
         stop = spectrum[1]        
         spectrum = np.linspace(start, stop, 4)
@@ -396,7 +403,6 @@ class Imager(object):
         
         self._pixel_footprint = None # km, will be defined by function set_Imager_altitude()
         self._camera_footprint = None # km, will be defined by function set_Imager_altitude()
-        self._imager = None
         
         if(self._SENSOR_DEFINED):# means we have here defined sensor
             self._DR = self._sensor.DynamicRange #dynamic range.
@@ -481,7 +487,7 @@ class Imager(object):
         self._lens.diameter = 1000*((self._sensor.full_well/G)**0.5) # in mmm     
         print("\nUpdate minimum lens diameter")
         print("The diameter of the lens will change in this step, Is that what do you want to do?")
-        print("----> Diameter is changed to {}[mm]".format(Utils.float_round(self._lens.diameter)))
+        print("----> Diameter is changed to {}[mm]".format(float_round(self._lens.diameter)))
         
         return self._lens.diameter
    
@@ -508,9 +514,9 @@ class Imager(object):
         
         print("\nUpdate Lens diameter")
         print("The diameter of the lens will change in this step, Is that what do you want to do?")
-        print("----> Diameter is changed to {}[mm]".format(Utils.float_round(self._lens.diameter)))        
-        print("----> Dynamic range is set to {} or {}[db]".format(Utils.float_round(self._DR),Utils.float_round(20*np.log10(self._DR))))
-        print("----> SNR is set to {} or {}[db]".format(Utils.float_round(self._SNR),Utils.float_round(20*np.log10(self._SNR))))
+        print("----> Diameter is changed to {}[mm]".format(float_round(self._lens.diameter)))        
+        print("----> Dynamic range is set to {} or {}[db]".format(float_round(self._DR),float_round(20*np.log10(self._DR))))
+        print("----> SNR is set to {} or {}[db]".format(float_round(self._SNR),float_round(20*np.log10(self._SNR))))
         
         
     def set_imager_SRN(self,SNR):
@@ -533,32 +539,75 @@ class Imager(object):
         self._DR = signal/self._NOISE_FLOOR        
         print("\nUpdate imager SNR")
         print("The diameter of the lens will change in this step, Is that what do you want to do?")
-        print("----> Diameter is changed to {}[mm]".format(Utils.float_round(self._lens.diameter)))        
-        print("----> Dynamic range is set to {} or {}[db]".format(Utils.float_round(self._DR),Utils.float_round(20*np.log10(self._DR))))
-        print("----> SNR is set to {} or {}[db]".format(Utils.float_round(self._SNR),Utils.float_round(20*np.log10(self._SNR))))
+        print("----> Diameter is changed to {}[mm]".format(float_round(self._lens.diameter)))        
+        print("----> Dynamic range is set to {} or {}[db]".format(float_round(self._DR),float_round(20*np.log10(self._DR))))
+        print("----> SNR is set to {} or {}[db]".format(float_round(self._SNR),float_round(20*np.log10(self._SNR))))
+        
+    
+    def update_solar_angle(self,val):
+        """
+        To model the irradiance at a certain time of the day, we must
+        multiple the irradiance at TOA by the cosine of the Sun zenith angle, it is also known as
+        solar zenith angle (SZA) (1). Thus, the solar spectral irradiance at The TOA at
+        a certain time is, self._LTOS = self._LTOS*cos(180-sun_zenith)
+            
+        input:
+        val - is the zenith angle: float,
+             Solar beam zenith angle in range (90,180]  
+        """
+        assert 90.0 < val <= 180.0, 'Solar zenith:{} is not in range (90, 180] (photon direction in degrees)'.format(val)
+        Cosain = np.cos(np.deg2rad((180-val)))
+        self._LTOS = self._LTOS * Cosain
         
         
     def calculate_scene_radiance(self,rho=0.1,TYPE = 'simple'):
         """
         calculate the hypotetic radiance that would reach the imager lens.
-        Currently it is done very simple, just black body radiation and lamberation reflection be the clouds.
+        1. In the simple option, it is done very simple, just black body radiation and lamberation reflection be the clouds.
         The rho is the reflectance of the clouds (simple albedo).
+        
+        2. The best way to calculate the radiance is to use the pyshdom.
+        So if TYPE = 'SHDOM', the self._radiance will be set to None and it will set to the right radiance after the rendering of pyshdom and the rigth radiometric mnipulations.
+        
         """
         if(TYPE is 'simple'):
-            self._LTOS = 6.8e-5*1e-9*plank(self._lambdas) # units fo W/(m^2 nm)
+            self._LTOS = 6.8e-5*1e-9*shdom.plank(1e-9*self._lambdas) # units fo W/(m^2 nm)
             # I am assuming a solid angle of 6.8e-5 steradian for the source (the solar disk).
             self._radiance = (rho*self._LTOS)/np.pi # it is of units W/(m^2 st nm)
+        
+        elif(TYPE is 'SHDOM'):
+            self._LTOS = 6.8e-5*1e-9*shdom.plank(1e-9*self._lambdas) # units fo W/(m^2 nm)
+            # I am assuming a solid angle of 6.8e-5 steradian for the source (the solar disk).
+            self._radiance = None # it is of units W/(m^2 st nm), in this case it will be set after the pyshdom rendering.
+                
             
         else:
             
             raise Exception("Unsupported")
+        
+    def show_scene_irradiance(self): 
         """
-        Here we wil add a full rendering of a scene with pyshdom
+        Shows the irradiance at the TOA:
         """
-            
-    def show_scene_radiance(self):
         f, ax = plt.subplots(1, 1, figsize=(8, 8))
         plt.plot(self._lambdas,1000*self._LTOS ,label='black body radiation W/(m^2 um)')
+        
+        plt.ylim([0 ,1.1*max(1000*self._LTOS)])
+        plt.xlim(self._scene_spectrum)
+        
+        plt.xlabel('wavelength [nm]', fontsize=16)
+        plt.ylabel('Intensity', fontsize=16)
+        plt.title('The irradiance at TOA')
+        
+        ax.xaxis.set_tick_params(labelsize=16)
+        ax.yaxis.set_tick_params(labelsize=16)
+        plt.grid(True)
+        
+    def show_scene_radiance(self, IFADD_IRRADIANCE = False):
+        f, ax = plt.subplots(1, 1, figsize=(8, 8))
+        if(IFADD_IRRADIANCE):
+            plt.plot(self._lambdas,1000*self._LTOS ,label='black body radiation W/(m^2 um)')
+        
         plt.plot(self._lambdas,1000*self._radiance,label='rediance on the lens W/(m^2 st um)')
         
         plt.ylim([0 ,1.1*max(1000*self._radiance)])
@@ -571,7 +620,9 @@ class Imager(object):
         ax.xaxis.set_tick_params(labelsize=16)
         ax.yaxis.set_tick_params(labelsize=16)
         plt.grid(True)
-        plt.legend()                
+        if(IFADD_IRRADIANCE):
+            
+            plt.legend()                
       
         
       
@@ -585,11 +636,13 @@ class Imager(object):
     def assume_lens_UNITY_TRANSMISSION(self):
         """
         Some times we don't know the lens transmmision or don't want to set lens at the begining.
-        So here, we just assume transmmision of 1.
+        So here, we just assume transmmision of 0.92-1.
         """
-        if(not self._LENS_DEFINED):# means we have here defined lens 
+        if(not self._LENS_DEFINED):# means we no defined lens here
             self._lens = LensSimple(FOCAL_LENGTH = None , DIAMETER = None , LENS_ID = None)
         self._lens.assume_UNITY_TRANSMISSION(self._scene_spectrum)
+        self._LENS_DEFINED = True
+        print('Now the lens attribute in the imager instance is considered as defined.')
 
     def update(self):
         """
@@ -654,7 +707,7 @@ class Imager(object):
         """
         self._H = H # km
         self._orbital_speed = 1e-3*SatSpeed(orbit=self._H) # units of [m/sec] converted to [km/sec]
-        print("----> Speed in {}[km] orbit is {}[km/sec]".format(self._H,Utils.float_round(self._orbital_speed,digits=4)))
+        print("----> Speed in {}[km] orbit is {}[km/sec]".format(self._H,float_round(self._orbital_speed)))
         if self._lens._FOCAL_LENGTH is not None:
             self.calculate_footprints()
         
@@ -708,11 +761,11 @@ class Imager(object):
         self._SNR = (self._sensor.full_well)/np.sqrt(self._sensor.full_well + DARK_NOISE + (self._READ_NOISE**2) + (QUANTIZATION_NOISE**2))        
         #self._SNR = (self._sensor.full_well)**0.5 old version
         print("The focal length will change in this step, This what do you want to do?")
-        print("----> Focal length is set to {}[mm]".format(Utils.float_round(self._lens.focal_length)))
-        print("----> Exposure bound is set to {}[micro sec]".format(Utils.float_round(self._max_esposure_time)))
-        print("----> Dynamic range bound is set to {} or {}[db]".format(Utils.float_round(self._DR),Utils.float_round(20*np.log10(self._DR))))
-        print("----> Noise floor bound is set to {}[electrons]".format(Utils.float_round(self._NOISE_FLOOR)))
-        print("----> SNR is {} or {}[db]".format(Utils.float_round(self._SNR),Utils.float_round(self._sensor.get_SNR_IN_DB())))
+        print("----> Focal length is set to {}[mm]".format(float_round(self._lens.focal_length)))
+        print("----> Exposure bound is set to {}[micro sec]".format(float_round(self._max_esposure_time)))
+        print("----> Dynamic range bound is set to {} or {}[db]".format(float_round(self._DR),float_round(20*np.log10(self._DR))))
+        print("----> Noise floor bound is set to {}[electrons]".format(float_round(self._NOISE_FLOOR)))
+        print("----> SNR is {} or {}[db]".format(float_round(self._SNR),float_round(self._sensor.get_SNR_IN_DB())))
         
         
     def calculate_footprints(self):
@@ -743,9 +796,14 @@ class Imager(object):
         """
         return self._pixel_footprint, self._camera_footprint
      
+     
     @property 
     def max_esposure_time(self):
         return self._max_esposure_time
+    
+    @property 
+    def scene_spectrum(self):
+        return self._scene_spectrum
     
     @property 
     def max_noise_floor(self):
@@ -755,10 +813,20 @@ class Imager(object):
     def min_dynamic_range(self):
         return self._DR   
     
-    def ImportConfig(self,file_name = 'Imager_config.json'):
+    @property 
+    def L_TOA(self):
+        """
+        returns the irradiance at the TOA
+        """
+        return self._LTOS
+    
+    @classmethod
+    def ImportConfig(cls,file_name = 'Imager_config.json'):
         """
         Import Imager configuration.
         """
+        obj = cls.__new__(cls)  # Does not call __init__
+        
         with open(file_name) as json_file:
             data = json.load(json_file)
             
@@ -786,12 +854,43 @@ class Imager(object):
                          DIAMETER = data['LENS_DIAMETER'],
                          LENS_ID = '101')
        
-                         
-        self = self.__init__(sensor=sensor,lens=lens,scene_spectrum=[data['START_SPECTRUM'], data['END_SPECTRUM']],
-                      integration_Dlambda=integration_Dlambda,temp=data['TEMPERTURE'],system_efficiency=data['SYSTEM_EFFICIENCY'])     
-         
-         
-     
+             
+        super(Imager, obj).__init__()  # Don't forget to call any polymorphic base class initializers
+        
+        
+        obj._SENSOR_DEFINED = True # means we have here defined sensor
+        obj._LENS_DEFINED = True # means we have here defined lens
+        
+        obj._sensor = sensor
+        obj._lens = lens
+        obj._temp = data['TEMPERTURE'] # celsius
+    
+        
+        obj._DR = obj._sensor.DynamicRange #dynamic range.
+        obj._SNR = obj._sensor.SNR 
+        obj._DARK_NOISE = obj._sensor._DARK_CURRENT_NOISE
+        obj._READ_NOISE = obj._sensor._READOUT_NOISE
+        obj._NOISE_FLOOR = obj._sensor._NOISE_FLOOR
+        
+        obj._Imager_QE = obj._sensor.QE
+        
+        obj._ETA = data['SYSTEM_EFFICIENCY'] # It is the camera system efficiency, I don't know yet how to set its value, 
+        obj._Imager_EFFICIANCY = obj._ETA
+        
+        obj._lambdas = obj._sensor.spectrum   
+        obj._scene_spectrum = [data['START_SPECTRUM'], data['END_SPECTRUM']]
+        obj._integration_Dlambda = integration_Dlambda
+        
+        obj._H = None 
+        obj._orbital_speed = None 
+        obj._max_esposure_time = None 
+        obj._FOV = None       
+        
+        obj._radiance = None
+        obj._LTOS = np.array(data['SPECTRAL_IRRADIANCE_TOA'])
+        
+        return obj
+        
         
     def ExportConfig(self,file_name = 'Imager_config.json'):
         """
@@ -804,11 +903,11 @@ class Imager(object):
         _DICT_['CWidth'] =  int(self._sensor.sensor_size[1]) if self._sensor.sensor_size[1] is not None else None# pixels
         _DICT_['BitDepth'] = self._sensor.bits # unitless
         _DICT_['DYNAMIC_RANGE'] = self._sensor.DynamicRange # unitless, it is not in DB
-        _DICT_['SNR'] = Utils.float_round(self._sensor.SNR) # unitless, it is not in DB
+        _DICT_['SNR'] = float_round(self._sensor.SNR) # unitless, it is not in DB
         _DICT_['DARK_CURRENT_NOISE'] = self._sensor._DARK_CURRENT_NOISE # [electrons/(sec*temperatur)]
         _DICT_['READOUT_NOISE'] = self._sensor._READOUT_NOISE # electrons
         _DICT_['TEMPERTURE'] = self._temp # celsius
-        _DICT_['NOISE_FLOOR'] = Utils.float_round(self._NOISE_FLOOR) if self._NOISE_FLOOR is not None else None # electrons
+        _DICT_['NOISE_FLOOR'] = float_round(self._NOISE_FLOOR) if self._NOISE_FLOOR is not None else None # electrons
         _DICT_['SYSTEM_EFFICIENCY'] = self._ETA # unitless
         _DICT_['MAX_EXPOSURE_TIME'] = int(self._max_esposure_time) if self._max_esposure_time is not None else None# in [micro sec]
         _DICT_['START_SPECTRUM'] = self._scene_spectrum[0] # in nm
@@ -859,13 +958,13 @@ class Imager(object):
             self._DR  = None
         
         print("\nReport all")
-        print("----> Diameter is {}[mm]".format(Utils.float_round(self._lens.diameter))) 
+        print("----> Diameter is {}[mm]".format(float_round(self._lens.diameter))) 
         if(self._DR is not None):
-            print("----> Dynamic range is {} or {}[db]".format(Utils.float_round(self._DR),Utils.float_round(20*np.log10(self._DR))))
-        print("----> SNR is {} or {}[db]".format(Utils.float_round(self._SNR),Utils.float_round(20*np.log10(self._SNR))))
-        print("----> Full_well is {}[electrons]".format(Utils.float_round(self._sensor.full_well)))
+            print("----> Dynamic range is {} or {}[db]".format(float_round(self._DR),float_round(20*np.log10(self._DR))))
+        print("----> SNR is {} or {}[db]".format(float_round(self._SNR),float_round(20*np.log10(self._SNR))))
+        print("----> Full_well is {}[electrons]".format(float_round(self._sensor.full_well)))
         if(self._radiance is not None):
-            print("----> signal is {}[electrons]".format(Utils.float_round(signal)))
+            print("----> signal is {}[electrons]".format(float_round(signal)))
         
 #---------------------------------------------------------------------
 #-------------------------MAIN----------------------------------------
@@ -886,8 +985,8 @@ if __name__ == '__main__':
     # meanwhile i am playing:
     scene_spectrum=[400,1700]
     
-    LENS_TRANSMISSION_CSV_FILE = 'example_lens_transmission.csv'
-    SENSOR_QE_CSV_FILE = 'example_sensorQE.csv'
+    LENS_TRANSMISSION_CSV_FILE = '../notebooks/example_lens_transmission.csv'
+    SENSOR_QE_CSV_FILE = '../notebooks/example_sensorQE.csv'
     
     if(IF_GENERATE_TABLSE):
         # generate sensor QE:    
@@ -913,9 +1012,9 @@ if __name__ == '__main__':
     imager.set_Imager_altitude(H=H)
     pixel_footprint, camera_footprint = imager.get_footprints_at_nadir()
     max_esposure_time = imager.max_esposure_time
-    pixel_footprint = Utils.float_round(pixel_footprint,digits=4)
-    camera_footprint = Utils.float_round(camera_footprint,digits=4)
-    max_esposure_time = Utils.float_round(max_esposure_time,digits=4)
+    pixel_footprint = float_round(pixel_footprint)
+    camera_footprint = float_round(camera_footprint)
+    max_esposure_time = float_round(max_esposure_time)
     print("At nadir:\n Pixel footprint is {}[km]\n Camera footprint is {}\n[km]\n Max esposure time {}[micro sec]\n"
           .format(pixel_footprint, camera_footprint, max_esposure_time))
     

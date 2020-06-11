@@ -103,7 +103,6 @@ class Sensor(object):
             total_ext=rte_solver._total_ext[:rte_solver._npts],
             npart=rte_solver._npart)    
         
-        print(output.shape)
         return output
 
     @property

@@ -12,7 +12,7 @@ import subprocess
 from mpl_toolkits.axes_grid1 import AxesGrid
 import time
 import glob
-from CloudCT_Utils import *
+from shdom.CloudCT_Utils import *
 
 # importing functools for reduce() 
 import functools  

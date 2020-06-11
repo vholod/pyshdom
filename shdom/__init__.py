@@ -641,7 +641,9 @@ from shdom.sensor import *
 from shdom.rte_solver import *
 from shdom.optimize import *
 import shdom.generate as Generate
-
+from shdom.CloudCT_setup import *
+from shdom.Imager import *
+from shdom.CloudCT_Utils import *
 
 def save_forward_model(directory, medium, solver, measurements):
     """
