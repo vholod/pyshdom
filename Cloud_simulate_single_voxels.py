@@ -140,7 +140,7 @@ This cell should be ran with POLARIZATION compilation flag set to True
 """
 # safe creation of a directory to save results
 directory = 'single_view'
-if not os.path.exists(directory):
+if not os.path.exists(directory)
     os.makedirs(directory)
 
 # Microphysical grid definition
