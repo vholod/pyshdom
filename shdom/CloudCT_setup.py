@@ -1,6 +1,6 @@
 import os 
 import sys
-import mayavi.mlab as mlab
+#import mayavi.mlab as mlab
 import scipy.io as sio
 import matplotlib.pyplot as plt
 import numpy as np
@@ -262,7 +262,7 @@ class SpaceMultiView(shdom.MultiViewProjection):
             loop_projection = shdom.PerspectiveProjection(fov, nx, ny, x, y, z)
             loop_projection.look_at_transform(lookat, up)
             self.add_projection(loop_projection,name)
-        
+    '''
     def show_setup(self,scale = 0.6,axisWidth = 3.0,axisLenght=1.0, FullCone = False):
         """
         Show all the views:
@@ -271,7 +271,9 @@ class SpaceMultiView(shdom.MultiViewProjection):
             view.show_camera(scale,axisWidth,axisLenght,FullCone) 
             
             t = view.position
-            mlab.text3d(t[0]+0.2*scale, t[1], t[2]+0.2*scale, view_name, color=(1,0,0),scale=0.02*scale)        
+            mlab.text3d(t[0]+0.2*scale, t[1], t[2]+0.2*scale, view_name, color=(1,0,0),scale=0.02*scale)       
+    '''
+
         
     def Random_choose_N(self,N):
         """
@@ -394,12 +396,15 @@ def Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500, CAM_FOV = 0.1, CAM_RES = (64,6
     # visualization params:
     scale = 500
     axisWidth = 0.02
-    axisLenght = 5000    
-    if(VISSETUP):
+    axisLenght = 5000
+    '''
+        if(VISSETUP):
         MV.show_setup(scale=scale ,axisWidth=axisWidth ,axisLenght=axisLenght,FullCone = True)
         figh = mlab.gcf()
         mlab.orientation_axes(figure=figh)    
         mlab.show()
+    '''
+
         
         
     return MV, near_nadir_view_index
@@ -508,8 +513,9 @@ def main():
     # visualization params:
     scale = 500
     axisWidth = 0.02
-    axisLenght = 5000    
-    VISSETUP = True
+    axisLenght = 5000
+    '''
+        VISSETUP = True
     if(VISSETUP):
         MV.show_setup(scale=scale ,axisWidth=axisWidth ,axisLenght=axisLenght,FullCone = True)
         figh = mlab.gcf()
@@ -517,6 +523,8 @@ def main():
         
     if(VISSETUP):    
         mlab.show()
+    '''
+
         
         
         
