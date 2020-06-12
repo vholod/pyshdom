@@ -639,6 +639,7 @@ from shdom.phase import *
 from shdom.medium import *
 from shdom.sensor import *
 from shdom.rte_solver import *
+from shdom.CloudCT_setup import *
 from shdom.optimize import *
 import shdom.generate as Generate
 from shdom.CloudCT_setup import *
