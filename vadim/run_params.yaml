@@ -43,7 +43,7 @@ sun_azimuth: 45 #azimuth: 0 is beam going in positive X direction (North), 90 is
 sun_zenith: 150 #zenith: Solar beam zenith angle in range (90,180]
 
 SATS_NUMBER_SETUP: &num_sats 10 # satellites number to build the setup, for the inverse, we can use less satellites.
-SATS_NUMBER_INVERSE: *num_sats #10, how much satelliets will be used for the inverse.
+SATS_NUMBER_INVERSE: *num_sats #10, how much satellites will be used for the inverse.
 
 
 rte_solver_max_iter: 100 # max number of iterations for rte solver
@@ -62,3 +62,9 @@ temp: 5900  # K
 num_mu: 16
 num_phi: 32
 max_total_mb: 100000.0
+
+inverse_options:
+  SEE_SETUP: False
+  SEE_IMAGES: True
+  MICROPHYSICS: True
+  radiance_threshold: [0.023,0.02] # check these values before inverse.

@@ -288,6 +288,7 @@ if run_params['DOFORWARD']:
 Solve inverse problem:
 """
 if run_params['DOINVERSE']:
+    inverse_options = run_params['inverse_options']
 
     # load the measurments to see the rendered images:
     medium, solver, measurements = shdom.load_forward_model(forward_dir)
@@ -297,27 +298,25 @@ if run_params['DOINVERSE']:
     THIS_MULTI_VIEW_SETUP = USED_CAMERA.projection
 
     # ---------what to optimize----------------------------
-    radiance_threshold = [0.023,0.02] # check these values befor inverse.
-    SEE_SETUP = False
-    SEE_IMAGES = True
-    MICROPHYSICS = True
+    radiance_threshold = inverse_options['radiance_threshold']
+    SEE_IMAGES = True  # TODO not in use
     # ------------------------------------------------
 
     # show the mutli view setup if you want.
-    if(SEE_SETUP):
-        THIS_MULTI_VIEW_SETUP.show_setup(scale=scale ,axisWidth=axisWidth ,axisLenght=axisLenght,FullCone = True)
+    if inverse_options['SEE_SETUP']:
+        THIS_MULTI_VIEW_SETUP.show_setup(scale=viz_options['scale'] ,axisWidth=viz_options['axisWidth'] ,axisLenght=viz_options['axisLenght'],FullCone = True)
         figh = mlab.gcf()
-        mlab.orientation_axes(figure=figh)    
-        mlab.show()    
-        
-    
+        mlab.orientation_axes(figure=figh)
+        mlab.show()
+
+
     # ----------------------------------------------------------
 
     """
     Work with the optimization:
     """
 
-    if not MICROPHYSICS:
+    if not inverse_options['MICROPHYSICS']:
 
         # -----------------------------------------------
         # ---------SOLVE for extinction only  -----------
