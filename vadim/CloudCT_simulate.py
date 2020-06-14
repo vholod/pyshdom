@@ -1,6 +1,6 @@
 import os
 import sys
-import mayavi.mlab as mlab
+# import mayavi.mlab as mlab
 import scipy.io as sio
 import matplotlib.pyplot as plt
 import numpy as np
@@ -302,9 +302,9 @@ if run_params['DOINVERSE']:
     # show the mutli view setup if you want.
     if inverse_options['SEE_SETUP']:
         THIS_MULTI_VIEW_SETUP.show_setup(scale=viz_options['scale'] ,axisWidth=viz_options['axisWidth'] ,axisLenght=viz_options['axisLenght'],FullCone = True)
-        figh = mlab.gcf()
-        mlab.orientation_axes(figure=figh)
-        mlab.show()
+        # figh = mlab.gcf()
+        # mlab.orientation_axes(figure=figh)
+        # mlab.show()
 
     run_type = inverse_options['recover_type'] if inverse_options['MICROPHYSICS'] else 'extinction'
 

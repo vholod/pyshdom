@@ -3,7 +3,7 @@
 # TODO Cosain*6.8e-5*1e-9*CloudCT_setup.plank(1e-6*wavelength,temp)
 
 # Simulation flags
-DOFORWARD: True
+DOFORWARD: False
 DOINVERSE: True
 
 CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
@@ -91,7 +91,10 @@ inverse_options:
   # if not microphysics:
   extinction: 0.01  # init extinction of the generator
 
-  radiance_threshold: [0.023,0.02] # check these values before inverse.
+  # check these values before inverse.
+  radiance_threshold:
+    - 0.023
+    - 0.02
   scripts_path: '../scripts'
 
   # TODO not in use
