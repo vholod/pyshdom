@@ -1,0 +1,64 @@
+# TODO forward_dir
+# TODO log_name_base,
+# TODO Cosain*6.8e-5*1e-9*CloudCT_setup.plank(1e-6*wavelength,temp)
+
+# Simulation flags
+DOFORWARD: True
+DOINVERSE: True
+
+CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
+AirFieldFile: './ancillary_data/AFGL_summer_mid_lat.txt' # Path to csv file which contains temperature measurements
+
+# Sometimes it is more convenient to use wide fov to see the whole cloud from all the view points.
+# so the FOV is also tuned:
+IFTUNE_CAM: True
+
+
+# mia table parameters:
+mie_options:
+  start_reff: 4 # Starting effective radius [Micron]
+  end_reff: 25.0
+  num_reff: 100
+  start_veff: 0.01
+  end_veff: 0.4
+  num_veff: 117
+  radius_cutoff: 65.0 # The cutoff radius for the pdf averaging [Micron]
+
+# visualization params:
+viz_options:
+  VISSETUP: False
+  CENCEL_AIR: False # just for debugging, in runtime  must be false.
+  scale: 500
+  axisWidth: 0.02
+  axisLenght: 5000
+
+n_jobs: 30
+
+Rsat: 500 # orbit altitude, km
+GSD: 0.02 # in km, it is the ground spatial resolution.
+
+wavelengths_micron: [0.672, 1.6]  #0.672 , 1.6
+
+sun_azimuth: 45 #azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
+sun_zenith: 150 #zenith: Solar beam zenith angle in range (90,180]
+
+SATS_NUMBER_SETUP: &num_sats 10 # satellites number to build the setup, for the inverse, we can use less satellites.
+SATS_NUMBER_INVERSE: *num_sats #10, how much satelliets will be used for the inverse.
+
+
+rte_solver_max_iter: 100 # max number of iterations for rte solver
+
+
+# FORWARD PARAMS
+# units fo W/(m^2))
+temp: 5900  # K
+
+# ----------------------------------------------------------
+# ---------numerical & scene Parameters---------------------
+# ---------for RTE solver and initializtion of the solver---
+# ----------------------------------------------------------
+
+# note: when num_mu, num_phi are 16,32, the retrievals look better than with 8,16.
+num_mu: 16
+num_phi: 32
+max_total_mb: 100000.0

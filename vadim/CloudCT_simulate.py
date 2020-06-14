@@ -1,11 +1,11 @@
-import os 
+import os
 import sys
 import mayavi.mlab as mlab
 import scipy.io as sio
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import shdom 
+import shdom
 from shdom import CloudCT_setup
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import subprocess
@@ -15,50 +15,31 @@ import glob
 from shdom.CloudCT_Utils import *
 
 # importing functools for reduce() 
-import functools  
+import functools
 # importing operator for operator functions 
-import operator 
+import operator
+import yaml
+
 # -----------------------------------------------------------------
 # -----------------------------------------------------------------
-# mia table parameters:
-start_reff = 1
-end_reff = 25.0
-start_veff = 0.05
-end_veff = 0.4
-radius_cutoff = 65.0
-mie_options = {
-    'start_reff': start_reff,# Starting effective radius [Micron]
-    'end_reff': end_reff,
-    'num_reff': int((end_reff-start_reff)/0.25 + 1),
-    'start_veff': start_veff,
-    'end_veff': end_veff,
-    'num_veff': int((end_veff-start_veff)/0.003 + 1),
-    'radius_cutoff': radius_cutoff # The cutoff radius for the pdf averaging [Micron]
-}
 
-# visualization params:
-VISSETUP = False
-CENCEL_AIR = False # just for debuging, in rutine it must be false.
-scale = 500
-axisWidth = 0.02
-axisLenght = 5000  
+# Load run parameters
+with open("run_params.yaml", 'r') as f:
+    run_params = yaml.full_load(f)
 
-# sat number:
-#SATS_NUMBER = 10
-n_jobs = 30
+mie_options = run_params['mie_options']  # mie params
+viz_options = run_params['viz_options']  # visualization params
 
+n_jobs = run_params['n_jobs']
 
-# orbit altitude:
-Rsat = 500 # km
-GSD = 0.02 # in km, it is the ground spatial resolution.
-wavelengths_micron = [0.672, 1.6]  #0.672 , 1.6
-sun_azimuth = 45
-sun_zenith = 150
-#azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
-#zenith: Solar beam zenith angle in range (90,180]  
+Rsat = run_params['Rsat']
+GSD = run_params['GSD']
+wavelengths_micron = run_params['wavelengths_micron']
+sun_azimuth = run_params['sun_azimuth']
+sun_zenith = run_params['sun_zenith']
 
-SATS_NUMBER_SETUP = 10 # satellites number to build the setup, for the inverse, we can use less satellites.
-SATS_NUMBER_INVERSE = SATS_NUMBER_SETUP#10 # how much satelliets will be used for the inverse.
+SATS_NUMBER_SETUP = run_params['SATS_NUMBER_SETUP']
+SATS_NUMBER_INVERSE = run_params['SATS_NUMBER_INVERSE']
 
 """
 Check if mie tables exist, if not creat them, if yes skip it is long process.
@@ -70,7 +51,7 @@ mie_base_path = CALC_MIE_TABLES(MieTablesPath,wavelengths_micron,mie_options)
 # for example, mie_base_path = './mie_tables/polydisperse/Water_672nm.scat'
 
 
-if(isinstance(wavelengths_micron, list)):
+if isinstance(wavelengths_micron, list):
     wavelengths_micron.sort()# just for convenience, let's have it sorted.
     wavelengths_string = functools.reduce(operator.add,[str(int(1e3*j))+"_" for j in wavelengths_micron]).rstrip('_')
     # forward_dir, where to save evrerything that is related to forward model:
@@ -84,23 +65,18 @@ log_name_base = 'active_sats_{}_easiest_rico32x37x26'.format(SATS_NUMBER_SETUP)
 # Write intermediate TensorBoardX results into log_name.
 # The provided string is added as a comment to the specific run.
 
-# --------------------------------------------------------
-# Similation flags
-DOFORWARD = True
-DOINVERSE = True
 
 # ---------------------------------------------------------------
 # -------------LOAD SOME MEDIUM TO RECONSTRUCT--------------------------------
 # ---------------------------------------------------------------
 
-CloudFieldFile = '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
-if(CENCEL_AIR):
+if viz_options['CENCEL_AIR']:
     AirFieldFile = None # here the atmosphere will note condsider any air.
-    
+
 else:
-    AirFieldFile = './ancillary_data/AFGL_summer_mid_lat.txt' # Path to csv file which contains temperature measurements
-    
-atmosphere = CloudCT_setup.Prepare_Medium(CloudFieldFile,AirFieldFile,
+    AirFieldFile = run_params['AirFieldFile']  # Path to csv file which contains temperature measurements
+
+atmosphere = CloudCT_setup.Prepare_Medium(run_params['CloudFieldFile'], AirFieldFile,
                              MieTablesPath,wavelengths_micron)
 droplets = atmosphere.get_scatterer('cloud')
 
@@ -132,24 +108,23 @@ cnx = int(np.floor(L/PIXEL_FOOTPRINT))
 
 CENTER_OF_MEDIUM_BOTTOM = [0.5*nx*dx , 0.5*ny*dy , 0]
 
-# Somtimes it is more convinent to use wide fov to see the whole cloud
-# from all the view points. so the FOV is aslo tuned:
-IFTUNE_CAM = True
-# --- TUNE FOV, CNY,CNX:
-if(IFTUNE_CAM):
+# Sometimes it is more convenient to use wide fov to see the whole cloud from all the view points.
+# so the FOV is also tuned:
+# -- TUNE FOV, CNY,CNX:
+if run_params['IFTUNE_CAM']:
     L = 1.5*L
     fov = 2*np.rad2deg(np.arctan(0.5*L/(Rsat)))
     cny = int(np.floor(L/PIXEL_FOOTPRINT))
-    cnx = int(np.floor(L/PIXEL_FOOTPRINT))    
+    cnx = int(np.floor(L/PIXEL_FOOTPRINT))
 
 # not for all the mediums the CENTER_OF_MEDIUM_BOTTOM is a good place to lookat.
 # tuning is applied by the variavle LOOKAT.
 LOOKAT = CENTER_OF_MEDIUM_BOTTOM
-if(IFTUNE_CAM):
+if run_params['IFTUNE_CAM']:
     LOOKAT[2] = 0.68*nx*dz # tuning. if IFTUNE_CAM = False, just lookat the bottom
-        
+
 SAT_LOOKATS = np.array(SATS_NUMBER_SETUP*LOOKAT).reshape(-1,3)# currently, all satellites lookat the same point.
-    
+
 print(20*"-")
 print(20*"-")
 print(20*"-")
@@ -172,7 +147,7 @@ y_min = atmospheric_grid.bounding_box.ymin
 y_max = atmospheric_grid.bounding_box.ymax
 
 z_min = atmospheric_grid.bounding_box.zmin
-z_max = atmospheric_grid.bounding_box.zmax 
+z_max = atmospheric_grid.bounding_box.zmax
 print("xmin = {}, ymin = {},zmin ={}".format(x_min,y_min,z_min))
 print("xmax = {}, ymax = {},zmax ={}".format(x_max,y_max,z_max))
 
@@ -180,7 +155,7 @@ print(20*"-")
 print(20*"-")
 print(20*"-")
 
-if(DOFORWARD):   
+if run_params['DOFORWARD']:
     # ---------------------------------------------------------------
     # ---------------CREATE THE SETUP----------------------------
     # ---------------------------------------------------------------
@@ -189,13 +164,12 @@ if(DOFORWARD):
     What we also whant to do is to define different bands and resolution to different sateliites.
     For now all the cameras are identicale and have the same spectral channels.
     Each camera has camera_wavelengths_list.
-    """  
-    if(np.isscalar(wavelengths_micron)):
+    """
+    if np.isscalar(wavelengths_micron):
         wavelengths_micron = [wavelengths_micron]
     setup_wavelengths_list = SATS_NUMBER_SETUP*[wavelengths_micron]
     # Calculate irradiance of the spesific wavelength:
     # use plank function:
-    temp = 5900 #K
     L_TOA = []
     Cosain = np.cos(np.deg2rad((180-sun_zenith)))
     for wavelengths_per_view in setup_wavelengths_list:
@@ -203,19 +177,19 @@ if(DOFORWARD):
         L_TOA_per_view = []
         for wavelength in wavelengths_per_view:
             # loop over the wavelengths is a view
-            L_TOA_per_view.append(Cosain*6.8e-5*1e-9*CloudCT_setup.plank(1e-6*wavelength,temp)) # units fo W/(m^2))
-        
+            L_TOA_per_view.append(Cosain*6.8e-5*1e-9*CloudCT_setup.plank(1e-6*wavelength,run_params['temp'])) # units fo W/(m^2))
+
         L_TOA.append(L_TOA_per_view)
-    
+
     solar_flux_scale = L_TOA # the forward simulation will run with unity flux,
     # this is a scale that we should consider to apply on the output images.
     # Rigth now, lets skip it.
-    
+
     # create CloudCT setup:
     CloudCT_VIEWS, near_nadir_view_index = CloudCT_setup.Create(\
         SATS_NUMBER = SATS_NUMBER_SETUP, ORBIT_ALTITUDE = Rsat, \
         CAM_FOV = fov, CAM_RES = (cnx,cny), SAT_LOOKATS = SAT_LOOKATS, \
-        SATS_WAVELENGTHS_LIST = setup_wavelengths_list, SOLAR_FLUX_LIST = solar_flux_scale, VISSETUP = VISSETUP)
+        SATS_WAVELENGTHS_LIST = setup_wavelengths_list, SOLAR_FLUX_LIST = solar_flux_scale, VISSETUP = viz_options['VISSETUP'])
     """ 
     How to randomly choose N views from the total views:
     for i in range(10):
@@ -227,52 +201,48 @@ if(DOFORWARD):
         
     The update of the solar fluxes per wavelength can be done also by:
     CloudCT_VIEWS.update_solar_irradiances(solar_flux_scale)
-    """ 
-    
+    """
+
     # ----------------------------------------------------------
     # ---------numerical & scene Parameters---------------------
     # ---------for RTE solver and initializtion of the solver---
     # ----------------------------------------------------------
     solar_fluxes = np.full_like(wavelengths_micron, 1.0)# unity flux
-    split_accuracies = np.full_like(wavelengths_micron, 0.1) 
+    split_accuracies = np.full_like(wavelengths_micron, 0.1)
     surface_albedos = np.full_like(wavelengths_micron, 0.05) # later we must update it since it depends on the wavelegth.
     # split_accuracy of 0.1 gives nice results, For the rico cloud i didn't see that decreasing the split accuracy improves the rec.
     # so fo the rico loud Let's use split_accuracy = 0.1.
-    num_mu = 16
-    num_phi = 32
-    # note: whae num_mu, num_phi are 16,32, the retrievals look better than with 8,16.
-    adapt_grid_factor = 5
-    solution_accuracy = 0.0001
-    max_total_mb = 100000.0
+    adapt_grid_factor = 5  # TODO not in use
+    solution_accuracy = 0.0001 # TODO not in use
     # Generate a solver array for a multispectral solution.
     # it is greate that we can use the parallel solution of all solvers.
     rte_solvers = shdom.RteSolverArray()
-    
+
     for wavelength,split_accuracy,solar_flux,surface_albedo in \
         zip(wavelengths_micron,split_accuracies,solar_fluxes,surface_albedos):
-        
-    
-        numerical_params = shdom.NumericalParameters(num_mu_bins=num_mu,num_phi_bins=num_phi,
-                                                     split_accuracy=split_accuracy,max_total_mb=max_total_mb)
-        
+
+
+        numerical_params = shdom.NumericalParameters(num_mu_bins=run_params['num_mu'],num_phi_bins=run_params['num_phi'],
+                                                     split_accuracy=split_accuracy,max_total_mb=run_params['max_total_mb'])
+
         scene_params = shdom.SceneParameters(
             wavelength=wavelength,
             surface=shdom.LambertianSurface(albedo=surface_albedo),
             source=shdom.SolarSource(azimuth=sun_azimuth, zenith=sun_zenith,flux=solar_flux)
-        ) 
+        )
         # ---------initilize an RteSolver object---------    
         rte_solver = shdom.RteSolver(scene_params, numerical_params)
         rte_solver.set_medium(atmosphere)
         rte_solvers.add_solver(rte_solver)
-        
-    
+
+
     # -----------------------------------------------
     # ---------RTE SOLVE ----------------------------
     # -----------------------------------------------
-    
-    rte_solvers.solve(maxiter=100)
-        
-    
+
+    rte_solvers.solve(maxiter=run_params['rte_solver_max_iter'])
+
+
     # -----------------------------------------------
     # ---------RENDER IMAGES FOR CLOUDCT SETUP ------
     # -----------------------------------------------
@@ -286,28 +256,28 @@ if(DOFORWARD):
     if(SEE_IMAGES):
         CloudCT_VIEWS.show_measurements(compare_for_test = False)
         # don't use the compare_for_test =  True, it is not mature enougth.
-        
-        
+
+
         #It is a good place to pick the radiance_threshold = Threshold for the radiance to create a cloud mask.
-        #So here, we see the original images and below we will see the images after the radiance_threshold: 
+        #So here, we see the original images and below we will see the images after the radiance_threshold:
         # --------------------------------------------------
         #  ----------------try radiance_threshold value:----
         # --------------------------------------------------
         #radiance_threshold = 0.04 # Threshold for the radiance to create a cloud mask.
         radiance_threshold = [0.023,0.02] # Threshold for the radiance to create a cloud mask.
         # Threshold is either a scalar or a list of length of measurements.
-        CloudCT_VIEWS.show_measurements(radiance_threshold=radiance_threshold,compare_for_test = False)    
-        
+        CloudCT_VIEWS.show_measurements(radiance_threshold=radiance_threshold,compare_for_test = False)
+
         plt.show()
-        
-    
+
+
     # -----------------------------------------------
     # ---------SAVE EVERYTHING FOR THIS SETUP -------
     # -----------------------------------------------
-    
+
     medium = atmosphere
     shdom.save_forward_model(forward_dir, medium, rte_solvers, CloudCT_VIEWS.measurements)
-        
+
     print('DONE forwared simulation')
 
 
@@ -317,15 +287,15 @@ if(DOFORWARD):
 """
 Solve inverse problem:
 """
-if(DOINVERSE):
-    
+if run_params['DOINVERSE']:
+
     # load the measurments to see the rendered images:
     medium, solver, measurements = shdom.load_forward_model(forward_dir)
     # A Measurements object bundles together the imaging geometry and sensor measurements for later optimization.
     USED_CAMERA = measurements.camera
-    RENDERED_IMAGES = measurements.images    
+    RENDERED_IMAGES = measurements.images
     THIS_MULTI_VIEW_SETUP = USED_CAMERA.projection
-    
+
     # ---------what to optimize----------------------------
     radiance_threshold = [0.023,0.02] # check these values befor inverse.
     SEE_SETUP = False
@@ -342,13 +312,13 @@ if(DOINVERSE):
         
     
     # ----------------------------------------------------------
-    
+
     """
     Work with the optimization:
     """
-    
+
     if not MICROPHYSICS:
-    
+
         # -----------------------------------------------
         # ---------SOLVE for extinction only  -----------
         # -----------------------------------------------    
@@ -365,9 +335,9 @@ if(DOINVERSE):
         # -----------------------------------------------
         # ---------------- inverse parameters:-----------
         # -----------------------------------------------
-        
+
         stokes_weights = [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V].
-                
+
         # Initialization and Medium parameters:
         extinction = 0.01 # init extinction of the generator
         # init_generator = 'Homogeneous'# it is the CloudGenerator from shdom.generate.py
@@ -381,7 +351,7 @@ if(DOINVERSE):
         use_forward_phase = True
         if_save_gt_and_carver_masks = True
         if_save_final3d = True
-        
+
         GT_USE = ''
         GT_USE = GT_USE + ' --add_rayleigh' if add_rayleigh else GT_USE
         GT_USE = GT_USE + ' --use_forward_mask' if use_forward_mask else GT_USE
@@ -390,34 +360,34 @@ if(DOINVERSE):
         GT_USE = GT_USE + ' --use_forward_phase' if use_forward_phase else GT_USE
         GT_USE = GT_USE + ' --save_gt_and_carver_masks' if if_save_gt_and_carver_masks else GT_USE
         GT_USE = GT_USE + ' --save_final3d' if if_save_final3d else GT_USE
-        
+
         # (use_forward_mask, use_forward_grid, use_forward_albedo, use_forward_phase):
         # Use the ground-truth things. This is an inverse crime which is 
         # usefull for debugging/development.    
-        
-            
+
+
         # The log_name defined above
         # Write intermediate TensorBoardX results into log_name.
         # The provided string is added as a comment to the specific run.
-        
+
         # note that currently, the invers_dir = forward_dir.
         # In forward_dir, the forward modeling parameters are be saved.
         # If invers_dir = forward_dir:
         # The invers_dir directory will be used to save the optimization results and progress.
-        
+
         # optimization:
         globalopt = False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
         maxiter = 1000 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
         maxls = 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
         disp = True # Display optimization progression.
-        
+
         gtol = 1e-16 # Stop criteria for the maximum projected gradient.
         # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
         ftol = 1e-16 # Stop criteria for the relative change in loss function.
         # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
         loss_type = 'l2'
         # Different loss functions for optimization. Currently only l2 is supported.
-        
+
         #-------------------------------------------------
         # ---- start working with the above parameters:---
         #-------------------------------------------------
@@ -430,24 +400,24 @@ if(DOINVERSE):
             ' --maxls '+ str(maxls)+\
             ' --maxiter '+ str(maxiter)+\
             ' --radiance_threshold '+ str(radiance_threshold)
-        
-        OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS    
-        
+
+        OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS
+
         # We have: ground_truth, rte_solver, measurements.
         SCRIPTS_PATH = '../scripts'
         cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_extinction_lbfgs.py')+\
             OTHER_PARAMS + GT_USE + INIT_USE
-        
+
         Optimaize1 = subprocess.call( cmd, shell=True)
-    
-    
+
+
     else: # if we here, we rec. MICROPHYSICS, but which?
         REC_only_lwc = False
         REC_only_reff = False
         REC_only_veff = False
         REC_all = True
         if(REC_only_lwc):
-            
+
             # -----------------------------------------------
             # ---------SOLVE for lwc only  ------------------
             # -----------------------------------------------    
@@ -465,9 +435,9 @@ if(DOINVERSE):
             # -----------------------------------------------
             # ---------------- inverse parameters:-----------
             # -----------------------------------------------
-            
+
             stokes_weights = [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V].
-                    
+
             # Initialization and Medium parameters:
             lwc = 0.01 # init lwc of the generator
             # init_generator = 'Homogeneous'# it is the CloudGenerator from shdom.generate.py
@@ -481,29 +451,29 @@ if(DOINVERSE):
             use_forward_veff = True
             if_save_gt_and_carver_masks = True
             if_save_final3d = True
-            
+
             GT_USE = ''
             GT_USE = GT_USE + ' --add_rayleigh' if add_rayleigh else GT_USE
             GT_USE = GT_USE + ' --use_forward_mask' if use_forward_mask else GT_USE
             GT_USE = GT_USE + ' --use_forward_grid' if use_forward_grid else GT_USE
             GT_USE = GT_USE + ' --use_forward_reff' if use_forward_reff else GT_USE
-            GT_USE = GT_USE + ' --use_forward_veff' if use_forward_veff else GT_USE                
+            GT_USE = GT_USE + ' --use_forward_veff' if use_forward_veff else GT_USE
             GT_USE = GT_USE + ' --save_gt_and_carver_masks' if if_save_gt_and_carver_masks else GT_USE
             GT_USE = GT_USE + ' --save_final3d' if if_save_final3d else GT_USE
-            
+
             # optimization:
             globalopt = False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
             maxiter = 1000 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
             maxls = 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
             disp = True # Display optimization progression.
-            
+
             gtol = 1e-16 # Stop criteria for the maximum projected gradient.
             # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
             ftol = 1e-16 # Stop criteria for the relative change in loss function.
             # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
             loss_type = 'l2'
             # Different loss functions for optimization. Currently only l2 is supported.
-            
+
             #-------------------------------------------------
             # ---- start working with the above parameters:---
             #-------------------------------------------------
@@ -516,19 +486,19 @@ if(DOINVERSE):
                 ' --maxls '+ str(maxls)+\
                 ' --maxiter '+ str(maxiter)+\
                 ' --radiance_threshold '+ str(radiance_threshold)
-            
-            OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS    
-            
+
+            OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS
+
             # We have: ground_truth, rte_solver, measurements.
             SCRIPTS_PATH = '../scripts'
             cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_microphysics_lbfgs.py')+\
                 OTHER_PARAMS + GT_USE + INIT_USE
-            
-            Optimaize1 = subprocess.call( cmd, shell=True)            
-        
-        
+
+            Optimaize1 = subprocess.call( cmd, shell=True)
+
+
         if(REC_only_reff):
-            
+
             # -----------------------------------------------
             # ---------SOLVE for reff only  ------------------
             # -----------------------------------------------    
@@ -545,9 +515,9 @@ if(DOINVERSE):
             # -----------------------------------------------
             # ---------------- inverse parameters:-----------
             # -----------------------------------------------
-            
+
             stokes_weights = [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V].
-                    
+
             # Initialization and Medium parameters:
             reff = 15 # init reff of the generator
             # init_generator = 'Homogeneous'# it is the CloudGenerator from shdom.generate.py
@@ -561,30 +531,30 @@ if(DOINVERSE):
             use_forward_veff = True
             if_save_gt_and_carver_masks = True
             if_save_final3d = True
-            
+
             GT_USE = ''
             GT_USE = GT_USE + ' --add_rayleigh' if add_rayleigh else GT_USE
             GT_USE = GT_USE + ' --use_forward_mask' if use_forward_mask else GT_USE
             GT_USE = GT_USE + ' --use_forward_grid' if use_forward_grid else GT_USE
             GT_USE = GT_USE + ' --use_forward_lwc' if use_forward_lwc else GT_USE
-            GT_USE = GT_USE + ' --use_forward_veff' if use_forward_veff else GT_USE                
+            GT_USE = GT_USE + ' --use_forward_veff' if use_forward_veff else GT_USE
             GT_USE = GT_USE + ' --save_gt_and_carver_masks' if if_save_gt_and_carver_masks else GT_USE
             GT_USE = GT_USE + ' --save_final3d' if if_save_final3d else GT_USE
-            
+
 
             # optimization:
             globalopt = False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
             maxiter = 1000 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
             maxls = 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
             disp = True # Display optimization progression.
-            
+
             gtol = 1e-16 # Stop criteria for the maximum projected gradient.
             # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
             ftol = 1e-16 # Stop criteria for the relative change in loss function.
             # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
             loss_type = 'l2'
             # Different loss functions for optimization. Currently only l2 is supported.
-            
+
             #-------------------------------------------------
             # ---- start working with the above parameters:---
             #-------------------------------------------------
@@ -597,18 +567,18 @@ if(DOINVERSE):
                 ' --maxls '+ str(maxls)+\
                 ' --maxiter '+ str(maxiter)+\
                 ' --radiance_threshold '+ str(radiance_threshold)
-            
-            OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS    
-            
+
+            OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS
+
             # We have: ground_truth, rte_solver, measurements.
             SCRIPTS_PATH = '../scripts'
             cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_microphysics_lbfgs.py')+\
                 OTHER_PARAMS + GT_USE + INIT_USE
-            
-            Optimaize1 = subprocess.call( cmd, shell=True)  
-            
+
+            Optimaize1 = subprocess.call( cmd, shell=True)
+
         if(REC_only_veff):
-            
+
             # -----------------------------------------------
             # ---------SOLVE for veff only  ------------------
             # -----------------------------------------------    
@@ -625,9 +595,9 @@ if(DOINVERSE):
             # -----------------------------------------------
             # ---------------- inverse parameters:-----------
             # -----------------------------------------------
-            
+
             stokes_weights = [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V].
-                    
+
             # Initialization and Medium parameters:
             veff = 0.19 # init veff of the generator
             # init_generator = 'Homogeneous'# it is the CloudGenerator from shdom.generate.py
@@ -641,29 +611,29 @@ if(DOINVERSE):
             use_forward_lwc = True
             if_save_gt_and_carver_masks = True
             if_save_final3d = True
-            
+
             GT_USE = ''
             GT_USE = GT_USE + ' --add_rayleigh' if add_rayleigh else GT_USE
             GT_USE = GT_USE + ' --use_forward_mask' if use_forward_mask else GT_USE
             GT_USE = GT_USE + ' --use_forward_grid' if use_forward_grid else GT_USE
             GT_USE = GT_USE + ' --use_forward_lwc' if use_forward_lwc else GT_USE
-            GT_USE = GT_USE + ' --use_forward_reff' if use_forward_reff else GT_USE                
+            GT_USE = GT_USE + ' --use_forward_reff' if use_forward_reff else GT_USE
             GT_USE = GT_USE + ' --save_gt_and_carver_masks' if if_save_gt_and_carver_masks else GT_USE
             GT_USE = GT_USE + ' --save_final3d' if if_save_final3d else GT_USE
-            
+
             # optimization:
             globalopt = False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
             maxiter = 1000 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
             maxls = 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
             disp = True # Display optimization progression.
-            
+
             gtol = 1e-16 # Stop criteria for the maximum projected gradient.
             # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
             ftol = 1e-16 # Stop criteria for the relative change in loss function.
             # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
             loss_type = 'l2'
             # Different loss functions for optimization. Currently only l2 is supported.
-            
+
             #-------------------------------------------------
             # ---- start working with the above parameters:---
             #-------------------------------------------------
@@ -676,19 +646,19 @@ if(DOINVERSE):
                 ' --maxls '+ str(maxls)+\
                 ' --maxiter '+ str(maxiter)+\
                 ' --radiance_threshold '+ str(radiance_threshold)
-            
-            OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS    
-            
+
+            OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS
+
             # We have: ground_truth, rte_solver, measurements.
             SCRIPTS_PATH = '../scripts'
             cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_microphysics_lbfgs.py')+\
                 OTHER_PARAMS + GT_USE + INIT_USE
-            
-            Optimaize1 = subprocess.call( cmd, shell=True)  
-            
-              
+
+            Optimaize1 = subprocess.call( cmd, shell=True)
+
+
         if(REC_all):
-            
+
             # -----------------------------------------------
             # ---------SOLVE for lwc and reff  ------------------
             # -----------------------------------------------    
@@ -704,45 +674,45 @@ if(DOINVERSE):
             # -----------------------------------------------
             # ---------------- inverse parameters:-----------
             # -----------------------------------------------
-            
+
             stokes_weights = [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V].
-                    
+
             # Initialization and Medium parameters:
             lwc = 0.01 # init lwc of the generator
             reff = 12 # init reff of the generator
             #veff = 0.15 # init veff of the generator
-            
+
             # init_generator = 'Homogeneous'# it is the CloudGenerator from shdom.generate.py
             init = 'Homogeneous'
             # The mie_base_path is defined at the begining of this script.
             INIT_USE = ' --init '+ init
-            add_rayleigh = False if CENCEL_AIR else True
+            add_rayleigh = False if viz_options['CENCEL_AIR'] else True
             use_forward_mask = True#False#True
             use_forward_grid = True
             if_save_gt_and_carver_masks = True
             if_save_final3d = True
-            
+
             GT_USE = ''
-            GT_USE = GT_USE + ' --use_forward_veff --lwc_scaling 15 --reff_scaling 0.01'# -----------------                       
+            GT_USE = GT_USE + ' --use_forward_veff --lwc_scaling 15 --reff_scaling 0.01'# -----------------
             GT_USE = GT_USE + ' --add_rayleigh' if add_rayleigh else GT_USE
             GT_USE = GT_USE + ' --use_forward_mask' if use_forward_mask else GT_USE
-            GT_USE = GT_USE + ' --use_forward_grid' if use_forward_grid else GT_USE               
+            GT_USE = GT_USE + ' --use_forward_grid' if use_forward_grid else GT_USE
             GT_USE = GT_USE + ' --save_gt_and_carver_masks' if if_save_gt_and_carver_masks else GT_USE
             GT_USE = GT_USE + ' --save_final3d' if if_save_final3d else GT_USE
-            
+
             # optimization:
             globalopt = False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
             maxiter = 1000 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
             maxls = 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
             disp = True # Display optimization progression.
-            
+
             gtol = 1e-16 # Stop criteria for the maximum projected gradient.
             # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
             ftol = 1e-16 # Stop criteria for the relative change in loss function.
             # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
             loss_type = 'l2'
             # Different loss functions for optimization. Currently only l2 is supported.
-            
+
             #-------------------------------------------------
             # ---- start working with the above parameters:---
             #-------------------------------------------------
@@ -756,23 +726,23 @@ if(DOINVERSE):
                 ' --maxls '+ str(maxls)+\
                 ' --maxiter '+ str(maxiter)
                 #' --radiance_threshold '+ str(radiance_threshold)
-            
-            OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS    
-            OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if (CENCEL_AIR == False) else OTHER_PARAMS
+
+            OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS
+            OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if (viz_options['CENCEL_AIR'] == False) else OTHER_PARAMS
             # We have: ground_truth, rte_solver, measurements.
             SCRIPTS_PATH = '../scripts'
             cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_microphysics_lbfgs.py')+\
                 OTHER_PARAMS + GT_USE + INIT_USE
-            
-            Optimaize1 = subprocess.call( cmd, shell=True)            
-              
+
+            Optimaize1 = subprocess.call( cmd, shell=True)
+
 #-------------------------------------------------
 #-------------------------------------------------
-#-------------------------------------------------    
+#-------------------------------------------------
 
     # that the time to show the results in 3D visualization:
     VIS_RESULTS3D = False
-    if(VIS_RESULTS3D):    
+    if(VIS_RESULTS3D):
         """
         The forward_dir id a folder that containes:
         medium, solver, measurements.
@@ -780,13 +750,13 @@ if(DOINVERSE):
         enough, the medium_estimator is needed.
         load the measurments to see the rendered images:
         """
-        
-        
+
+
         # what state to load? I prefere the last one!
         logs_dir = os.path.join(forward_dir,'logs')
         logs_prefix = os.path.join(logs_dir,log_name)
         logs_files = glob.glob(logs_prefix + '-*')
-        
+
         times = [i.split('{}-'.format(int(1e3*wavelength_micron)))[-1] for i in logs_files]
         # sort the times to find the last one.
         timestamp = [time.mktime(time.strptime(i,"%d-%b-%Y-%H:%M:%S")) for i in times]
@@ -800,14 +770,14 @@ if(DOINVERSE):
         Final_results_3Dfiles = glob.glob(log2load + '/FINAL_3D_*.mat')
         print("{} files with the results in 3D were created:".format(len(Final_results_3Dfiles)))
         for _file in Final_results_3Dfiles:
-            
+
             print(_file)
-            
+
         # ---------------------------------------------------------
-        
+
         # Don't want to use it now, state2load = os.path.join(log2load,'final_state.ckpt')
-        
-    
+
+
         print("use tensorboard --logdir {} --bind_all".format(log2load))
-    
+
     print("done")
