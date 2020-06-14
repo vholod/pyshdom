@@ -49,7 +49,10 @@ SATS_NUMBER_INVERSE: *num_sats #10, how much satellites will be used for the inv
 rte_solver_max_iter: 100 # max number of iterations for rte solver
 
 
-# FORWARD PARAMS
+# -----------------------------------------------
+# ---------------- Forward parameters:-----------
+# -----------------------------------------------
+
 # units fo W/(m^2))
 temp: 5900  # K
 
@@ -72,13 +75,18 @@ inverse_options:
   VIS_RESULTS3D: False  # show the results in 3D visualization
 
   MICROPHYSICS: True
-  # if micropyhsics is  true, specify where to recover lwc / reff / veff or all
-  recover_type: 'lwc' # expects: 'lwc' / 'reff' / 'veff' / 'all'
+  # if micropyhsics is  true, specify where to recover lwc / reff / veff or (reff and lwc)
+  # expects: 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
+  recover_type: 'lwc'
 
   # Initialization and Medium parameters:
   lwc: 0.01  # init lwc of the generator
   reff: 15 # init reff of the generator
   veff: 0.19 # init veff of the generator
+
+  # Scaling params when recovering reff and lwc:
+  lwc_scaling_val: 15
+  reff_scaling_val: 0.01
 
   # if not microphysics:
   extinction: 0.01  # init extinction of the generator

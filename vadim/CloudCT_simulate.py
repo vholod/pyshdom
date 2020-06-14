@@ -253,8 +253,8 @@ if run_params['DOFORWARD']:
     CloudCT_VIEWS.update_measurements(sensor=shdom.RadianceSensor(), projection = CloudCT_VIEWS, rte_solver = rte_solvers, n_jobs=n_jobs)
     # see the rendered images:
     SEE_IMAGES = False
-    if(SEE_IMAGES):
-        CloudCT_VIEWS.show_measurements(compare_for_test = False)
+    if SEE_IMAGES:
+        CloudCT_VIEWS.show_measurements(compare_for_test=False)
         # don't use the compare_for_test =  True, it is not mature enougth.
 
 
@@ -278,7 +278,7 @@ if run_params['DOFORWARD']:
     medium = atmosphere
     shdom.save_forward_model(forward_dir, medium, rte_solvers, CloudCT_VIEWS.measurements)
 
-    print('DONE forwared simulation')
+    print('DONE forward simulation')
 
 
 # -----------------------------------------------
@@ -407,7 +407,7 @@ if run_params['DOINVERSE']:
         # -----------------------------------------------
         # ---------SOLVE for lwc and reff  ------------------
         # -----------------------------------------------
-        elif run_type == 'all':
+        elif run_type == 'reff_and_lwc':
             """
             Estimate lwc with (what is known?):
             1. ground truth phase function (use_forward_phase, with mie_base_path)
@@ -417,7 +417,9 @@ if run_params['DOINVERSE']:
     
             """
 
-            GT_USE += ' --use_forward_veff --lwc_scaling 15 --reff_scaling 0.01'
+            GT_USE += ' --use_forward_veff'
+            GT_USE += ' --lwc_scaling ' + inverse_options['lwc_scaling_val']
+            GT_USE += ' --reff_scaling ' + inverse_options['reff_scaling_val']
             OTHER_PARAMS += ' --reff ' + str(inverse_options['reff'])
             OTHER_PARAMS += ' --lwc ' + str(inverse_options['lwc'])
     # -----------------------------------------------
