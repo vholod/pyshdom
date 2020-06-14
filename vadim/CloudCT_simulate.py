@@ -298,7 +298,6 @@ if run_params['DOINVERSE']:
     THIS_MULTI_VIEW_SETUP = USED_CAMERA.projection
 
     # ---------what to optimize----------------------------
-    radiance_threshold = inverse_options['radiance_threshold']
     SEE_IMAGES = True  # TODO not in use
     # ------------------------------------------------
 
@@ -316,110 +315,68 @@ if run_params['DOINVERSE']:
     Work with the optimization:
     """
 
-    if not inverse_options['MICROPHYSICS']:
+    # -----------------------------------------------
+    # ---------SOLVE for extinction only  -----------
+    # -----------------------------------------------
+    """
+    Estimate extinction with (what is known?):
+    1. ground truth phase function (use_forward_phase, with mie_base_path)
+    2. grid (use_forward_grid)
+    3. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
+    4. known albedo (use_forward_albedo)
+    5. rayleigh scattering (add_rayleigh)
 
+    """
+
+    run_type = inverse_options['recover_type'] if inverse_options['MICROPHYSICS'] else 'extinction'
+
+    log_name = run_type + "_only_" + log_name_base
+
+    # TODO add_rayleigh = False if viz_options['CENCEL_AIR'] else True
+
+    INIT_USE = ' --init ' + inverse_options['init']
+
+    GT_USE = ''
+    GT_USE = GT_USE + ' --add_rayleigh' if inverse_options['add_rayleigh'] else GT_USE
+    GT_USE = GT_USE + ' --use_forward_mask' if inverse_options['use_forward_mask'] else GT_USE
+    GT_USE = GT_USE + ' --use_forward_grid' if inverse_options['use_forward_grid'] else GT_USE
+    GT_USE = GT_USE + ' --use_forward_albedo' if inverse_options['use_forward_albedo'] else GT_USE
+    GT_USE = GT_USE + ' --use_forward_phase' if inverse_options['use_forward_phase'] else GT_USE
+    GT_USE = GT_USE + ' --save_gt_and_carver_masks' if inverse_options['if_save_gt_and_carver_masks'] else GT_USE
+    GT_USE = GT_USE + ' --save_final3d' if inverse_options['if_save_final3d'] else GT_USE
+
+    # The mie_base_path is defined at the begining of this script.
+    # (use_forward_mask, use_forward_grid, use_forward_albedo, use_forward_phase):
+    # Use the ground-truth things. This is an inverse crime which is
+    # usefull for debugging/development.
+
+    # The log_name defined above
+    # Write intermediate TensorBoardX results into log_name.
+    # The provided string is added as a comment to the specific run.
+
+    # note that currently, the invers_dir = forward_dir.
+    # In forward_dir, the forward modeling parameters are be saved.
+    # If invers_dir = forward_dir:
+    # The invers_dir directory will be used to save the optimization results and progress.
+
+    OTHER_PARAMS = ' --input_dir ' + forward_dir + \
+                   ' --log ' + log_name + \
+                   ' --n_jobs ' + str(n_jobs) + \
+                   ' --loss_type ' + inverse_options['loss_type'] + \
+                   ' --maxls ' + str(inverse_options['maxls']) + \
+                   ' --maxiter ' + str(inverse_options['maxiter'])
+
+    OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if inverse_options['globalopt'] else OTHER_PARAMS
+
+    OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if not viz_options['CENCEL_AIR'] else OTHER_PARAMS
+
+    OTHER_PARAMS = OTHER_PARAMS + ' --radiance_threshold ' + str(inverse_options['radiance_threshold']) if run_type != 'all' else OTHER_PARAMS
+
+    if inverse_options['MICROPHYSICS']:
         # -----------------------------------------------
-        # ---------SOLVE for extinction only  -----------
-        # -----------------------------------------------    
-        """
-        Estimate extinction with (what is known?):
-        1. ground truth phase function (use_forward_phase, with mie_base_path)
-        2. grid (use_forward_grid)
-        3. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
-        4. known albedo (use_forward_albedo)
-        5. rayleigh scattering (add_rayleigh)
-        
-        """
-        log_name = "extinction_only_"+log_name_base
+        # ---------SOLVE for lwc only  ------------------
         # -----------------------------------------------
-        # ---------------- inverse parameters:-----------
-        # -----------------------------------------------
-
-        stokes_weights = [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V].
-
-        # Initialization and Medium parameters:
-        extinction = 0.01 # init extinction of the generator
-        # init_generator = 'Homogeneous'# it is the CloudGenerator from shdom.generate.py
-        init = 'Homogeneous'
-        # The mie_base_path is defined at the begining of this script.
-        INIT_USE = ' --init '+ init
-        add_rayleigh = True
-        use_forward_mask = False#True
-        use_forward_grid = True
-        use_forward_albedo = True
-        use_forward_phase = True
-        if_save_gt_and_carver_masks = True
-        if_save_final3d = True
-
-        GT_USE = ''
-        GT_USE = GT_USE + ' --add_rayleigh' if add_rayleigh else GT_USE
-        GT_USE = GT_USE + ' --use_forward_mask' if use_forward_mask else GT_USE
-        GT_USE = GT_USE + ' --use_forward_grid' if use_forward_grid else GT_USE
-        GT_USE = GT_USE + ' --use_forward_albedo' if use_forward_albedo else GT_USE
-        GT_USE = GT_USE + ' --use_forward_phase' if use_forward_phase else GT_USE
-        GT_USE = GT_USE + ' --save_gt_and_carver_masks' if if_save_gt_and_carver_masks else GT_USE
-        GT_USE = GT_USE + ' --save_final3d' if if_save_final3d else GT_USE
-
-        # (use_forward_mask, use_forward_grid, use_forward_albedo, use_forward_phase):
-        # Use the ground-truth things. This is an inverse crime which is 
-        # usefull for debugging/development.    
-
-
-        # The log_name defined above
-        # Write intermediate TensorBoardX results into log_name.
-        # The provided string is added as a comment to the specific run.
-
-        # note that currently, the invers_dir = forward_dir.
-        # In forward_dir, the forward modeling parameters are be saved.
-        # If invers_dir = forward_dir:
-        # The invers_dir directory will be used to save the optimization results and progress.
-
-        # optimization:
-        globalopt = False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
-        maxiter = 1000 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
-        maxls = 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
-        disp = True # Display optimization progression.
-
-        gtol = 1e-16 # Stop criteria for the maximum projected gradient.
-        # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
-        ftol = 1e-16 # Stop criteria for the relative change in loss function.
-        # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
-        loss_type = 'l2'
-        # Different loss functions for optimization. Currently only l2 is supported.
-
-        #-------------------------------------------------
-        # ---- start working with the above parameters:---
-        #-------------------------------------------------
-        OTHER_PARAMS = ' --input_dir ' + forward_dir + \
-            ' --extinction ' + str(extinction) +\
-            ' --log ' + log_name +\
-            ' --air_path ' + AirFieldFile +\
-            ' --n_jobs '+ str(n_jobs)+\
-            ' --loss_type '+ str(loss_type)+\
-            ' --maxls '+ str(maxls)+\
-            ' --maxiter '+ str(maxiter)+\
-            ' --radiance_threshold '+ str(radiance_threshold)
-
-        OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS
-
-        # We have: ground_truth, rte_solver, measurements.
-        SCRIPTS_PATH = '../scripts'
-        cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_extinction_lbfgs.py')+\
-            OTHER_PARAMS + GT_USE + INIT_USE
-
-        Optimaize1 = subprocess.call( cmd, shell=True)
-
-
-    else: # if we here, we rec. MICROPHYSICS, but which?
-        REC_only_lwc = False
-        REC_only_reff = False
-        REC_only_veff = False
-        REC_all = True
-        if(REC_only_lwc):
-
-            # -----------------------------------------------
-            # ---------SOLVE for lwc only  ------------------
-            # -----------------------------------------------    
+        if run_type == 'lwc':
             """
             Estimate lwc with (what is known?):
             1. ground truth phase function (use_forward_phase, with mie_base_path)
@@ -428,79 +385,17 @@ if run_params['DOINVERSE']:
                the albedo should be known.
             4. rayleigh scattering (add_rayleigh)
             5. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
-
+    
             """
-            log_name = "lwc_only_"+log_name_base
-            # -----------------------------------------------
-            # ---------------- inverse parameters:-----------
-            # -----------------------------------------------
 
-            stokes_weights = [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V].
+            GT_USE += ' --use_forward_reff'
+            GT_USE += ' --use_forward_veff'
+            OTHER_PARAMS += ' --lwc ' + str(inverse_options['lwc'])
 
-            # Initialization and Medium parameters:
-            lwc = 0.01 # init lwc of the generator
-            # init_generator = 'Homogeneous'# it is the CloudGenerator from shdom.generate.py
-            init = 'Homogeneous'
-            # The mie_base_path is defined at the begining of this script.
-            INIT_USE = ' --init '+ init
-            add_rayleigh = True
-            use_forward_mask = False#True
-            use_forward_grid = True
-            use_forward_reff = True
-            use_forward_veff = True
-            if_save_gt_and_carver_masks = True
-            if_save_final3d = True
-
-            GT_USE = ''
-            GT_USE = GT_USE + ' --add_rayleigh' if add_rayleigh else GT_USE
-            GT_USE = GT_USE + ' --use_forward_mask' if use_forward_mask else GT_USE
-            GT_USE = GT_USE + ' --use_forward_grid' if use_forward_grid else GT_USE
-            GT_USE = GT_USE + ' --use_forward_reff' if use_forward_reff else GT_USE
-            GT_USE = GT_USE + ' --use_forward_veff' if use_forward_veff else GT_USE
-            GT_USE = GT_USE + ' --save_gt_and_carver_masks' if if_save_gt_and_carver_masks else GT_USE
-            GT_USE = GT_USE + ' --save_final3d' if if_save_final3d else GT_USE
-
-            # optimization:
-            globalopt = False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
-            maxiter = 1000 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
-            maxls = 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
-            disp = True # Display optimization progression.
-
-            gtol = 1e-16 # Stop criteria for the maximum projected gradient.
-            # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
-            ftol = 1e-16 # Stop criteria for the relative change in loss function.
-            # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
-            loss_type = 'l2'
-            # Different loss functions for optimization. Currently only l2 is supported.
-
-            #-------------------------------------------------
-            # ---- start working with the above parameters:---
-            #-------------------------------------------------
-            OTHER_PARAMS = ' --input_dir ' + forward_dir + \
-                ' --lwc ' + str(lwc) +\
-                ' --log ' + log_name +\
-                ' --air_path ' + AirFieldFile +\
-                ' --n_jobs '+ str(n_jobs)+\
-                ' --loss_type '+ str(loss_type)+\
-                ' --maxls '+ str(maxls)+\
-                ' --maxiter '+ str(maxiter)+\
-                ' --radiance_threshold '+ str(radiance_threshold)
-
-            OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS
-
-            # We have: ground_truth, rte_solver, measurements.
-            SCRIPTS_PATH = '../scripts'
-            cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_microphysics_lbfgs.py')+\
-                OTHER_PARAMS + GT_USE + INIT_USE
-
-            Optimaize1 = subprocess.call( cmd, shell=True)
-
-
-        if(REC_only_reff):
-
-            # -----------------------------------------------
-            # ---------SOLVE for reff only  ------------------
-            # -----------------------------------------------    
+        # -----------------------------------------------
+        # ---------SOLVE for reff only  ------------------
+        # -----------------------------------------------
+        elif run_type == 'reff':
             """
             Estimate reff with (what is known?):
             1. ground truth phase function (use_forward_phase, with mie_base_path)
@@ -508,79 +403,16 @@ if run_params['DOINVERSE']:
             3. ground-truth effective variance and lwc.
             4. rayleigh scattering (add_rayleigh)
             5. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
-
             """
-            log_name = "reff_only_"+log_name_base
-            # -----------------------------------------------
-            # ---------------- inverse parameters:-----------
-            # -----------------------------------------------
 
-            stokes_weights = [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V].
+            GT_USE += ' --use_forward_lwc'
+            GT_USE += ' --use_forward_veff'
+            OTHER_PARAMS += ' --reff ' + str(inverse_options['reff'])
 
-            # Initialization and Medium parameters:
-            reff = 15 # init reff of the generator
-            # init_generator = 'Homogeneous'# it is the CloudGenerator from shdom.generate.py
-            init = 'Homogeneous'
-            # The mie_base_path is defined at the begining of this script.
-            INIT_USE = ' --init '+ init
-            add_rayleigh = True
-            use_forward_mask = False#True
-            use_forward_grid = True
-            use_forward_lwc = True
-            use_forward_veff = True
-            if_save_gt_and_carver_masks = True
-            if_save_final3d = True
-
-            GT_USE = ''
-            GT_USE = GT_USE + ' --add_rayleigh' if add_rayleigh else GT_USE
-            GT_USE = GT_USE + ' --use_forward_mask' if use_forward_mask else GT_USE
-            GT_USE = GT_USE + ' --use_forward_grid' if use_forward_grid else GT_USE
-            GT_USE = GT_USE + ' --use_forward_lwc' if use_forward_lwc else GT_USE
-            GT_USE = GT_USE + ' --use_forward_veff' if use_forward_veff else GT_USE
-            GT_USE = GT_USE + ' --save_gt_and_carver_masks' if if_save_gt_and_carver_masks else GT_USE
-            GT_USE = GT_USE + ' --save_final3d' if if_save_final3d else GT_USE
-
-
-            # optimization:
-            globalopt = False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
-            maxiter = 1000 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
-            maxls = 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
-            disp = True # Display optimization progression.
-
-            gtol = 1e-16 # Stop criteria for the maximum projected gradient.
-            # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
-            ftol = 1e-16 # Stop criteria for the relative change in loss function.
-            # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
-            loss_type = 'l2'
-            # Different loss functions for optimization. Currently only l2 is supported.
-
-            #-------------------------------------------------
-            # ---- start working with the above parameters:---
-            #-------------------------------------------------
-            OTHER_PARAMS = ' --input_dir ' + forward_dir + \
-                ' --reff ' + str(reff) +\
-                ' --log ' + log_name +\
-                ' --air_path ' + AirFieldFile +\
-                ' --n_jobs '+ str(n_jobs)+\
-                ' --loss_type '+ str(loss_type)+\
-                ' --maxls '+ str(maxls)+\
-                ' --maxiter '+ str(maxiter)+\
-                ' --radiance_threshold '+ str(radiance_threshold)
-
-            OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS
-
-            # We have: ground_truth, rte_solver, measurements.
-            SCRIPTS_PATH = '../scripts'
-            cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_microphysics_lbfgs.py')+\
-                OTHER_PARAMS + GT_USE + INIT_USE
-
-            Optimaize1 = subprocess.call( cmd, shell=True)
-
-        if(REC_only_veff):
-
-            # -----------------------------------------------
-            # ---------SOLVE for veff only  ------------------
-            # -----------------------------------------------    
+        # -----------------------------------------------
+        # ---------SOLVE for veff only  ------------------
+        # -----------------------------------------------
+        elif run_type == 'veff':
             """
             Estimate veff with (what is known?):
             1. ground truth phase function (use_forward_phase, with mie_base_path)
@@ -588,160 +420,64 @@ if run_params['DOINVERSE']:
             3. ground-truth effective radius and lwc.
             4. rayleigh scattering (add_rayleigh)
             5. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
-
+    
             """
-            log_name = "veff_only_"+log_name_base
-            # -----------------------------------------------
-            # ---------------- inverse parameters:-----------
-            # -----------------------------------------------
 
-            stokes_weights = [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V].
-
-            # Initialization and Medium parameters:
-            veff = 0.19 # init veff of the generator
-            # init_generator = 'Homogeneous'# it is the CloudGenerator from shdom.generate.py
-            init = 'Homogeneous'
-            # The mie_base_path is defined at the begining of this script.
-            INIT_USE = ' --init '+ init
-            add_rayleigh = True
-            use_forward_mask = True#True
-            use_forward_grid = True
-            use_forward_reff = True
-            use_forward_lwc = True
-            if_save_gt_and_carver_masks = True
-            if_save_final3d = True
-
-            GT_USE = ''
-            GT_USE = GT_USE + ' --add_rayleigh' if add_rayleigh else GT_USE
-            GT_USE = GT_USE + ' --use_forward_mask' if use_forward_mask else GT_USE
-            GT_USE = GT_USE + ' --use_forward_grid' if use_forward_grid else GT_USE
-            GT_USE = GT_USE + ' --use_forward_lwc' if use_forward_lwc else GT_USE
-            GT_USE = GT_USE + ' --use_forward_reff' if use_forward_reff else GT_USE
-            GT_USE = GT_USE + ' --save_gt_and_carver_masks' if if_save_gt_and_carver_masks else GT_USE
-            GT_USE = GT_USE + ' --save_final3d' if if_save_final3d else GT_USE
-
-            # optimization:
-            globalopt = False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
-            maxiter = 1000 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
-            maxls = 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
-            disp = True # Display optimization progression.
-
-            gtol = 1e-16 # Stop criteria for the maximum projected gradient.
-            # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
-            ftol = 1e-16 # Stop criteria for the relative change in loss function.
-            # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
-            loss_type = 'l2'
-            # Different loss functions for optimization. Currently only l2 is supported.
-
-            #-------------------------------------------------
-            # ---- start working with the above parameters:---
-            #-------------------------------------------------
-            OTHER_PARAMS = ' --input_dir ' + forward_dir + \
-                ' --veff ' + str(veff) +\
-                ' --log ' + log_name +\
-                ' --air_path ' + AirFieldFile +\
-                ' --n_jobs '+ str(n_jobs)+\
-                ' --loss_type '+ str(loss_type)+\
-                ' --maxls '+ str(maxls)+\
-                ' --maxiter '+ str(maxiter)+\
-                ' --radiance_threshold '+ str(radiance_threshold)
-
-            OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS
-
-            # We have: ground_truth, rte_solver, measurements.
-            SCRIPTS_PATH = '../scripts'
-            cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_microphysics_lbfgs.py')+\
-                OTHER_PARAMS + GT_USE + INIT_USE
-
-            Optimaize1 = subprocess.call( cmd, shell=True)
+            GT_USE += ' --use_forward_lwc'
+            GT_USE += ' --use_forward_reff'
+            OTHER_PARAMS += ' --veff ' + str(inverse_options['veff'])
 
 
-        if(REC_all):
-
-            # -----------------------------------------------
-            # ---------SOLVE for lwc and reff  ------------------
-            # -----------------------------------------------    
+        # -----------------------------------------------
+        # ---------SOLVE for lwc and reff  ------------------
+        # -----------------------------------------------
+        elif run_type == 'all':
             """
             Estimate lwc with (what is known?):
             1. ground truth phase function (use_forward_phase, with mie_base_path)
             2. grid (use_forward_grid)
             3. rayleigh scattering (add_rayleigh)
             4. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
-
+    
             """
-            log_name = "rec_all_"+log_name_base
-            # -----------------------------------------------
-            # ---------------- inverse parameters:-----------
-            # -----------------------------------------------
-
-            stokes_weights = [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V].
-
-            # Initialization and Medium parameters:
-            lwc = 0.01 # init lwc of the generator
-            reff = 12 # init reff of the generator
-            #veff = 0.15 # init veff of the generator
-
-            # init_generator = 'Homogeneous'# it is the CloudGenerator from shdom.generate.py
-            init = 'Homogeneous'
-            # The mie_base_path is defined at the begining of this script.
-            INIT_USE = ' --init '+ init
             add_rayleigh = False if viz_options['CENCEL_AIR'] else True
-            use_forward_mask = True#False#True
-            use_forward_grid = True
-            if_save_gt_and_carver_masks = True
-            if_save_final3d = True
 
-            GT_USE = ''
-            GT_USE = GT_USE + ' --use_forward_veff --lwc_scaling 15 --reff_scaling 0.01'# -----------------
-            GT_USE = GT_USE + ' --add_rayleigh' if add_rayleigh else GT_USE
-            GT_USE = GT_USE + ' --use_forward_mask' if use_forward_mask else GT_USE
-            GT_USE = GT_USE + ' --use_forward_grid' if use_forward_grid else GT_USE
-            GT_USE = GT_USE + ' --save_gt_and_carver_masks' if if_save_gt_and_carver_masks else GT_USE
-            GT_USE = GT_USE + ' --save_final3d' if if_save_final3d else GT_USE
+            GT_USE += ' --use_forward_veff --lwc_scaling 15 --reff_scaling 0.01'
+            OTHER_PARAMS += ' --reff ' + str(inverse_options['reff'])
+            OTHER_PARAMS += ' --lwc ' + str(inverse_options['lwc'])
+    # -----------------------------------------------
+    # ---------SOLVE for extinction only  -----------
+    # -----------------------------------------------
+    else:
+        """
+        Estimate extinction with (what is known?):
+        1. ground truth phase function (use_forward_phase, with mie_base_path)
+        2. grid (use_forward_grid)
+        3. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
+        4. known albedo (use_forward_albedo)
+        5. rayleigh scattering (add_rayleigh)
 
-            # optimization:
-            globalopt = False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
-            maxiter = 1000 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
-            maxls = 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
-            disp = True # Display optimization progression.
+        """
 
-            gtol = 1e-16 # Stop criteria for the maximum projected gradient.
-            # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
-            ftol = 1e-16 # Stop criteria for the relative change in loss function.
-            # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
-            loss_type = 'l2'
-            # Different loss functions for optimization. Currently only l2 is supported.
+        GT_USE += ' --use_forward_albedo'
+        GT_USE += ' --use_forward_phase'
+        OTHER_PARAMS += ' --extinction ' + str(inverse_options['extinction'])
 
-            #-------------------------------------------------
-            # ---- start working with the above parameters:---
-            #-------------------------------------------------
-            # ' --veff ' + str(veff) +\
-            OTHER_PARAMS = ' --input_dir ' + forward_dir + \
-                ' --lwc ' + str(lwc) +\
-                ' --reff ' + str(reff) +\
-                ' --log ' + log_name +\
-                ' --n_jobs '+ str(n_jobs)+\
-                ' --loss_type '+ str(loss_type)+\
-                ' --maxls '+ str(maxls)+\
-                ' --maxiter '+ str(maxiter)
-                #' --radiance_threshold '+ str(radiance_threshold)
 
-            OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS
-            OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if (viz_options['CENCEL_AIR'] == False) else OTHER_PARAMS
-            # We have: ground_truth, rte_solver, measurements.
-            SCRIPTS_PATH = '../scripts'
-            cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_microphysics_lbfgs.py')+\
-                OTHER_PARAMS + GT_USE + INIT_USE
+    optimizer_path = inverse_options['microphysics_optimizer'] if inverse_options['MICROPHYSICS'] else inverse_options['extinction_optimizer']
 
-            Optimaize1 = subprocess.call( cmd, shell=True)
+    # We have: ground_truth, rte_solver, measurements.
 
-#-------------------------------------------------
-#-------------------------------------------------
-#-------------------------------------------------
+    cmd = 'python ' + os.path.join(inverse_options['scripts_path'], optimizer_path) + \
+          OTHER_PARAMS + GT_USE + INIT_USE
 
-    # that the time to show the results in 3D visualization:
-    VIS_RESULTS3D = False
-    if(VIS_RESULTS3D):
+    Optimize1 = subprocess.call(cmd, shell=True)
+
+
+
+
+    # Time to show the results in 3D visualization:
+    if inverse_options['VIS_RESULTS3D']:
         """
         The forward_dir id a folder that containes:
         medium, solver, measurements.

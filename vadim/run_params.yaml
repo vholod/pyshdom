@@ -63,8 +63,52 @@ num_mu: 16
 num_phi: 32
 max_total_mb: 100000.0
 
+# -----------------------------------------------
+# ---------------- inverse parameters:-----------
+# -----------------------------------------------
 inverse_options:
   SEE_SETUP: False
   SEE_IMAGES: True
+  VIS_RESULTS3D: False  # show the results in 3D visualization
+
   MICROPHYSICS: True
+  # if micropyhsics is  true, specify where to recover lwc / reff / veff or all
+  recover_type: 'lwc' # expects: 'lwc' / 'reff' / 'veff' / 'all'
+
+  # Initialization and Medium parameters:
+  lwc: 0.01  # init lwc of the generator
+  reff: 15 # init reff of the generator
+  veff: 0.19 # init veff of the generator
+
+  # if not microphysics:
+  extinction: 0.01  # init extinction of the generator
+
   radiance_threshold: [0.023,0.02] # check these values before inverse.
+  scripts_path: '../scripts'
+
+  # TODO not in use
+  stokes_weights: [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V]
+
+  # INIT
+  init: 'Homogeneous' # init_generator = 'Homogeneous' it is the CloudGenerator from shdom.generate.py
+
+  # GT_USE
+  add_rayleigh: True
+  use_forward_mask: False # TRUE
+  use_forward_grid: True
+  use_forward_albedo: True
+  use_forward_phase: True
+  if_save_gt_and_carver_masks: True
+  if_save_final3d: True
+
+  # optimization:
+  globalopt: False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
+  maxiter: 1000 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+  maxls: 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+  disp: True # Display optimization progression.
+  gtol: 1e-16 # Stop criteria for the maximum projected gradient. # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
+  ftol: 1e-16 # Stop criteria for the relative change in loss function. # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
+  loss_type: 'l2' # Different loss functions for optimization. Currently only l2 is supported.
+
+  extinction_optimizer: 'optimize_extinction_lbfgs.py'
+  microphysics_optimizer: 'optimize_microphysics_lbfgs.py'
