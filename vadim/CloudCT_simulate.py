@@ -332,12 +332,10 @@ if run_params['DOINVERSE']:
 
     log_name = run_type + "_only_" + log_name_base
 
-    # TODO add_rayleigh = False if viz_options['CENCEL_AIR'] else True
-
     INIT_USE = ' --init ' + inverse_options['init']
 
     GT_USE = ''
-    GT_USE = GT_USE + ' --add_rayleigh' if inverse_options['add_rayleigh'] else GT_USE
+    GT_USE = GT_USE + ' --add_rayleigh' if inverse_options['add_rayleigh'] and not viz_options['CENCEL_AIR'] else GT_USE
     GT_USE = GT_USE + ' --use_forward_mask' if inverse_options['use_forward_mask'] else GT_USE
     GT_USE = GT_USE + ' --use_forward_grid' if inverse_options['use_forward_grid'] else GT_USE
     GT_USE = GT_USE + ' --use_forward_albedo' if inverse_options['use_forward_albedo'] else GT_USE
