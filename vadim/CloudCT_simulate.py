@@ -1,3 +1,4 @@
+import csv
 import os
 import sys
 # import mayavi.mlab as mlab
@@ -428,7 +429,13 @@ if run_params['DOINVERSE']:
           GT_USE + \
           INIT_USE
 
+    with open(os.path.join(forward_dir, 'run_tracker.csv'), 'a') as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow([time.strftime("%d-%b-%Y-%H:%M:%S"), log_name, cmd])
+
     Optimize1 = subprocess.call(cmd, shell=True)
+
+
 
     # Time to show the results in 3D visualization:
     if inverse_options['VIS_RESULTS3D']:
