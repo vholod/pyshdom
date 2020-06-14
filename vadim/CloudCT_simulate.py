@@ -346,7 +346,7 @@ if run_params['DOINVERSE']:
 
     OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if not viz_options['CENCEL_AIR'] else OTHER_PARAMS
 
-    OTHER_PARAMS = OTHER_PARAMS + ' --radiance_threshold ' + str(inverse_options['radiance_threshold']) if run_type != 'all' else OTHER_PARAMS
+    OTHER_PARAMS = OTHER_PARAMS + ' --radiance_threshold ' + str(inverse_options['radiance_threshold']) if run_type != 'reff_and_lwc' else OTHER_PARAMS
 
     if inverse_options['MICROPHYSICS']:
         # -----------------------------------------------
