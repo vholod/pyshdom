@@ -297,9 +297,7 @@ if run_params['DOINVERSE']:
     RENDERED_IMAGES = measurements.images
     THIS_MULTI_VIEW_SETUP = USED_CAMERA.projection
 
-    # ---------what to optimize----------------------------
     SEE_IMAGES = True  # TODO not in use
-    # ------------------------------------------------
 
     # show the mutli view setup if you want.
     if inverse_options['SEE_SETUP']:
@@ -307,26 +305,6 @@ if run_params['DOINVERSE']:
         figh = mlab.gcf()
         mlab.orientation_axes(figure=figh)
         mlab.show()
-
-
-    # ----------------------------------------------------------
-
-    """
-    Work with the optimization:
-    """
-
-    # -----------------------------------------------
-    # ---------SOLVE for extinction only  -----------
-    # -----------------------------------------------
-    """
-    Estimate extinction with (what is known?):
-    1. ground truth phase function (use_forward_phase, with mie_base_path)
-    2. grid (use_forward_grid)
-    3. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
-    4. known albedo (use_forward_albedo)
-    5. rayleigh scattering (add_rayleigh)
-
-    """
 
     run_type = inverse_options['recover_type'] if inverse_options['MICROPHYSICS'] else 'extinction'
 
@@ -438,7 +416,6 @@ if run_params['DOINVERSE']:
             4. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
     
             """
-            add_rayleigh = False if viz_options['CENCEL_AIR'] else True
 
             GT_USE += ' --use_forward_veff --lwc_scaling 15 --reff_scaling 0.01'
             OTHER_PARAMS += ' --reff ' + str(inverse_options['reff'])
@@ -461,13 +438,15 @@ if run_params['DOINVERSE']:
         GT_USE += ' --use_forward_phase'
         OTHER_PARAMS += ' --extinction ' + str(inverse_options['extinction'])
 
-
     optimizer_path = inverse_options['microphysics_optimizer'] if inverse_options['MICROPHYSICS'] else inverse_options['extinction_optimizer']
 
     # We have: ground_truth, rte_solver, measurements.
 
-    cmd = 'python ' + os.path.join(inverse_options['scripts_path'], optimizer_path) + \
-          OTHER_PARAMS + GT_USE + INIT_USE
+    cmd = 'python ' + \
+          os.path.join(inverse_options['scripts_path'], optimizer_path) + \
+          OTHER_PARAMS + \
+          GT_USE + \
+          INIT_USE
 
     Optimize1 = subprocess.call(cmd, shell=True)
 
