@@ -97,7 +97,7 @@ inverse_options:
 
   # Initialization and Medium parameters:
   lwc: 0.01  # init lwc of the generator
-  reff: 15 # init reff of the generator
+  reff: 12 # init reff of the generator
   veff: 0.19 # init veff of the generator
 
   # Scaling params when recovering reff and lwc:
@@ -119,10 +119,13 @@ inverse_options:
 
   # GT_USE
   add_rayleigh: True
-  use_forward_mask: False # TRUE
+
+  use_forward_mask: True
   use_forward_grid: True
+
   use_forward_albedo: True
   use_forward_phase: True
+
   if_save_gt_and_carver_masks: True
   if_save_final3d: True
 

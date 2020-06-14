@@ -429,6 +429,9 @@ if run_params['DOINVERSE']:
           GT_USE + \
           INIT_USE
 
+    os.mkdir(os.path.join(forward_dir, 'run_params_files'))
+    with open(os.path.join(forward_dir, 'run_params_files',time.strftime("%d-%b-%Y-%H:%M:%S")), 'w') as f:
+        yaml.dump(run_params, f)
     with open(os.path.join(forward_dir, 'run_tracker.csv'), 'a') as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow([time.strftime("%d-%b-%Y-%H:%M:%S"), log_name, cmd])
