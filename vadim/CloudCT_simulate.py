@@ -316,8 +316,6 @@ if run_params['DOINVERSE']:
     GT_USE = GT_USE + ' --add_rayleigh' if inverse_options['add_rayleigh'] and not viz_options['CENCEL_AIR'] else GT_USE
     GT_USE = GT_USE + ' --use_forward_mask' if inverse_options['use_forward_mask'] else GT_USE
     GT_USE = GT_USE + ' --use_forward_grid' if inverse_options['use_forward_grid'] else GT_USE
-    GT_USE = GT_USE + ' --use_forward_albedo' if inverse_options['use_forward_albedo'] else GT_USE
-    GT_USE = GT_USE + ' --use_forward_phase' if inverse_options['use_forward_phase'] else GT_USE
     GT_USE = GT_USE + ' --save_gt_and_carver_masks' if inverse_options['if_save_gt_and_carver_masks'] else GT_USE
     GT_USE = GT_USE + ' --save_final3d' if inverse_options['if_save_final3d'] else GT_USE
 
@@ -346,7 +344,7 @@ if run_params['DOINVERSE']:
 
     OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if not viz_options['CENCEL_AIR'] else OTHER_PARAMS
 
-    OTHER_PARAMS = OTHER_PARAMS + ' --radiance_threshold ' + str(inverse_options['radiance_threshold']) if run_type != 'reff_and_lwc' else OTHER_PARAMS
+    OTHER_PARAMS = OTHER_PARAMS + ' --radiance_threshold ' + (" ").join(map(str,inverse_options['radiance_threshold'])) if run_type != 'reff_and_lwc' else OTHER_PARAMS
 
     if inverse_options['MICROPHYSICS']:
         # -----------------------------------------------
@@ -418,8 +416,8 @@ if run_params['DOINVERSE']:
             """
 
             GT_USE += ' --use_forward_veff'
-            GT_USE += ' --lwc_scaling ' + inverse_options['lwc_scaling_val']
-            GT_USE += ' --reff_scaling ' + inverse_options['reff_scaling_val']
+            GT_USE += ' --lwc_scaling ' + str(inverse_options['lwc_scaling_val'])
+            GT_USE += ' --reff_scaling ' + str(inverse_options['reff_scaling_val'])
             OTHER_PARAMS += ' --reff ' + str(inverse_options['reff'])
             OTHER_PARAMS += ' --lwc ' + str(inverse_options['lwc'])
     # -----------------------------------------------

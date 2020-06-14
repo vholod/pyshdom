@@ -3,7 +3,7 @@
 # TODO Cosain*6.8e-5*1e-9*CloudCT_setup.plank(1e-6*wavelength,temp)
 
 # Simulation flags
-DOFORWARD: False
+DOFORWARD: True
 DOINVERSE: True
 
 CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
@@ -76,8 +76,8 @@ inverse_options:
 
   MICROPHYSICS: True
   # if micropyhsics is  true, specify where to recover lwc / reff / veff or (reff and lwc)
-  # expects: 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
-  recover_type: 'lwc'
+  # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
+  recover_type: 'reff_and_lwc'
 
   # Initialization and Medium parameters:
   lwc: 0.01  # init lwc of the generator
