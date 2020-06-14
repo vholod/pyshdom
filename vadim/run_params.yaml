@@ -46,25 +46,41 @@ SATS_NUMBER_SETUP: &num_sats 10 # satellites number to build the setup, for the 
 SATS_NUMBER_INVERSE: *num_sats #10, how much satellites will be used for the inverse.
 
 
-rte_solver_max_iter: 100 # max number of iterations for rte solver
+# ---------numerical & scene Parameters---------------------
+# ---------for RTE solver and initializtion of the solver---
+
+# later we must update it since it depends on the wavelegth.
+# split_accuracy of 0.1 gives nice results, For the rico cloud i didn't see that decreasing the split accuracy improves the rec.
+# so fo the rico loud Let's use split_accuracy = 0.1.
+solar_fluxes_val: 1.0
+split_accuracies_val: 0.1
+surface_albedos_val: 0.05
+
+
 
 
 # -----------------------------------------------
 # ---------------- Forward parameters:-----------
 # -----------------------------------------------
+forward_options:
+  # units fo W/(m^2))
+  temp: 5900  # K
 
-# units fo W/(m^2))
-temp: 5900  # K
+  # ----------------------------------------------------------
+  # ---------numerical & scene Parameters---------------------
+  # ---------for RTE solver and initializtion of the solver---
+  # ----------------------------------------------------------
 
-# ----------------------------------------------------------
-# ---------numerical & scene Parameters---------------------
-# ---------for RTE solver and initializtion of the solver---
-# ----------------------------------------------------------
+  # note: when num_mu, num_phi are 16,32, the retrievals look better than with 8,16.
+  num_mu: 16
+  num_phi: 32
+  max_total_mb: 100000.0
+  rte_solver_max_iter: 100 # max number of iterations for rte solver
 
-# note: when num_mu, num_phi are 16,32, the retrievals look better than with 8,16.
-num_mu: 16
-num_phi: 32
-max_total_mb: 100000.0
+
+# check these values before inverse.
+radiance_threshold: [0.023, 0.02] # Threshold is either a scalar or a list of length of measurements.
+
 
 # -----------------------------------------------
 # ---------------- inverse parameters:-----------
@@ -91,10 +107,8 @@ inverse_options:
   # if not microphysics:
   extinction: 0.01  # init extinction of the generator
 
-  # check these values before inverse.
-  radiance_threshold:
-    - 0.023
-    - 0.02
+
+
   scripts_path: '../scripts'
 
   # TODO not in use

@@ -29,7 +29,6 @@ with open("run_params.yaml", 'r') as f:
 
 mie_options = run_params['mie_options']  # mie params
 viz_options = run_params['viz_options']  # visualization params
-
 n_jobs = run_params['n_jobs']
 
 Rsat = run_params['Rsat']
@@ -46,44 +45,38 @@ Check if mie tables exist, if not creat them, if yes skip it is long process.
 table file name example: mie_tables/polydisperse/Water_<1000*wavelength_micron>nm.scat
 """
 MieTablesPath = os.path.abspath("./mie_tables")
-mie_base_path = CALC_MIE_TABLES(MieTablesPath,wavelengths_micron,mie_options)
-#mie_base_path = mie_base_path[0]
+mie_base_path = CALC_MIE_TABLES(MieTablesPath, wavelengths_micron, mie_options)
+# mie_base_path = mie_base_path[0]
 # for example, mie_base_path = './mie_tables/polydisperse/Water_672nm.scat'
 
-
+middle_dir_name = f'unity_flux_active_sats_{SATS_NUMBER_SETUP}_GSD_{int(1e3 * GSD)}m_LES_cloud_field_rico_Water'
 if isinstance(wavelengths_micron, list):
-    wavelengths_micron.sort()# just for convenience, let's have it sorted.
-    wavelengths_string = functools.reduce(operator.add,[str(int(1e3*j))+"_" for j in wavelengths_micron]).rstrip('_')
-    # forward_dir, where to save evrerything that is related to forward model:
-    forward_dir = './experiments/polychromatic_unity_flux_active_sats_{}_GSD_{}m_LES_cloud_field_rico_Water_{}nm'.format(SATS_NUMBER_SETUP,int(1e3*GSD),wavelengths_string)
-else: # if wavelengths_micron is scalar
-    forward_dir = './experiments/monochromatic_unity_flux_active_sats_{}_GSD_{}m_LES_cloud_field_rico_Water_{}nm'.format(SATS_NUMBER_SETUP,int(1e3*GSD),int(1e3*wavelengths_micron))
+
+    wavelengths_micron.sort()  # just for convenience, let's have it sorted.
+    wavelengths_string = functools.reduce(operator.add, [str(int(1e3 * j)) + "_" for j in wavelengths_micron]).rstrip('_')
+
+    # forward_dir, where to save everything that is related to forward model:
+    forward_dir = f'./experiments/polychromatic_{middle_dir_name}_{wavelengths_string}nm'
+
+else:  # if wavelengths_micron is scalar
+    forward_dir = f'./experiments/monochromatic_{middle_dir_name}_{int(1e3 * wavelengths_micron)}nm'
 
 # invers_dir, where to save evrerything that is related to invers model:
 invers_dir = forward_dir
-log_name_base = 'active_sats_{}_easiest_rico32x37x26'.format(SATS_NUMBER_SETUP)
+log_name_base = f'active_sats_{SATS_NUMBER_SETUP}_easiest_rico32x37x26'
 # Write intermediate TensorBoardX results into log_name.
 # The provided string is added as a comment to the specific run.
 
 
-# ---------------------------------------------------------------
 # -------------LOAD SOME MEDIUM TO RECONSTRUCT--------------------------------
-# ---------------------------------------------------------------
-
-if viz_options['CENCEL_AIR']:
-    AirFieldFile = None # here the atmosphere will note condsider any air.
-
-else:
-    AirFieldFile = run_params['AirFieldFile']  # Path to csv file which contains temperature measurements
+# Path to csv file which contains temperature measurements or None if the atmosphere will not consider any air.
+AirFieldFile = run_params['AirFieldFile'] if not viz_options['CENCEL_AIR'] else None
 
 atmosphere = CloudCT_setup.Prepare_Medium(run_params['CloudFieldFile'], AirFieldFile,
-                             MieTablesPath,wavelengths_micron)
+                                          MieTablesPath, wavelengths_micron)
 droplets = atmosphere.get_scatterer('cloud')
 
-# -----------------------------------------------
-# ---------Point the cameras and ----------------
-# ---------Calculate camera footprint at nadir --
-# -----------------------------------------------
+# --------- Point the cameras and Calculate camera footprint at nadir ---------
 atmospheric_grid = atmosphere.grid
 dx = atmospheric_grid.dx
 dy = atmospheric_grid.dy
@@ -95,51 +88,52 @@ ny = atmospheric_grid.ny
 Lx = atmospheric_grid.bounding_box.xmax - atmospheric_grid.bounding_box.xmin
 Ly = atmospheric_grid.bounding_box.ymax - atmospheric_grid.bounding_box.ymin
 Lz = atmospheric_grid.bounding_box.zmax - atmospheric_grid.bounding_box.zmin
-L = max(Lx,Ly)
+L = max(Lx, Ly)
 
 Lz_droplets = droplets.grid.bounding_box.zmax - droplets.grid.bounding_box.zmin
-dz = Lz_droplets/nz
+dz = Lz_droplets / nz
 
-#USED FOV, RESOLUTION and SAT_LOOKATS:
-PIXEL_FOOTPRINT = GSD # km
-fov = 2*np.rad2deg(np.arctan(0.5*L/(Rsat)))
-cny = int(np.floor(L/PIXEL_FOOTPRINT))
-cnx = int(np.floor(L/PIXEL_FOOTPRINT))
+# USED FOV, RESOLUTION and SAT_LOOKATS:
+PIXEL_FOOTPRINT = GSD  # km
+fov = 2 * np.rad2deg(np.arctan(0.5 * L / (Rsat)))
+cny = int(np.floor(L / PIXEL_FOOTPRINT))
+cnx = int(np.floor(L / PIXEL_FOOTPRINT))
 
-CENTER_OF_MEDIUM_BOTTOM = [0.5*nx*dx , 0.5*ny*dy , 0]
+CENTER_OF_MEDIUM_BOTTOM = [0.5 * nx * dx, 0.5 * ny * dy, 0]
 
 # Sometimes it is more convenient to use wide fov to see the whole cloud from all the view points.
 # so the FOV is also tuned:
 # -- TUNE FOV, CNY,CNX:
 if run_params['IFTUNE_CAM']:
-    L = 1.5*L
-    fov = 2*np.rad2deg(np.arctan(0.5*L/(Rsat)))
-    cny = int(np.floor(L/PIXEL_FOOTPRINT))
-    cnx = int(np.floor(L/PIXEL_FOOTPRINT))
+    L = 1.5 * L
+    fov = 2 * np.rad2deg(np.arctan(0.5 * L / (Rsat)))
+    cny = int(np.floor(L / PIXEL_FOOTPRINT))
+    cnx = int(np.floor(L / PIXEL_FOOTPRINT))
 
 # not for all the mediums the CENTER_OF_MEDIUM_BOTTOM is a good place to lookat.
-# tuning is applied by the variavle LOOKAT.
+# tuning is applied by the variable LOOKAT.
 LOOKAT = CENTER_OF_MEDIUM_BOTTOM
 if run_params['IFTUNE_CAM']:
-    LOOKAT[2] = 0.68*nx*dz # tuning. if IFTUNE_CAM = False, just lookat the bottom
+    LOOKAT[2] = 0.68 * nx * dz  # tuning. if IFTUNE_CAM = False, just lookat the bottom
 
-SAT_LOOKATS = np.array(SATS_NUMBER_SETUP*LOOKAT).reshape(-1,3)# currently, all satellites lookat the same point.
+SAT_LOOKATS = np.array(SATS_NUMBER_SETUP * LOOKAT).reshape(-1, 3)  # currently, all satellites lookat the same point.
 
-print(20*"-")
-print(20*"-")
-print(20*"-")
+print(20 * "-")
+print(20 * "-")
+print(20 * "-")
 
 print("CAMERA intrinsics summary")
-print("fov = {}[deg], cnx = {}[pixels],cny ={}[pixels]".format(fov,cnx,cny))
+print(f"fov = {fov}[deg], cnx = {cnx}[pixels],cny ={cny}[pixels]")
 
-print(20*"-")
-print(20*"-")
-print(20*"-")
+print(20 * "-")
+print(20 * "-")
+print(20 * "-")
 
 print("Medium summary")
-print("nx = {}, ny = {},nz ={}".format(nx,ny,nz))
-print("dx = {}, dy = {},dz ={}".format(dx,dy,dz))
-print("Lx = {}, Ly = {},Lz ={}".format(Lx,Ly,Lz))
+print(f"nx = {nx}, ny = {ny},nz ={nz}")
+print(f"dx = {dx}, dy = {dy},dz ={dz}")
+print(f"Lx = {Lx}, Ly = {Ly},Lz ={Lz}")
+
 x_min = atmospheric_grid.bounding_box.xmin
 x_max = atmospheric_grid.bounding_box.xmax
 
@@ -148,14 +142,17 @@ y_max = atmospheric_grid.bounding_box.ymax
 
 z_min = atmospheric_grid.bounding_box.zmin
 z_max = atmospheric_grid.bounding_box.zmax
-print("xmin = {}, ymin = {},zmin ={}".format(x_min,y_min,z_min))
-print("xmax = {}, ymax = {},zmax ={}".format(x_max,y_max,z_max))
 
-print(20*"-")
-print(20*"-")
-print(20*"-")
+print(f"xmin = {x_min}, ymin = {y_min},zmin ={z_min}")
+print(f"xmax = {x_max}, ymax = {y_max},zmax ={z_max}")
+
+print(20 * "-")
+print(20 * "-")
+print(20 * "-")
 
 if run_params['DOFORWARD']:
+    forward_options = run_params['forward_options']
+
     # ---------------------------------------------------------------
     # ---------------CREATE THE SETUP----------------------------
     # ---------------------------------------------------------------
@@ -167,81 +164,77 @@ if run_params['DOFORWARD']:
     """
     if np.isscalar(wavelengths_micron):
         wavelengths_micron = [wavelengths_micron]
-    setup_wavelengths_list = SATS_NUMBER_SETUP*[wavelengths_micron]
-    # Calculate irradiance of the spesific wavelength:
+
+    setup_wavelengths_list = SATS_NUMBER_SETUP * [wavelengths_micron]
+    # Calculate irradiance of the specific wavelength:
     # use plank function:
     L_TOA = []
-    Cosain = np.cos(np.deg2rad((180-sun_zenith)))
+    Cosain = np.cos(np.deg2rad((180 - sun_zenith)))
     for wavelengths_per_view in setup_wavelengths_list:
         # loop over the dimensios of the views
         L_TOA_per_view = []
         for wavelength in wavelengths_per_view:
             # loop over the wavelengths is a view
-            L_TOA_per_view.append(Cosain*6.8e-5*1e-9*CloudCT_setup.plank(1e-6*wavelength,run_params['temp'])) # units fo W/(m^2))
+            L_TOA_per_view.append(Cosain * 6.8e-5 * 1e-9 * CloudCT_setup.plank(1e-6 * wavelength, forward_options['temp']))  # units fo W/(m^2))
 
         L_TOA.append(L_TOA_per_view)
 
-    solar_flux_scale = L_TOA # the forward simulation will run with unity flux,
+    solar_flux_scale = L_TOA  # the forward simulation will run with unity flux,
     # this is a scale that we should consider to apply on the output images.
-    # Rigth now, lets skip it.
+    # Right now, lets skip it.
 
     # create CloudCT setup:
-    CloudCT_VIEWS, near_nadir_view_index = CloudCT_setup.Create(\
-        SATS_NUMBER = SATS_NUMBER_SETUP, ORBIT_ALTITUDE = Rsat, \
-        CAM_FOV = fov, CAM_RES = (cnx,cny), SAT_LOOKATS = SAT_LOOKATS, \
-        SATS_WAVELENGTHS_LIST = setup_wavelengths_list, SOLAR_FLUX_LIST = solar_flux_scale, VISSETUP = viz_options['VISSETUP'])
+    CloudCT_VIEWS, near_nadir_view_index = CloudCT_setup.Create(
+        SATS_NUMBER=SATS_NUMBER_SETUP, ORBIT_ALTITUDE=Rsat,
+        CAM_FOV=fov, CAM_RES=(cnx, cny), SAT_LOOKATS=SAT_LOOKATS,
+        SATS_WAVELENGTHS_LIST=setup_wavelengths_list, SOLAR_FLUX_LIST=solar_flux_scale,
+        VISSETUP=viz_options['VISSETUP'])
     """ 
-    How to randomly choose N views from the total views:
-    for i in range(10):
-        NEW = CloudCT_VIEWS.Random_choose_N(3)
-        NEW.show_setup(scale=scale ,axisWidth=axisWidth ,axisLenght=axisLenght,FullCone = True)
-        figh = mlab.gcf()
-        mlab.orientation_axes(figure=figh)    
-        mlab.show()
+        How to randomly choose N views from the total views:
+        for i in range(10):
+            NEW = CloudCT_VIEWS.Random_choose_N(3)
+            NEW.show_setup(scale=scale ,axisWidth=axisWidth ,axisLenght=axisLenght,FullCone = True)
+            figh = mlab.gcf()
+            mlab.orientation_axes(figure=figh)    
+            mlab.show()
         
-    The update of the solar fluxes per wavelength can be done also by:
-    CloudCT_VIEWS.update_solar_irradiances(solar_flux_scale)
+        The update of the solar fluxes per wavelength can be done also by:
+        CloudCT_VIEWS.update_solar_irradiances(solar_flux_scale)
     """
 
-    # ----------------------------------------------------------
     # ---------numerical & scene Parameters---------------------
     # ---------for RTE solver and initializtion of the solver---
-    # ----------------------------------------------------------
-    solar_fluxes = np.full_like(wavelengths_micron, 1.0)# unity flux
-    split_accuracies = np.full_like(wavelengths_micron, 0.1)
-    surface_albedos = np.full_like(wavelengths_micron, 0.05) # later we must update it since it depends on the wavelegth.
-    # split_accuracy of 0.1 gives nice results, For the rico cloud i didn't see that decreasing the split accuracy improves the rec.
-    # so fo the rico loud Let's use split_accuracy = 0.1.
+    solar_fluxes = np.full_like(wavelengths_micron, run_params['solar_fluxes_val'])  # unity flux
+    split_accuracies = np.full_like(wavelengths_micron, run_params['split_accuracies_val'])
+    surface_albedos = np.full_like(wavelengths_micron, run_params['surface_albedos_val'])
+
     adapt_grid_factor = 5  # TODO not in use
-    solution_accuracy = 0.0001 # TODO not in use
+    solution_accuracy = 0.0001  # TODO not in use
+
     # Generate a solver array for a multispectral solution.
-    # it is greate that we can use the parallel solution of all solvers.
+    # it is great that we can use the parallel solution of all solvers.
     rte_solvers = shdom.RteSolverArray()
 
-    for wavelength,split_accuracy,solar_flux,surface_albedo in \
-        zip(wavelengths_micron,split_accuracies,solar_fluxes,surface_albedos):
+    for wavelength, split_accuracy, solar_flux, surface_albedo in \
+            zip(wavelengths_micron, split_accuracies, solar_fluxes, surface_albedos):
 
-
-        numerical_params = shdom.NumericalParameters(num_mu_bins=run_params['num_mu'],num_phi_bins=run_params['num_phi'],
-                                                     split_accuracy=split_accuracy,max_total_mb=run_params['max_total_mb'])
+        numerical_params = shdom.NumericalParameters(num_mu_bins=forward_options['num_mu'],
+                                                     num_phi_bins=forward_options['num_phi'],
+                                                     split_accuracy=split_accuracy,
+                                                     max_total_mb=forward_options['max_total_mb'])
 
         scene_params = shdom.SceneParameters(
             wavelength=wavelength,
             surface=shdom.LambertianSurface(albedo=surface_albedo),
-            source=shdom.SolarSource(azimuth=sun_azimuth, zenith=sun_zenith,flux=solar_flux)
-        )
+            source=shdom.SolarSource(azimuth=sun_azimuth, zenith=sun_zenith, flux=solar_flux))
+
         # ---------initilize an RteSolver object---------    
         rte_solver = shdom.RteSolver(scene_params, numerical_params)
         rte_solver.set_medium(atmosphere)
         rte_solvers.add_solver(rte_solver)
 
-
-    # -----------------------------------------------
     # ---------RTE SOLVE ----------------------------
-    # -----------------------------------------------
-
-    rte_solvers.solve(maxiter=run_params['rte_solver_max_iter'])
-
+    rte_solvers.solve(maxiter=forward_options['rte_solver_max_iter'])
 
     # -----------------------------------------------
     # ---------RENDER IMAGES FOR CLOUDCT SETUP ------
@@ -250,43 +243,29 @@ if run_params['DOFORWARD']:
     Each projection in CloudCT_VIEWS is A Perspective projection (pinhole camera).
     The method CloudCT_VIEWS.update_measurements(...) takes care of the rendering and updating the measurments.
     """
-    CloudCT_VIEWS.update_measurements(sensor=shdom.RadianceSensor(), projection = CloudCT_VIEWS, rte_solver = rte_solvers, n_jobs=n_jobs)
+    CloudCT_VIEWS.update_measurements(sensor=shdom.RadianceSensor(), projection=CloudCT_VIEWS, rte_solver=rte_solvers,
+                                      n_jobs=n_jobs)
     # see the rendered images:
     SEE_IMAGES = False
     if SEE_IMAGES:
         CloudCT_VIEWS.show_measurements(compare_for_test=False)
-        # don't use the compare_for_test =  True, it is not mature enougth.
-
-
-        #It is a good place to pick the radiance_threshold = Threshold for the radiance to create a cloud mask.
-        #So here, we see the original images and below we will see the images after the radiance_threshold:
+        # don't use the compare_for_test =  True, it is not mature enough.
+        # It is a good place to pick the radiance_threshold = Threshold for the radiance to create a cloud mask.
+        # So here, we see the original images and below we will see the images after the radiance_threshold:
         # --------------------------------------------------
         #  ----------------try radiance_threshold value:----
         # --------------------------------------------------
-        #radiance_threshold = 0.04 # Threshold for the radiance to create a cloud mask.
-        radiance_threshold = [0.023,0.02] # Threshold for the radiance to create a cloud mask.
-        # Threshold is either a scalar or a list of length of measurements.
-        CloudCT_VIEWS.show_measurements(radiance_threshold=radiance_threshold,compare_for_test = False)
+        CloudCT_VIEWS.show_measurements(radiance_threshold=run_params['radiance_threshold'], compare_for_test=False)
 
         plt.show()
 
-
-    # -----------------------------------------------
     # ---------SAVE EVERYTHING FOR THIS SETUP -------
-    # -----------------------------------------------
-
     medium = atmosphere
     shdom.save_forward_model(forward_dir, medium, rte_solvers, CloudCT_VIEWS.measurements)
 
     print('DONE forward simulation')
 
-
-# -----------------------------------------------
 # ---------SOLVE INVERSE ------------------------
-# -----------------------------------------------
-"""
-Solve inverse problem:
-"""
 if run_params['DOINVERSE']:
     inverse_options = run_params['inverse_options']
 
@@ -301,7 +280,8 @@ if run_params['DOINVERSE']:
 
     # show the mutli view setup if you want.
     if inverse_options['SEE_SETUP']:
-        THIS_MULTI_VIEW_SETUP.show_setup(scale=viz_options['scale'] ,axisWidth=viz_options['axisWidth'] ,axisLenght=viz_options['axisLenght'],FullCone = True)
+        THIS_MULTI_VIEW_SETUP.show_setup(scale=viz_options['scale'], axisWidth=viz_options['axisWidth'],
+                                         axisLenght=viz_options['axisLenght'], FullCone=True)
         # figh = mlab.gcf()
         # mlab.orientation_axes(figure=figh)
         # mlab.show()
@@ -319,10 +299,10 @@ if run_params['DOINVERSE']:
     GT_USE = GT_USE + ' --save_gt_and_carver_masks' if inverse_options['if_save_gt_and_carver_masks'] else GT_USE
     GT_USE = GT_USE + ' --save_final3d' if inverse_options['if_save_final3d'] else GT_USE
 
-    # The mie_base_path is defined at the begining of this script.
+    # The mie_base_path is defined at the beginning of this script.
     # (use_forward_mask, use_forward_grid, use_forward_albedo, use_forward_phase):
     # Use the ground-truth things. This is an inverse crime which is
-    # usefull for debugging/development.
+    # useful for debugging/development.
 
     # The log_name defined above
     # Write intermediate TensorBoardX results into log_name.
@@ -330,8 +310,8 @@ if run_params['DOINVERSE']:
 
     # note that currently, the invers_dir = forward_dir.
     # In forward_dir, the forward modeling parameters are be saved.
-    # If invers_dir = forward_dir:
-    # The invers_dir directory will be used to save the optimization results and progress.
+    # If inverse_dir = forward_dir:
+    # The inverse_dir directory will be used to save the optimization results and progress.
 
     OTHER_PARAMS = ' --input_dir ' + forward_dir + \
                    ' --log ' + log_name + \
@@ -344,7 +324,7 @@ if run_params['DOINVERSE']:
 
     OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if not viz_options['CENCEL_AIR'] else OTHER_PARAMS
 
-    OTHER_PARAMS = OTHER_PARAMS + ' --radiance_threshold ' + (" ").join(map(str,inverse_options['radiance_threshold'])) if run_type != 'reff_and_lwc' else OTHER_PARAMS
+    OTHER_PARAMS = OTHER_PARAMS + ' --radiance_threshold ' + " ".join(map(str, run_params['radiance_threshold'])) if run_type != 'reff_and_lwc' else OTHER_PARAMS
 
     if inverse_options['MICROPHYSICS']:
         # -----------------------------------------------
@@ -450,9 +430,6 @@ if run_params['DOINVERSE']:
 
     Optimize1 = subprocess.call(cmd, shell=True)
 
-
-
-
     # Time to show the results in 3D visualization:
     if inverse_options['VIS_RESULTS3D']:
         """
@@ -463,33 +440,30 @@ if run_params['DOINVERSE']:
         load the measurments to see the rendered images:
         """
 
-
         # what state to load? I prefere the last one!
-        logs_dir = os.path.join(forward_dir,'logs')
-        logs_prefix = os.path.join(logs_dir,log_name)
+        logs_dir = os.path.join(forward_dir, 'logs')
+        logs_prefix = os.path.join(logs_dir, log_name)
         logs_files = glob.glob(logs_prefix + '-*')
 
-        times = [i.split('{}-'.format(int(1e3*wavelength_micron)))[-1] for i in logs_files]
+        times = [i.split(f'{int(1e3 * wavelength_micron)}-')[-1] for i in logs_files]
         # sort the times to find the last one.
-        timestamp = [time.mktime(time.strptime(i,"%d-%b-%Y-%H:%M:%S")) for i in times]
+        timestamp = [time.mktime(time.strptime(i, "%d-%b-%Y-%H:%M:%S")) for i in times]
         # time.mktime(t) This is the inverse function of localtime()
         timestamp.sort()
-        timestamp = [time.strftime("%d-%b-%Y-%H:%M:%S",time.localtime(i)) for i in timestamp]
+        timestamp = [time.strftime("%d-%b-%Y-%H:%M:%S", time.localtime(i)) for i in timestamp]
         # now, the timestamp are sorted, and I want the last stamp to visualize.
-        connector = '{}-'.format(int(1e3*wavelength_micron))
-        log2load = logs_prefix+'-'+timestamp[-1]
+        connector = f'{int(1e3 * wavelength_micron)}-'
+        log2load = logs_prefix + '-' + timestamp[-1]
         # print here the Final results files:
         Final_results_3Dfiles = glob.glob(log2load + '/FINAL_3D_*.mat')
-        print("{} files with the results in 3D were created:".format(len(Final_results_3Dfiles)))
+        print(f"{len(Final_results_3Dfiles)} files with the results in 3D were created:")
         for _file in Final_results_3Dfiles:
-
             print(_file)
 
         # ---------------------------------------------------------
 
         # Don't want to use it now, state2load = os.path.join(log2load,'final_state.ckpt')
 
-
-        print("use tensorboard --logdir {} --bind_all".format(log2load))
+        print(f"use tensorboard --logdir {log2load} --bind_all")
 
     print("done")
