@@ -405,9 +405,9 @@ class MicrophysicalScatterer(Scatterer):
         np.savetxt(path, X=np.array([self.grid.shape]), fmt='%d', header=comment_line)
         f = open(path, 'ab')
         np.savetxt(f, X=np.concatenate((np.array([self.grid.dx, self.grid.dy]), self.grid.z)).reshape(1,-1), fmt='%2.3f')
-        y, x, z = np.meshgrid(range(self.grid.nx), range(self.grid.ny), range(self.grid.nz))
-        data = np.vstack((x.ravel(), y.ravel(), z.ravel(), self.lwc.data.ravel(), self.reff.data.ravel())).T
-        np.savetxt(f, X=data, fmt='%d %d %d %.5f %.3f')        
+        y, x, z = np.meshgrid(range(self.grid.ny), range(self.grid.nx), range(self.grid.nz))
+        data = np.vstack((x.ravel(), y.ravel(), z.ravel(), self.lwc.data.ravel(), self.reff.data.ravel(), self.veff.data.ravel())).T
+        np.savetxt(f, X=data, fmt='%d %d %d %.5f %.3f %.5f')        
         f.close()
         
     def load_from_csv(self, path, veff=0.1):
@@ -702,15 +702,14 @@ class Medium(object):
         z_max = grid.bounding_box.zmax        
         
         Lz = z_max - z_min
-        dz = Lz/nz
+        dz = Lz/(nz-1)
         
         #exclude data discription buges:
         assert float_round(dx) == float_round((x_max- x_min)/(nx-1)), \
                'dab data discription'
         assert float_round(dy) == float_round((y_max- y_min)/(ny-1)), \
                'dab data discription'  
-        assert float_round(dz) == float_round((z_max- z_min)/(nz-1)), \
-               'dab data discription'  
+        
         
         xgrid = np.linspace(x_min, x_max,nx)
         ygrid = np.linspace(y_min, y_max,ny)

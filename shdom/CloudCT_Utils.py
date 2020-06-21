@@ -3,7 +3,7 @@ import sys
 import scipy.io as sio
 import numpy as np
 import shdom 
-from shdom import float_round
+from shdom import float_round, core
 import subprocess
 import time
 import glob
@@ -78,8 +78,12 @@ def CALC_MIE_TABLES(where_to_check_path = './mie_tables',wavelength_micron=None,
     
     if(wavelength_averaging):
         
-        #find central wavelength:
-        centeral_wavelength = float_round(0.5*(wavelength_list[0]+wavelength_list[1]))
+        # Find central wavelength:
+        # to do that, it is best to use the same method that shdom (original) uses.
+        centeral_wavelength = core.get_center_wavelen(wavelength_list[0],wavelength_list[1])
+        centeral_wavelength = float_round(centeral_wavelength)
+        # It is close to (0.5*(wavelength_list[0]+wavelength_list[1]))
+        
         if(os.path.exists(where_to_check_path)):
             mie_tables_paths = sorted(glob.glob(where_to_check_path + '/averaged_Water_*.scat'))
             mie_tables_names = [os.path.split(i)[-1] for i in mie_tables_paths]

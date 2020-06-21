@@ -17,27 +17,62 @@ import operator
 
 
 # -----------------------------------------------------------------
-# ------------------------THE CLASSES BELOW----------------------
+# ------------------------THE CLASSES BELOW------------------------
 # -----------------------------------------------------------------
 class SpaceMultiView(shdom.MultiViewProjection):
     """
     Inherent from pyshdom MultiViewProjection. We will use the Perspective projection"""
-    def __init__(self):
+    def __init__(self, imager = None):
         super().__init__()
+        assert imager is not None, "You must provied the imager object!" 
         self._sat_positions = None # it will be set by set_satellites() and it is np.array.
         self._lookat_list = None
-        self._fov_list = None
-        self._nx_list = None
-        self._ny_list = None
-        self._up_list = None
-        self._wavelengths_list = None # one satelite may have one camera with a number of wavelengths. In addition one satellite may
-        # few cameras
-        self._unique_wavelengths_list =  None # if the cameras have different wavelenrgths, this list will have all existing wavelengths.
-        self._measurements = None 
-        self._solar_flux_scale_list = None # each image should be scaled by the solar flux intensity. It depends on the wavelengths list.
+    
+        self._unique_wavelengths_list =  None # if the cameras have different wavelenrgths, this list will have all existing wavelengths. In the bottom line, the rte_solvers depend on that list.
         self._IMAGES_DICT = None
+        self._imager = imager
         
-    def set_satellites(self,sat_positions,sat_lookats,sat_wavelengths_list):
+        # TODO - to inplement later:
+        """
+        # what are the existing wavelengths in this setup?
+        if(np.isscalar(self._wavelengths_list)):
+            self._unique_wavelengths_list = self._wavelengths_list
+        else:  
+            import itertools
+            merged = list(itertools.chain(*self._wavelengths_list))
+            unique = list(set(merged))
+            self._unique_wavelengths_list = unique
+            print("This setup has {} unique wavelengths".format(unique))  
+        """      
+     
+    def update_views(self,names = None):
+        """
+        This method does the following:
+        1. Direct the sateliites to the right look at vectors.
+        2. Build the list of Imagers.
+        
+        """
+        # nameas:
+        if names is None:
+            names = ["sat"+str(i+1) for i in range(len(self._sat_positions))]                 
+        
+        # we intentialy, work with projections lists and one Imager
+        up_list = np.array(len(self._sat_positions)*[0,1,0]).reshape(-1,3) # default up vector per camera.
+        for pos,lookat,up,name in zip(self._sat_positions,\
+                                  self._lookat_list,up_list,names):
+            
+            x,y,z = pos
+            fov = self._imager.FOV
+            nx, ny = self._imager.get_sensor_resolution()
+            loop_projection = shdom.PerspectiveProjection(fov, nx, ny, x, y, z)
+            loop_projection.look_at_transform(lookat, up)
+            self.add_projection(loop_projection,name)
+            """
+            Each projection has:
+            ['x', 'y', 'z', 'mu', 'phi'] per pixel and npix, names, resolution.
+            """
+            
+    def set_satellites_position_and_lookat(self,sat_positions,sat_lookats):
         """
         Parameters:
         input:
@@ -45,24 +80,32 @@ class SpaceMultiView(shdom.MultiViewProjection):
            np.array shape of (#sats,3)
          - similar for the sat_lookats, it is where the satellites look at.
            np.array shape of (#sats,3)
-         - sat_wavelengths: a list of wavelengths for each view/satellite.
          
         """
         self._sat_positions = sat_positions
         self._lookat_list = sat_lookats
-        self._wavelengths_list = sat_wavelengths_list
-        self._up_list = np.array(len(sat_positions)*[0,1,0]).reshape(-1,3)
-        
-        # what are the existing wavelengths in this setup?
-        import itertools
-        merged = list(itertools.chain(*self._wavelengths_list))
-        unique = list(set(merged))
-        self._unique_wavelengths_list = unique
-        print("This setup has {} unique wavelengths".format(unique))        
-    
-    def update_solar_irradiances(self,solar_flux_list):
-        self._solar_flux_scale_list = solar_flux_list
    
+    def find_radiance_thresholds(self):
+        """
+        User interface to find rigth treshols for the cloud masking (and at the ens Space Carving).
+        
+        """
+        #from matplotlib.widgets import Slider, Button
+        #projection_names = self.projection_names
+        ## A Measurements object bundles together the imaging geometry and sensor measurements for later optimization.
+        #USED_CAMERAS = self._measurements.camera
+        #RENDERED_IMAGES = self._measurements.images    
+        #images_array = np.array(RENDERED_IMAGES)
+        ## calculate images maximum:
+        #MAXI = images_array.max()
+        
+        ## currently all the cameras identicle:
+        #SATS_NUMBER_SETUP = len(RENDERED_IMAGES)
+        pass
+        
+                
+        
+        
     def show_measurements(self,radiance_threshold=None,compare_for_test = False):
         """
         show images per all wavelengths.
@@ -178,7 +221,7 @@ class SpaceMultiView(shdom.MultiViewProjection):
           
         """
         This method renders the images and update the measurements.
-        Currently, this method soupport onle sensor of type shdom.RadianceSensor()
+        Currently, this method sopports only sensor of type shdom.RadianceSensor()
         Parameters
         ----------
         sensor: shdom.Sensor
@@ -189,12 +232,13 @@ class SpaceMultiView(shdom.MultiViewProjection):
             The RteSolver with the precomputed radiative transfer solution (RteSolver.solve method).  
             It can be just a rte_solver or if the rendering is for several atmospheres (e.g. multi-spectral rendering),
             It is shdom.RteSolverArray. The camera.render(rte_solver) takes care of the distribution of the rendering to one solver or more.
-            
+        n_jobs: int
+            how many cores will be used in the backpropogation to gather the radiance from the scene.
         """
         if(not isinstance(rte_solver.wavelength, list)):
-            self._unique_wavelengths_list = unique = [rte_solver.wavelength]
+            self._unique_wavelengths_list = [rte_solver.wavelength]
         else:
-            self._unique_wavelengths_list = unique = rte_solver.wavelength
+            self._unique_wavelengths_list = rte_solver.wavelength
             
         assert sensor is not None, "You must provied the sensor."
         assert projection is not None, "You must provied the projections."
@@ -239,29 +283,8 @@ class SpaceMultiView(shdom.MultiViewProjection):
                 
         self._IMAGES_DICT = IMAGES_DICT
         
-    def set_commonCameraIntrinsics(self,FOV = 0.1,nx=64,ny=64):
-        assert self._sat_positions is not None,"Before using it, use upper set method"
-        
-        self._fov_list = np.tile(FOV,len(self._sat_positions))
-        self._nx_list = np.tile(nx,len(self._sat_positions))
-        self._ny_list = np.tile(ny,len(self._sat_positions))
-        
-    def update_views(self,names = None):
-        
-        # nameas:
-        if names is None:
-            names = ["sat"+str(i+1) for i in range(len(self._sat_positions))]                 
-        
-        for pos,lookat,fov,nx,ny,up,name in zip(self._sat_positions,\
-                                  self._lookat_list,\
-                                  self._fov_list,\
-                                  self._nx_list,\
-                                  self._ny_list,\
-                                  self._up_list,names):
-            x,y,z = pos
-            loop_projection = shdom.PerspectiveProjection(fov, nx, ny, x, y, z)
-            loop_projection.look_at_transform(lookat, up)
-            self.add_projection(loop_projection,name)
+  
+
         
     def show_setup(self,scale = 0.6,axisWidth = 3.0,axisLenght=1.0, FullCone = False):
         """
@@ -354,8 +377,65 @@ def StringOfPearls(SATS_NUMBER = 10,orbit_altitude = 500):
     return sat_positions.T, near_nadir_view_index
 
 
-      
-def Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500, CAM_FOV = 0.1, CAM_RES = (64,64),SAT_LOOKATS=None, SATS_WAVELENGTHS_LIST = None, SOLAR_FLUX_LIST = None, VISSETUP = False):
+def Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500 ,SAT_LOOKATS=None, Imager_config = None, imager=None, VISSETUP = False):
+    
+    """
+    Create the Multiview setup on orbit direct them with lookat vector and set the Imagers at thier locations + orientations.
+    The output here will be a list of Imagers. Each Imager will be updated here with respect to the defined geomtric considerations.
+    
+    
+    Parameters:
+    input:
+       SATS_NUMBER - the number of satellites in the setup, int.
+       ORBIT_ALTITUDE - in km  , float.
+       SAT_LOOKATS in km is where each satellite looks at. Type np.array shape of (#sats,3)
+       Imager_config - A list of bools with SATS_NUMBER elements. If Imager_config[Index] = True, the imager is in the location of satellite number Index.
+       If Imager_config[Index] = False, there is no Imager at the location of satellite number Index.
+       The default is None, means all satellites have the Imager.
+       
+    output:
+       MV - SpaceMultiView object. In the bottom line, it is a list of projection with the Imager inside.
+    
+    """
+    sat_positions, near_nadir_view_index = StringOfPearls(SATS_NUMBER = SATS_NUMBER, orbit_altitude = ORBIT_ALTITUDE)
+    
+    assert imager is not None, "You must provide the Imager object!"
+    
+    if Imager_config is None:
+        Imager_config = SATS_NUMBER*[True]
+
+   
+    # --------- start the multiview setup:---------------
+    # set lookat list:
+    if SAT_LOOKATS is None:
+        sat_lookats = np.zeros([len(sat_positions),3])
+        
+    else:
+        
+        sat_lookats = SAT_LOOKATS
+        
+    # Work on the Imagers configaration:
+    # the list of Imagers is in the SpaceMultiView class:
+
+    MV = SpaceMultiView(imager) 
+    MV.set_satellites_position_and_lookat(sat_positions,sat_lookats) # here we set only the positions and where the satellites are lookin at.   
+    MV.update_views()
+    
+    # visualization params:
+    scale = 500
+    axisWidth = 0.02
+    axisLenght = 5000    
+    if(VISSETUP):
+        MV.show_setup(scale=scale ,axisWidth=axisWidth ,axisLenght=axisLenght,FullCone = True)
+        figh = mlab.gcf()
+        mlab.orientation_axes(figure=figh)    
+        mlab.show()
+        
+        
+    return MV, near_nadir_view_index
+
+
+def old_Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500, CAM_FOV = 0.1, CAM_RES = (64,64),SAT_LOOKATS=None, SATS_WAVELENGTHS_LIST = None, SOLAR_FLUX_LIST = None, VISSETUP = False):
     
     """
     Create the Multiview setup on orbit with one camera type.
@@ -405,15 +485,19 @@ def Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500, CAM_FOV = 0.1, CAM_RES = (64,6
     return MV, near_nadir_view_index
 
 def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, MieTablesPath=None, 
-                   wavelengths_micron=None):
+                   wavelengths_micron=None,wavelength_averaging=False):
     """
     Prepare the medium for the CloudCT simulation:
     1. Generate multi-spectral scatterers for both droplets and air molecules.
     
     inputs:
     CloudFieldFile - file path to the cloud field.
-    wavelengths_micron - a list or a scalar of the wavelengths in microns.
-    
+    wavelengths_micron: list or a scalar,
+        It is the wavelengths in microns.
+    wavelength_averaging: bool,
+         If it is False, Mie tables with template of Water_{}nm.scat will be loaded
+         If it is True, Mie tables with template of averaged_Water_{}nm.scat will be loaded. It means that
+         here we want to use the central wavelength and the Mie tables were calculated by averaging scattering properties over the wavelength band.
     """
     
     # Force/check the wavelengths_micron to be a list:
@@ -447,8 +531,12 @@ def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, MieTablesPath=None,
     
     assert MieTablesPath is not None, "You must provied the path of the mie tables for the simulation."    
     for wavelength in wavelengths_micron: 
-        table_path = os.path.join(MieTablesPath,'polydisperse','Water_{}nm.scat'. \
-        format(int(1e3 * wavelength)))
+        if(wavelength_averaging):
+            table_path = os.path.join(MieTablesPath,'polydisperse','averaged_Water_{}nm.scat'. \
+                                      format(int(1e3 * wavelength)))            
+        else:
+            table_path = os.path.join(MieTablesPath,'polydisperse','Water_{}nm.scat'. \
+                                      format(int(1e3 * wavelength)))
         
         # Molecular Rayleigh scattering
         if(AirFieldFile is not None):

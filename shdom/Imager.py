@@ -4,7 +4,7 @@ import scipy.io as sio
 import matplotlib.pyplot as plt
 import numpy as np
 import shdom 
-from shdom import float_round
+from shdom import float_round, core
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpl_toolkits.axes_grid1 import AxesGrid
 import time
@@ -59,7 +59,7 @@ TOADD...
 """
 
 
-class SensorPFA(object):
+class SensorFPA(object):
     
     def __init__(self, QE=None, PIXEL_SIZE = 5.5 , FULLWELL = None, CHeight = 1000, CWidth = 1000, SENSOR_ID = '0',
                  READOUT_NOISE = 100, DARK_CURRENT_NOISE = 10, BitDepth = 8, TYPE = 'VIS'):
@@ -137,13 +137,13 @@ class SensorPFA(object):
         # self._NOISE_FLOOR = self._READOUT_NOISE + self._DARK_CURRENT_NOISE*(exposure*temp) , will be calculated later.
         # self._DR = self._FULLWELL/self._NOISE_FLOOR, will be calculated later.
         
-        #Noise floor of the camera contains: self._READOUT_NOISE and self._DARK_CURRENT_NOISE.
-        #Noise floor increases with the sensitivity setting of the sensor e.g. gain, exposure time and sensors temperature.
-        #The Noise floor is important to define the Dynamic range (DN) of the sensor.
-        #Dynamic range is defined as the ratio of the largest signal that an image sensor can handle to the 
-        #readout noise of the camera.  Readout noise of the camera can be classified a "Dark Noise"  
-        #which is measured during dark recording in specific temperature (e.g. room temp.) 
-        #thus the Dark noise has a term of dark current shot noise. 
+        # Noise floor of the camera contains: self._READOUT_NOISE and self._DARK_CURRENT_NOISE.
+        # Noise floor increases with the sensitivity setting of the sensor e.g. gain, exposure time and sensors temperature.
+        # The Noise floor is important to define the Dynamic range (DN) of the sensor.
+        # Dynamic range is defined as the ratio of the largest signal that an image sensor can handle to the 
+        # readout noise of the camera.  Readout noise of the camera can be classified a "Dark Noise"  
+        # which is measured during dark recording in specific temperature (e.g. room temp.) 
+        # thus the Dark noise has a term of dark current shot noise. 
          
         self.BitDepth = BitDepth # bit depth of the sensor.
         self._TYPE = TYPE
@@ -251,9 +251,16 @@ class SensorPFA(object):
     @property
     def sensor_size(self):   
         """
-        Retunrs the sensor size. it is np.array tieh 2 elements relative to [H,W]
+        Retunrs the sensor size. it is np.array with 2 elements relative to [H,W] = [nx,ny]
         """
         return self._SENSOR_SIZE
+    
+    @sensor_size.setter
+    def sensor_size(self,val):   
+        """
+        Set the sensor size. it is np.array with 2 elements relative to [H,W] = [nx,ny]
+        """
+        self._SENSOR_SIZE = val  
 
     
     def get_sensor_resolution_in_lp_per_mm(self):
@@ -435,9 +442,12 @@ class Imager(object):
             start = self._scene_spectrum[0]
             stop = self._scene_spectrum[1]
             step = integration_Dlambda # nm
-            self._lambdas = np.linspace(start, stop, int(((stop-start)/step) + 1))            
+            self._lambdas = np.linspace(start, stop, int(((stop-start)/step) + 1)) 
+            self._centeral_wavelength = float_round(core.get_center_wavelen(start,stop))
+            # self._centeral_wavelength will be relevant when we use spectrally-averaged atmospheric parameters.
         else:
             self._lambdas = None
+            self._centeral_wavelength = None
         
         
         if(self._LENS_DEFINED and self._SENSOR_DEFINED):
@@ -472,8 +482,21 @@ class Imager(object):
         """
         
         # primitive radiance calculation, later consider pyshdom:
-        self._radiance = None # reach the imager
-        self._LTOS = None # irradiance on the top of Atmosphere.
+        self._radiance = None # It is the I_lambda, the radiance that reach the imager per wavelength.
+        """
+        We can calculate I_lambda for wavelengths range since the calculation of pixel responce to light requires 
+        an integral over solar spectral band. Thus RT simulations should be applied multiple times to calculated.
+        But we there is an alternative:
+        An alternative way is to use spectrally-averaged quantities, it is valid when wavelength dependencies within a
+        spectral band are weak (e.g. in narrow band and absence absorption within the band).
+        This alternative uses only one run of RT simulation per spectral band.
+        So here, we define self.of_unity_flux_radiance. It is the radiance at the lens which calculated with RT 
+        simulation when the solar irradiance at the TOA is 1 [W/m^2] and the spectrally-dependent parameters of the atmospheric model are spectrally-averaged.
+        
+        """
+        
+        self._of_unity_flux_radiance = None
+        self._LTOA = None # irradiance on the top of Atmosphere.
     
     def update_minimum_lens_diameter(self):
         """
@@ -549,7 +572,7 @@ class Imager(object):
         To model the irradiance at a certain time of the day, we must
         multiple the irradiance at TOA by the cosine of the Sun zenith angle, it is also known as
         solar zenith angle (SZA) (1). Thus, the solar spectral irradiance at The TOA at
-        a certain time is, self._LTOS = self._LTOS*cos(180-sun_zenith)
+        a certain time is, self._LTOA = self._LTOA*cos(180-sun_zenith)
             
         input:
         val - is the zenith angle: float,
@@ -557,8 +580,49 @@ class Imager(object):
         """
         assert 90.0 < val <= 180.0, 'Solar zenith:{} is not in range (90, 180] (photon direction in degrees)'.format(val)
         Cosain = np.cos(np.deg2rad((180-val)))
-        self._LTOS = self._LTOS * Cosain
+        self._LTOA = self._LTOA * Cosain
         
+    
+    def render_scene_radiance_from_unity_solar_irradiance(self,sensor=None, projection=None,rte_solver = None, n_jobs=1):
+        """
+        This method will render the radiance that reache the lens where pyshdom simulate that radiance considering
+        solar flux of 1 [W/m^2] and spectrally-dependent parameters of the atmospheric model are spectrally-averaged.
+        
+        Currently, this method soupport only sensor of type shdom.RadianceSensor()
+        Parameters
+        ----------
+        sensor: shdom.Sensor
+            A sensor object
+        projection: shdom.Projection
+            A projection geometry
+        rte_solver: shdom.RteSolver object
+            The RteSolver with the precomputed radiative transfer solution (RteSolver.solve method).  
+            It can be just a rte_solver or if the rendering is for several atmospheres (e.g. multi-spectral rendering),
+            It is shdom.RteSolverArray. The camera.render(rte_solver) takes care of the distribution of the rendering to one solver or more.
+        n_jobs: int
+            how many cores will be used in the backpropogation to gather the radiance from the scene.    
+        """
+        
+        assert sensor is not None, "You must provied the sensor."
+        assert projection is not None, "You must provied the projections."
+        assert isinstance(sensor, shdom.sensor.RadianceSensor), "Currently, the measurments supports only sensor of type shdom.sensor.RadianceSensor"
+        assert rte_solver is not None, "You must provied the rte_solver/s."
+
+        print('The radiance is beeing updated for centeral_wavelength of {}nm.\n'.format(self._centeral_wavelength))
+        camera = shdom.Camera(sensor, projection)
+        # render all:
+        images = camera.render(rte_solver, n_jobs=n_jobs)
+        
+        # waht to do with the images??????????
+        
+        
+    def update_scene_radiance_from_unity_solar_irradiance(self,val):
+        """
+        This method will update the radiance that reache the lens where the simulation of that radiance considered
+        solar flux of 1 [W/m^2] and spectrally-dependent parameters of the atmospheric model are spectrally-averaged.
+        
+        """
+        self._of_unity_flux_radiance = val
         
     def calculate_scene_radiance(self,rho=0.1,TYPE = 'simple'):
         """
@@ -571,12 +635,12 @@ class Imager(object):
         
         """
         if(TYPE is 'simple'):
-            self._LTOS = 6.8e-5*1e-9*shdom.plank(1e-9*self._lambdas) # units fo W/(m^2 nm)
+            self._LTOA = 6.8e-5*1e-9*shdom.plank(1e-9*self._lambdas) # units fo W/(m^2 nm)
             # I am assuming a solid angle of 6.8e-5 steradian for the source (the solar disk).
-            self._radiance = (rho*self._LTOS)/np.pi # it is of units W/(m^2 st nm)
+            self._radiance = (rho*self._LTOA)/np.pi # it is of units W/(m^2 st nm)
         
         elif(TYPE is 'SHDOM'):
-            self._LTOS = 6.8e-5*1e-9*shdom.plank(1e-9*self._lambdas) # units fo W/(m^2 nm)
+            self._LTOA = 6.8e-5*1e-9*shdom.plank(1e-9*self._lambdas) # units fo W/(m^2 nm)
             # I am assuming a solid angle of 6.8e-5 steradian for the source (the solar disk).
             self._radiance = None # it is of units W/(m^2 st nm), in this case it will be set after the pyshdom rendering.
                 
@@ -590,9 +654,9 @@ class Imager(object):
         Shows the irradiance at the TOA:
         """
         f, ax = plt.subplots(1, 1, figsize=(8, 8))
-        plt.plot(self._lambdas,1000*self._LTOS ,label='black body radiation W/(m^2 um)')
+        plt.plot(self._lambdas,1000*self._LTOA ,label='black body radiation W/(m^2 um)')
         
-        plt.ylim([0 ,1.1*max(1000*self._LTOS)])
+        plt.ylim([0 ,1.1*max(1000*self._LTOA)])
         plt.xlim(self._scene_spectrum)
         
         plt.xlabel('wavelength [nm]', fontsize=16)
@@ -606,7 +670,7 @@ class Imager(object):
     def show_scene_radiance(self, IFADD_IRRADIANCE = False):
         f, ax = plt.subplots(1, 1, figsize=(8, 8))
         if(IFADD_IRRADIANCE):
-            plt.plot(self._lambdas,1000*self._LTOS ,label='black body radiation W/(m^2 um)')
+            plt.plot(self._lambdas,1000*self._LTOA ,label='black body radiation W/(m^2 um)')
         
         plt.plot(self._lambdas,1000*self._radiance,label='rediance on the lens W/(m^2 st um)')
         
@@ -654,6 +718,31 @@ class Imager(object):
         """
         self._adjust_spectrum()      
         
+    
+    def update_sensor_resolution(self,nx,ny):
+        """
+        Set/update the new resolution of an Imager. It can be done for instance, if the simulated resolutuion is smaller than the resolution from a spec.
+        TODO - Be carfule here, this method doesn't update any other parameters.
+        """
+        self._sensor.sensor_size = np.array([nx,ny])
+        
+        # camera FOV:
+        
+        self._camera_footprint = 1e-3*(self._H*self._sensor.sensor_size)/self._lens._FOCAL_LENGTH #km
+        # here self._camera_footprint is a np.array with 2 elements, relative to [H,W]. Which element to take?
+        # currently I take the minimal volue:
+        self._camera_footprint = min(self._camera_footprint)
+        
+        # Let self._camera_footprint be the footprint of the camera at nadir view in x axis. The field of view of the camera in radians is,
+        self._FOV = 2*np.arctan(self._camera_footprint/2*self._H)        
+        
+    
+    def get_sensor_resolution(self):
+        """
+        Just get the [nx,ny] of the Imager's sensor.
+        """
+        return self._sensor.sensor_size
+    
         
     def _adjust_spectrum(self):
         """
@@ -818,7 +907,14 @@ class Imager(object):
         """
         returns the irradiance at the TOA
         """
-        return self._LTOS
+        return self._LTOA
+    
+    @property 
+    def FOV(self):
+        """
+        returns the Field of view of a camera.
+        """
+        return self._FOV
     
     @classmethod
     def ImportConfig(cls,file_name = 'Imager_config.json'):
@@ -834,7 +930,7 @@ class Imager(object):
         # Define sensor:
         QE = pd.DataFrame(data={"<wavelength [nm]>":data['SPECTRUM'],'<Efficiency>':data['SENSOR_QE']},index=None)
         
-        sensor = SensorPFA(QE=QE,PIXEL_SIZE = data['PIXEL_SIZE'],
+        sensor = SensorFPA(QE=QE,PIXEL_SIZE = data['PIXEL_SIZE'],
                            FULLWELL = data['FULLWELL'],
                            CHeight = data['CHeight'],
                            CWidth = data['CWidth'],
@@ -877,7 +973,8 @@ class Imager(object):
         obj._ETA = data['SYSTEM_EFFICIENCY'] # It is the camera system efficiency, I don't know yet how to set its value, 
         obj._Imager_EFFICIANCY = obj._ETA
         
-        obj._lambdas = obj._sensor.spectrum   
+        obj._lambdas = obj._sensor.spectrum 
+        obj._centeral_wavelength = float_round(core.get_center_wavelen(obj._sensor.spectrum[0],obj._sensor.spectrum[1]))
         obj._scene_spectrum = [data['START_SPECTRUM'], data['END_SPECTRUM']]
         obj._integration_Dlambda = integration_Dlambda
         
@@ -887,7 +984,7 @@ class Imager(object):
         obj._FOV = None       
         
         obj._radiance = None
-        obj._LTOS = np.array(data['SPECTRAL_IRRADIANCE_TOA'])
+        obj._LTOA = np.array(data['SPECTRAL_IRRADIANCE_TOA'])
         
         return obj
         
@@ -915,7 +1012,7 @@ class Imager(object):
         _DICT_['SPECTRUM'] = self._lambdas.tolist() if self._lambdas is not None else None # in nm
         _DICT_['SENSOR_QE'] = self._Imager_QE.tolist() if self._Imager_QE is not None else None # to update units.
         _DICT_['SENSOR_TYPE'] = self._sensor.sensor_type
-        _DICT_['SPECTRAL_IRRADIANCE_TOA'] = self._LTOS.tolist() if self._LTOS is not None else None # in W/(m^2 st nm)
+        _DICT_['SPECTRAL_IRRADIANCE_TOA'] = self._LTOA.tolist() if self._LTOA is not None else None # in W/(m^2 st nm)
         _DICT_['LENS_DIAMETER'] = self._lens.diameter # in mm 
         _DICT_['LENS_FOCAL_LENGTH'] = self._lens.focal_length # in mm 
         T = self._Imager_EFFICIANCY/self._ETA if self._Imager_EFFICIANCY is not None else None
@@ -997,7 +1094,7 @@ if __name__ == '__main__':
     
     
     # Define sensor:
-    sensor = SensorPFA(PIXEL_SIZE = 5.5 , CHeight = 2048, CWidth = 2048, SENSOR_ID = '0',
+    sensor = SensorFPA(PIXEL_SIZE = 5.5 , CHeight = 2048, CWidth = 2048, SENSOR_ID = '0',
                      READOUT_NOISE = 100, DARK_CURRENT_NOISE = 10, BitDepth = 8)
     sensor.Load_QE_table(SENSOR_QE_CSV_FILE)    
     # Define lens:    

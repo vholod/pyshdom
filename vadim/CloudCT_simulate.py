@@ -21,18 +21,18 @@ import operator
 # -----------------------------------------------------------------
 # -----------------------------------------------------------------
 # mia table parameters:
-start_reff = 1
+start_reff = 4
 end_reff = 25.0
-start_veff = 0.05
+start_veff = 0.01
 end_veff = 0.4
 radius_cutoff = 65.0
 mie_options = {
     'start_reff': start_reff,# Starting effective radius [Micron]
     'end_reff': end_reff,
-    'num_reff': int((end_reff-start_reff)/0.25 + 1),
+    'num_reff': 100,
     'start_veff': start_veff,
     'end_veff': end_veff,
-    'num_veff': int((end_veff-start_veff)/0.003 + 1),
+    'num_veff': 117,
     'radius_cutoff': radius_cutoff # The cutoff radius for the pdf averaging [Micron]
 }
 
@@ -281,6 +281,7 @@ if(DOFORWARD):
     The method CloudCT_VIEWS.update_measurements(...) takes care of the rendering and updating the measurments.
     """
     CloudCT_VIEWS.update_measurements(sensor=shdom.RadianceSensor(), projection = CloudCT_VIEWS, rte_solver = rte_solvers, n_jobs=n_jobs)
+    tested_radiance_threshold = SATS_NUMBER_SETUP*[0.023,0.02]# Threshold for the radiance to create a cloud mask.
     # see the rendered images:
     SEE_IMAGES = False
     if(SEE_IMAGES):
@@ -293,10 +294,9 @@ if(DOFORWARD):
         # --------------------------------------------------
         #  ----------------try radiance_threshold value:----
         # --------------------------------------------------
-        #radiance_threshold = 0.04 # Threshold for the radiance to create a cloud mask.
-        radiance_threshold = [0.023,0.02] # Threshold for the radiance to create a cloud mask.
+        # Threshold for the radiance to create a cloud mask.
         # Threshold is either a scalar or a list of length of measurements.
-        CloudCT_VIEWS.show_measurements(radiance_threshold=radiance_threshold,compare_for_test = False)    
+        CloudCT_VIEWS.show_measurements(radiance_threshold=tested_radiance_threshold,compare_for_test = False)    
         
         plt.show()
         
@@ -327,7 +327,11 @@ if(DOINVERSE):
     THIS_MULTI_VIEW_SETUP = USED_CAMERA.projection
     
     # ---------what to optimize----------------------------
-    radiance_threshold = [0.023,0.02] # check these values befor inverse.
+    if(isinstance(tested_radiance_threshold, list)):
+        radiance_threshold = functools.reduce(operator.add,[str(j)+" " for j in tested_radiance_threshold]).rstrip(' ') # check these values befor inverse.
+    else:
+        radiance_threshold = str(tested_radiance_threshold) # check these values befor inverse.
+    
     SEE_SETUP = False
     SEE_IMAGES = True
     MICROPHYSICS = True
@@ -717,7 +721,7 @@ if(DOINVERSE):
             # The mie_base_path is defined at the begining of this script.
             INIT_USE = ' --init '+ init
             add_rayleigh = False if CENCEL_AIR else True
-            use_forward_mask = True#False#True
+            use_forward_mask = False#False#True
             use_forward_grid = True
             if_save_gt_and_carver_masks = True
             if_save_final3d = True
@@ -754,8 +758,8 @@ if(DOINVERSE):
                 ' --n_jobs '+ str(n_jobs)+\
                 ' --loss_type '+ str(loss_type)+\
                 ' --maxls '+ str(maxls)+\
-                ' --maxiter '+ str(maxiter)
-                #' --radiance_threshold '+ str(radiance_threshold)
+                ' --maxiter '+ str(maxiter) +\
+                ' --radiance_threshold '+ radiance_threshold
             
             OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS    
             OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if (CENCEL_AIR == False) else OTHER_PARAMS
