@@ -227,6 +227,7 @@ class OptimizationScript(object):
             mask = ground_truth.get_mask(threshold=1.0)
         else:
             carver = shdom.SpaceCarver(measurements)
+            
             mask = carver.carve(grid, agreement=0.9, thresholds=self.args.radiance_threshold)
             
             # Vadim added: Save the mask3d, just for the case we want to see how good we bound the cloudy voxels.

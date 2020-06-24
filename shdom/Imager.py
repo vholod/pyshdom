@@ -251,14 +251,14 @@ class SensorFPA(object):
     @property
     def sensor_size(self):   
         """
-        Retunrs the sensor size. it is np.array with 2 elements relative to [H,W] = [nx,ny]
+        Retunrs the sensor size. it is np.array with 2 elements relative to [H,W]
         """
         return self._SENSOR_SIZE
     
     @sensor_size.setter
     def sensor_size(self,val):   
         """
-        Set the sensor size. it is np.array with 2 elements relative to [H,W] = [nx,ny]
+        Set the sensor size. it is np.array with 2 elements relative to [H,W]
         """
         self._SENSOR_SIZE = val  
 
@@ -436,6 +436,7 @@ class Imager(object):
             
             
         self._scene_spectrum = scene_spectrum
+        self._scene_spectrum_in_microns = [float_round(1e-3*w) for w in self._scene_spectrum]
         self._integration_Dlambda = integration_Dlambda
         if(self._scene_spectrum is not None):
             integration_Dlambda = self._integration_Dlambda
@@ -444,10 +445,13 @@ class Imager(object):
             step = integration_Dlambda # nm
             self._lambdas = np.linspace(start, stop, int(((stop-start)/step) + 1)) 
             self._centeral_wavelength = float_round(core.get_center_wavelen(start,stop))
+            self._centeral_wavelength_in_microns = float_round(core.get_center_wavelen(self._scene_spectrum_in_microns[0],self._scene_spectrum_in_microns[1]))
             # self._centeral_wavelength will be relevant when we use spectrally-averaged atmospheric parameters.
         else:
             self._lambdas = None
             self._centeral_wavelength = None
+            self._centeral_wavelength_in_microns = None
+            # The self._centeral_wavelength_in_microns can be different from 1e-3*self._centeral_wavelength since the core.get_center_wavelen function depends on the order of the spectrum values.
         
         
         if(self._LENS_DEFINED and self._SENSOR_DEFINED):
@@ -582,40 +586,7 @@ class Imager(object):
         Cosain = np.cos(np.deg2rad((180-val)))
         self._LTOA = self._LTOA * Cosain
         
-    
-    def render_scene_radiance_from_unity_solar_irradiance(self,sensor=None, projection=None,rte_solver = None, n_jobs=1):
-        """
-        This method will render the radiance that reache the lens where pyshdom simulate that radiance considering
-        solar flux of 1 [W/m^2] and spectrally-dependent parameters of the atmospheric model are spectrally-averaged.
-        
-        Currently, this method soupport only sensor of type shdom.RadianceSensor()
-        Parameters
-        ----------
-        sensor: shdom.Sensor
-            A sensor object
-        projection: shdom.Projection
-            A projection geometry
-        rte_solver: shdom.RteSolver object
-            The RteSolver with the precomputed radiative transfer solution (RteSolver.solve method).  
-            It can be just a rte_solver or if the rendering is for several atmospheres (e.g. multi-spectral rendering),
-            It is shdom.RteSolverArray. The camera.render(rte_solver) takes care of the distribution of the rendering to one solver or more.
-        n_jobs: int
-            how many cores will be used in the backpropogation to gather the radiance from the scene.    
-        """
-        
-        assert sensor is not None, "You must provied the sensor."
-        assert projection is not None, "You must provied the projections."
-        assert isinstance(sensor, shdom.sensor.RadianceSensor), "Currently, the measurments supports only sensor of type shdom.sensor.RadianceSensor"
-        assert rte_solver is not None, "You must provied the rte_solver/s."
 
-        print('The radiance is beeing updated for centeral_wavelength of {}nm.\n'.format(self._centeral_wavelength))
-        camera = shdom.Camera(sensor, projection)
-        # render all:
-        images = camera.render(rte_solver, n_jobs=n_jobs)
-        
-        # waht to do with the images??????????
-        
-        
     def update_scene_radiance_from_unity_solar_irradiance(self,val):
         """
         This method will update the radiance that reache the lens where the simulation of that radiance considered
@@ -719,29 +690,29 @@ class Imager(object):
         self._adjust_spectrum()      
         
     
-    def update_sensor_resolution(self,nx,ny):
+    def update_sensor_size_with_number_of_pixels(self,nx,ny):
         """
-        Set/update the new resolution of an Imager. It can be done for instance, if the simulated resolutuion is smaller than the resolution from a spec.
+        Set/update the sensor size by using new [nx,ny] resolution of an Imager. It can be done for instance, if the simulated resolution is smaller than the resolution from a spec.
         TODO - Be carfule here, this method doesn't update any other parameters.
         """
-        self._sensor.sensor_size = np.array([nx,ny])
+        self._sensor.sensor_size = np.array([nx,ny])*self._sensor.pixel_size
         
         # camera FOV:
         
         self._camera_footprint = 1e-3*(self._H*self._sensor.sensor_size)/self._lens._FOCAL_LENGTH #km
         # here self._camera_footprint is a np.array with 2 elements, relative to [H,W]. Which element to take?
         # currently I take the minimal volue:
-        self._camera_footprint = min(self._camera_footprint)
+        self._camera_footprint = max(self._camera_footprint)
         
         # Let self._camera_footprint be the footprint of the camera at nadir view in x axis. The field of view of the camera in radians is,
-        self._FOV = 2*np.arctan(self._camera_footprint/2*self._H)        
+        self._FOV = 2*np.arctan(self._camera_footprint/(2*self._H))        
         
     
     def get_sensor_resolution(self):
         """
         Just get the [nx,ny] of the Imager's sensor.
         """
-        return self._sensor.sensor_size
+        return [int(i/self._sensor.pixel_size) for i in self._sensor.sensor_size]
     
         
     def _adjust_spectrum(self):
@@ -833,7 +804,7 @@ class Imager(object):
         self._camera_footprint = 1e-3*(self._H*self._sensor.sensor_size)/self._lens._FOCAL_LENGTH #km
         # here self._camera_footprint is a np.array with 2 elements, relative to [H,W]. Which element to take?
         # currently I take the minimal volue:
-        self._camera_footprint = min(self._camera_footprint)
+        self._camera_footprint = max(self._camera_footprint)
         
         # bound the exposure time:
         # Let self._orbital_speed be the speed of the satellites. To avoid motion blur, it is important that:
@@ -865,7 +836,7 @@ class Imager(object):
         self._camera_footprint = 1e-3*(self._H*self._sensor.sensor_size)/self._lens._FOCAL_LENGTH #km
         # here self._camera_footprint is a np.array with 2 elements, relative to [H,W]. Which element to take?
         # currently I take the minimal volue:
-        self._camera_footprint = min(self._camera_footprint)
+        self._camera_footprint = max(self._camera_footprint)
         
         
         
@@ -890,6 +861,11 @@ class Imager(object):
     def max_esposure_time(self):
         return self._max_esposure_time
     
+    
+    @property 
+    def centeral_wavelength_in_microns(self):
+        return self._centeral_wavelength_in_microns
+
     @property 
     def scene_spectrum(self):
         return self._scene_spectrum
@@ -914,7 +890,7 @@ class Imager(object):
         """
         returns the Field of view of a camera.
         """
-        return self._FOV
+        return self._FOV # be carfule, it is in radiance.
     
     @classmethod
     def ImportConfig(cls,file_name = 'Imager_config.json'):
@@ -974,8 +950,10 @@ class Imager(object):
         obj._Imager_EFFICIANCY = obj._ETA
         
         obj._lambdas = obj._sensor.spectrum 
-        obj._centeral_wavelength = float_round(core.get_center_wavelen(obj._sensor.spectrum[0],obj._sensor.spectrum[1]))
         obj._scene_spectrum = [data['START_SPECTRUM'], data['END_SPECTRUM']]
+        obj._scene_spectrum_in_microns = [float_round(1e-3*w) for w in obj._scene_spectrum]
+        obj._centeral_wavelength = float_round(core.get_center_wavelen(obj._scene_spectrum[0],obj._scene_spectrum[1]))   
+        obj._centeral_wavelength_in_microns = float_round(core.get_center_wavelen(obj._scene_spectrum_in_microns[0],obj._scene_spectrum_in_microns[1]))
         obj._integration_Dlambda = integration_Dlambda
         
         obj._H = None 
@@ -988,6 +966,12 @@ class Imager(object):
         
         return obj
         
+    def short_description(self):
+        
+        """
+        returns a string with a short description of the Imager
+        """
+        return self._sensor.sensor_type
         
     def ExportConfig(self,file_name = 'Imager_config.json'):
         """

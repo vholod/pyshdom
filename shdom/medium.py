@@ -407,6 +407,9 @@ class MicrophysicalScatterer(Scatterer):
         np.savetxt(f, X=np.concatenate((np.array([self.grid.dx, self.grid.dy]), self.grid.z)).reshape(1,-1), fmt='%2.3f')
         y, x, z = np.meshgrid(range(self.grid.ny), range(self.grid.nx), range(self.grid.nz))
         data = np.vstack((x.ravel(), y.ravel(), z.ravel(), self.lwc.data.ravel(), self.reff.data.ravel(), self.veff.data.ravel())).T
+        # Delete unnecessary rows e.g. zeros in lwc
+        mask = self.lwc.data.ravel() > 0
+        data = data[mask,...]        
         np.savetxt(f, X=data, fmt='%d %d %d %.5f %.3f %.5f')        
         f.close()
         
