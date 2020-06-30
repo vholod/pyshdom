@@ -15,7 +15,7 @@ import glob
 import functools  
 # importing operator for operator functions 
 import operator 
-
+import pickle
 
 # -----------------------------------------------------------------
 # ------------------------THE CLASSES BELOW------------------------
@@ -36,52 +36,65 @@ class SpaceMultiView_Measurements(object):
          """
         assert setup_of_views_list is not None, "You must provied the lisst of setup views."
         self._setup_of_views_list = setup_of_views_list
-        self._rte_solvers = None
         print("Before the simulation of the measurments don\'t forgate to conect an rte solver to the instance.")
-        self._imagers_unique_wavelengths_list = [float_round(w.imager.centeral_wavelength_in_microns) for w in self._setup_of_views_list]
-        self._solvers_unique_wavelengths_list = None
+        self._imagers_unique_wavelengths_list = [float_round(w.imager.centeral_wavelength_in_microns) for w in self._setup_of_views_list] # Actualy the list may be not uniqe if for instance 2 imagers have the same centeral wavelength. 
         # wavelengths in microns.
         self._Images_per_imager = None
+        self._Radiances_per_imager = None
         
-    def connect_to_rte_solvers(self,rte_solvers):
+        self._sensor_type = None # Currently, it sopports only sensor of type shdom.RadianceSensor().
+        self._shdom_sensor = None
+        # TODO - consider stocks sensor in the future.
+        
+        
+    def simulate_measurements(self,rte_solvers = None,n_jobs = 1, IF_APPLY_NOISE = False, IF_SCALE_IDEALLY=False, IF_REDUCE_EXPOSURE=False):
         """
-        This method conect the class to rte_solvers object.
-        The rte_solvers can be just a rte_solver if the imagers have the same central wavelenght.
+        This method renders the images and update the measurements.
+        It aslo gets the rte_solvers object. The rte_solvers can be just a rte_solver if the imagers have the same central wavelenght.
         In that case, one rte_solver that used one wavelength should be enough.   
-        Parameters:
+        
+        Currently, this method sopports only sensor of type shdom.RadianceSensor().
+        TODO - add stocks sensor in the future.
+        Parameters
+        ----------
         Input:
         rte_solver: shdom.RteSolver object
             The RteSolver with the precomputed radiative transfer solution (RteSolver.solve method).  
             It can be just a rte_solver or if the rendering is for several atmospheres (e.g. multi-spectral rendering),
             It is shdom.RteSolverArray. The camera.render(rte_solver) takes care of the distribution of the rendering to one solver or more.
-        
-        """
-        if isinstance(rte_solvers, shdom.RteSolverArray):
-            self._rte_solvers = rte_solvers
-            self._solvers_unique_wavelengths_list = self._rte_solvers.wavelength
-        else:
-            self._rte_solvers = [rte_solvers]
-            self._solvers_unique_wavelengths_list = [self._rte_solvers[0].wavelength]
-            
-        
-    
-    def simulate_measurements(self,n_jobs = 1):
-        """
-        This method renders the images and update the measurements.
-        Currently, this method sopports only sensor of type shdom.RadianceSensor().
-        TODO - add stocks sensot in the future.
-        Parameters
-        ----------
+
         n_jobs: int
             How many cores will be used in the backpropogation to gather the radiance from the scene.
-        """        
         
+        IF_APPLY_NOISE - bool, if it is True, apply noise.
+        
+        IF_SCALE_IDEALLY - bool, if it is True, ignore imager parameters that plays in the convertion of
+        radiance to electrons. It may be used just for simulations of ideal senarios or debug.
+        
+        IF_REDUCE_EXPOSURE - bool, if it is True, it redusec the exposure time or does not change the exposure time.
+        It reduces the exposure time the current exposure time makes saturation e.g. reaches full well.
+        It does not change the exposure time if the current exposure time does not makes saturation.
+        
+        
+        """ 
+        if isinstance(rte_solvers, shdom.RteSolverArray):
+            solvers_unique_wavelengths_list = rte_solvers.wavelength
+        else:
+            rte_solvers = [rte_solvers]
+            solvers_unique_wavelengths_list = [rte_solvers[0].wavelength]
+
+                    
+        if(IF_SCALE_IDEALLY):# protection from user confussion.
+            IF_REDUCE_EXPOSURE = False
+            
         sensor=shdom.RadianceSensor()# Currently, this method sopports only sensor of type shdom.RadianceSensor().
+        self._sensor_type = sensor.type
         
         # Separate solvers by wavelenghts:
-        assert self._rte_solvers is not None, "You must provied the rte_solver/s by a method conect_to_rte_solvers."
-        Solvers_dict = dict(zip(self._solvers_unique_wavelengths_list, self._rte_solvers))
+        assert rte_solvers is not None, "You must provied the rte_solver/s."
+        Solvers_dict = dict(zip(solvers_unique_wavelengths_list, rte_solvers))
         self._Images_per_imager = OrderedDict()
+        self._Radiances_per_imager = OrderedDict()
         
         # Meanwhile use regular pyshdoms rendering to minimaize mess in the rendering refactoring.
         for wavelength in Solvers_dict.keys():
@@ -98,12 +111,21 @@ class SpaceMultiView_Measurements(object):
             print('The rendering is beeing done for centeral_wavelength of {}nm.\n'.format(wavelength))
             camera = shdom.Camera(sensor, projections)
             # render all view per wavelength:
-            self._Images_per_imager[imager_index] = camera.render(rte_solver, n_jobs=n_jobs)   
-            
+            self._Radiances_per_imager[imager_index] = camera.render(rte_solver, n_jobs=n_jobs)   
             # TODO - Scale the images such that it will be in grayscales   
             # Here the regular pyshdoms rendering is finished, now we scale the images with respect to the imager properties:
             # The images are images of radiaces. 
-            # convert radiance to electrons:
+            # Convert radiance to electrons to grayscale:
+            images_list_per_imager = self._Radiances_per_imager[imager_index].copy()
+            if(not isinstance(images_list_per_imager, list)):
+                images_list_per_imager = [images_list_per_imager]
+              
+            if(IF_REDUCE_EXPOSURE):
+                projections.imager.adjust_exposure_time(images_list_per_imager)
+                 
+            self._Images_per_imager[imager_index] = projections.imager.convert_radiance_to_graylevel(images_list_per_imager,IF_APPLY_NOISE=IF_APPLY_NOISE)
+            # TODO - delete the below line:
+            self._Images_per_imager[imager_index] = images_list_per_imager
             
         
     
@@ -129,7 +151,8 @@ class SpaceMultiView_Measurements(object):
             images = self._Images_per_imager[imager_index].copy()
             # calculate images maximum:
             images_array = np.array(images)
-            MAXI = images_array.max()
+            #MAXI = images_array.max()
+            MAXI = projections.imager.get_gray_lavel_maximum()
             
             if(nrows_ncols[0] == 1):
                 nrows_ncols[1] = min(nrows_ncols[1],projections.num_projections)
@@ -174,10 +197,72 @@ class SpaceMultiView_Measurements(object):
                 cbar = grid.cbar_axes[0].colorbar(im)
                 fig.suptitle(title, size=16,y=0.95)        
             
+
+    def save(self, path):
+        """
+        Save SpaceMultiView_Measurements to file.
+    
+        Parameters
+        ----------
+        path: str,
+            Full path to file. 
+        """
+        file = open(path, 'wb')
+        file.write(pickle.dumps(self, -1))
+        file.close()
+          
+    def load(self, path):
+        """
+        Load SpaceMultiView_Measurements from file.
+
+        Parameters
+        ----------
+        path: str,
+            Full path to file. 
+        """        
+        file = open(path, 'rb')
+        data = file.read()
+        file.close()
+        self.__dict__ = pickle.loads(data)
         
+      
+      
+    @property   
+    def setup(self):
+        return self._setup_of_views_list
+    
+    
+    @property   
+    def images(self):
+        return self._Images_per_imager 
+    
+    @property
+    def sensor_type(self):
+        return self._sensor_type    
+ 
+    @property
+    def shdom_sensor(self):
+        return self._shdom_sensor
+    
+    @property
+    def num_channels(self):
+        """
+        It is the number of wavelengths or bands used in the setup.
+        In some way it is the number of channels used in the whole setup. In addition, to be similar to original pyshdom, we call this as num_channels.
+        """
+        return len(self._imagers_unique_wavelengths_list)
+    
+    def get_channels_of_imagers(self):
+        """
+        TODO
+        """
+        return self._imagers_unique_wavelengths_list
+# -------------------------------------------------------------------------------------------------------------------
+
 class SpaceMultiView(shdom.MultiViewProjection):
     """
-    Inherent from pyshdom MultiViewProjection. We will use the Perspective projection
+    Inherent from pyshdom MultiViewProjection. We will use the Perspective projection.
+    It encapsulates the geometry of the setup and the imager which is used in the same setup. Only one imager can be used here. Thus SpaceMultiView object, should be defined per imager.
     """
     def __init__(self, imager = None,Imager_config=None):
         super().__init__()
@@ -188,7 +273,8 @@ class SpaceMultiView(shdom.MultiViewProjection):
         self._unique_wavelengths_list =  None # if the cameras have different wavelenrgths, this list will have all existing wavelengths. In the bottom line, the rte_solvers depend on that list.
         self._IMAGES_DICT = None
         self._imager = imager
-        
+        self._num_channels = 1 # number of channels per the self._imager 
+        # TODO- consider to use num_channels>1 per one imager.
         self._Imager_config = Imager_config       
         
         # TODO - to inplement later:
@@ -257,197 +343,18 @@ class SpaceMultiView(shdom.MultiViewProjection):
         User interface to find rigth treshols for the cloud masking (and at the ens Space Carving).
         
         """
-        #from matplotlib.widgets import Slider, Button
-        #projection_names = self.projection_names
-        ## A Measurements object bundles together the imaging geometry and sensor measurements for later optimization.
-        #USED_CAMERAS = self._measurements.camera
-        #RENDERED_IMAGES = self._measurements.images    
-        #images_array = np.array(RENDERED_IMAGES)
-        ## calculate images maximum:
-        #MAXI = images_array.max()
         
-        ## currently all the cameras identicle:
-        #SATS_NUMBER_SETUP = len(RENDERED_IMAGES)
         pass
         
-                
-        
-        
-    def show_measurements(self,radiance_threshold=None,compare_for_test = False):
-        """
-        show images per all wavelengths.
-        use compare_for_test - True if you want to compare the renderings to insure they are nut the same 
-        for all wavelengths.
-        """
-        projection_names = self.projection_names
-        # A Measurements object bundles together the imaging geometry and sensor measurements for later optimization.
-        USED_CAMERAS = self._measurements.camera
-        RENDERED_IMAGES = self._measurements.images    
-        images_array = np.array(RENDERED_IMAGES)
-        # calculate images maximum:
-        MAXI = images_array.max()
-        
-        # currently all the cameras identicle:
-        SATS_NUMBER_SETUP = len(RENDERED_IMAGES)
-        
-        # loop over all existing wavelengths:
-        for WI, wavelength in enumerate(self._unique_wavelengths_list):
-                
-            # PLOT one plot per wavelength:
-            # todo for on wavelengths
-            fig = plt.figure(figsize=(20, 20))
-            grid = AxesGrid(fig, 111,
-                            nrows_ncols=(2, int(round(np.ceil(SATS_NUMBER_SETUP/2)))),
-                            axes_pad=0.3,
-                            cbar_mode='single',
-                            cbar_location='right',
-                            cbar_pad=0.1
-                            )  
             
-            for ax, name in zip(grid, projection_names):
-                image = self._IMAGES_DICT[name][wavelength].copy()
-                if(radiance_threshold is not None):
-                    if(isinstance(radiance_threshold, list)):
-                        image[image<=radiance_threshold[WI]] = 0
-                    else: 
-                        image[image<=radiance_threshold] = 0
-                    
-                ax.set_axis_off()
-                im = ax.imshow(image,cmap='gray',vmin=0, vmax=MAXI)
-                ax.set_title("{}".format(name))
-                
-            # Since currently the cameras are identicale, nx = self._nx_list[0], the same for ny.
-            nx = self._nx_list[0]
-            ny = self._ny_list[0]
-            title = "$\lambda$={}nm , nx={} , ny={}".format(int(1e3*wavelength),nx,ny)
-            cbar = ax.cax.colorbar(im)
-            cbar = grid.cbar_axes[0].colorbar(im)
-            fig.suptitle(title, size=16,y=0.95)
-            
-        if(compare_for_test and len(self._unique_wavelengths_list)>1):
-            from mpl_toolkits.axes_grid1 import make_axes_locatable
-            for sat_index, (sat_name,wavelengths_per_sat) in enumerate(zip(self.projection_names,self._wavelengths_list)):
-                if(not sat_index == 6):
-                    continue
-                fig, grid = plt.subplots(1, len(wavelengths_per_sat), figsize=(15, 15))    
-                fig.suptitle("Compare to images of {}".format(sat_name), size=16,y=0.85)  
-                colors = ['r','g','b','k','m','c']
-                colors = colors[:len(wavelengths_per_sat)]
-                for color, main_ax , wavelength in zip(colors,grid, wavelengths_per_sat):
-                    divider = make_axes_locatable(main_ax)
-                    bottom_ax = divider.append_axes("bottom", 2.05, pad=0.7,sharex=main_ax)                    
-                    bottom_ax.xaxis.set_tick_params(labelbottom=False)
-                    main_ax.axis('off')
-                    
-                    bottom_ax.set_ylabel('cross section')
-                    title = "$\lambda$={}nm".format(int(1e3*wavelength))
-                    main_ax.set_title(title)  
-                    
-                    cur_x = 30#int(0.5*self._nx_list[sat_index])  
-                    cur_y = 25#int(0.5*self._ny_list[sat_index])  
-                    image = self._IMAGES_DICT[sat_name][wavelength]
-                    im = main_ax.imshow(image,cmap='gray',vmin=0, vmax=MAXI)
-                    
-                    main_ax.autoscale(enable=True)
-                    bottom_ax.autoscale(enable=False)
-                    if(wavelength == 1.6):
-                        v_line = main_ax.axvline(cur_x, color='r',linestyle = '--')
-                        h_line = main_ax.axhline(cur_y, color='g',linestyle = '--')
-                        
-                        bottom_ax.plot(np.arange(image.shape[0]), image[int(cur_y),:], color='r',linestyle = '--')
-                        bottom_ax.set_title('horizontal')
-                        
-                        bottom_ax.set_title('vertical')                        
-                    else:
-                        v_line = main_ax.axvline(cur_x, color='r')
-                        h_line = main_ax.axhline(cur_y, color='g')
-                        
-                        bottom_ax.plot(np.arange(image.shape[0]), image[int(cur_y),:], color='r')
-                        bottom_ax.set_title('horizontal')
-                        
-                        bottom_ax.set_title('vertical')
-                        
-                    bottom_ax.set_ylim(top=MAXI)
-                    bottom_ax.autoscale(enable=False)
-                    
-                cb_ax = fig.add_axes([0.93, 0.41, 0.02, 0.3])
-                cbar = fig.colorbar(im, cax=cb_ax)                
-            
-            
-            
-    def add_noise(self):
+    def add_orientation_noise(self):
         """
         IMPORTANT:
-        Later on, We need to add niose to the measurements
-        we can do it here, like: 
-        measurements = noise.apply(measurements)
+        Later on, We need to add noise on the pointing of the satellites.
         """              
         pass
         
-    def update_measurements(self,sensor=None ,rte_solver = None, n_jobs=1):
-          
-        """
-        This method renders the images and update the measurements.
-        Currently, this method sopports only sensor of type shdom.RadianceSensor()
-        Parameters
-        ----------
-        sensor: shdom.Sensor
-            A sensor object
-        rte_solver: shdom.RteSolver object
-            The RteSolver with the precomputed radiative transfer solution (RteSolver.solve method).  
-            It can be just a rte_solver or if the rendering is for several atmospheres (e.g. multi-spectral rendering),
-            It is shdom.RteSolverArray. The camera.render(rte_solver) takes care of the distribution of the rendering to one solver or more.
-        n_jobs: int
-            how many cores will be used in the backpropogation to gather the radiance from the scene.
-        """
-        if(not isinstance(rte_solver.wavelength, list)):
-            self._unique_wavelengths_list = [rte_solver.wavelength]
-        else:
-            self._unique_wavelengths_list = rte_solver.wavelength
-            
-        assert sensor is not None, "You must provied the sensor."
-        assert isinstance(sensor, shdom.sensor.RadianceSensor), "Currently, the measurments supports only sensor of type shdom.sensor.RadianceSensor"
-        assert rte_solver is not None, "You must provied the rte_solver/s."
-        
-        camera = shdom.Camera(sensor, self)
-        # render all:
-        images = camera.render(rte_solver, n_jobs=n_jobs)
-        # put the images in Measurements object:
-        measurements = shdom.Measurements(camera, images=images, wavelength=rte_solver.wavelength)
-        self._measurements = measurements
-        """
-        Here I want to seperate images for different view, wavelength and resolution:
-        The variable images has the rendered images for every projection in the list.
-        Size of images:
-         -The length of images is the number of projections.
-         -Each element in images has a matrix with (nx*ny*#wavelengths).
-         -The list of all existing wavelengths recorded in self._unique_wavelengths_list.
-          All the wavelengths in self._unique_wavelengths_list, have its renderings.
-         -Generaly, the lists rte_solver.wavelength and self._unique_wavelengths_list have the same elements.
-        """
-        #IMAGES_DICT = OrderedDict()
-        ## loop over satellites:
-        #for sat_index, (image,sat_name,wavelengths_per_sat) in enumerate(zip(images,self.projection_names,self._wavelengths_list)):
-            #WS_DICT = OrderedDict()
-            ## loop over wavelengths of the setup, WI index of a wavelength:
-            #if(isinstance(rte_solver.wavelength, list)):
-                
-                #for WI, wavelength in enumerate(rte_solver.wavelength):
-                    #if(wavelength in wavelengths_per_sat):
-                        #WS_DICT[wavelength] = image[:,:,WI]
-                    #else:
-                        #WS_DICT[wavelength] = np.zeros(self._nx_list[sat_index],self._ny_list[sat_index]) # zerow image
-                
-                #IMAGES_DICT[sat_name] = WS_DICT
-            #else:
-                #WS_DICT = OrderedDict()
-                #WS_DICT[rte_solver.wavelength] = image
-                #IMAGES_DICT[sat_name] = WS_DICT
-                ## if rte_solvers.wavelength =  scalar
-                
-        #self._IMAGES_DICT = IMAGES_DICT
-        return images
-        
+
     def show_setup(self,scale = 0.6,axisWidth = 3.0,axisLenght=1.0, FullCone = False):
         """
         Show all the views:
@@ -482,16 +389,15 @@ class SpaceMultiView(shdom.MultiViewProjection):
     @property
     def projection_names(self):
         return self._names  
-    
-    
-    @property
-    def measurements(self):
-        return self._measurements   
+       
     
     @property
     def imager(self):
         return self._imager
     
+    @property
+    def num_channels(self):
+        return self._num_channels
 # -----------------------------------------------------------------
 # ------------------------THE CLASSES ABOVE----------------------
 # -----------------------------------------------------------------    
@@ -583,7 +489,7 @@ def Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500 ,SAT_LOOKATS=None, Imager_confi
     # Work on the Imagers configaration:
     # the list of Imagers is in the SpaceMultiView class:
 
-    MV = SpaceMultiView(imager,Imager_config) 
+    MV = SpaceMultiView(imager,Imager_config) # it is the geomerty for spesific imager
     MV.set_satellites_position_and_lookat(sat_positions,sat_lookats) # here we set only the positions and where the satellites are lookin at.   
     MV.update_views()
     
@@ -738,7 +644,26 @@ def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, MieTablesPath=None,
 # -----------------------------------------------------------------
 # ------------------------THE FUNCTIONS BELOW----------------------
 # -----------------------------------------------------------------
-
+def old_connect_to_rte_solvers(self,rte_solvers):
+    """
+    This method conect the class to rte_solvers object.
+    The rte_solvers can be just a rte_solver if the imagers have the same central wavelenght.
+    In that case, one rte_solver that used one wavelength should be enough.   
+    Parameters:
+    Input:
+    rte_solver: shdom.RteSolver object
+        The RteSolver with the precomputed radiative transfer solution (RteSolver.solve method).  
+        It can be just a rte_solver or if the rendering is for several atmospheres (e.g. multi-spectral rendering),
+        It is shdom.RteSolverArray. The camera.render(rte_solver) takes care of the distribution of the rendering to one solver or more.
+    
+    """
+    if isinstance(rte_solvers, shdom.RteSolverArray):
+        self._rte_solvers = rte_solvers
+        self._solvers_unique_wavelengths_list = self._rte_solvers.wavelength
+    else:
+        self._rte_solvers = [rte_solvers]
+        self._solvers_unique_wavelengths_list = [self._rte_solvers[0].wavelength]
+        
 
 def main():
     

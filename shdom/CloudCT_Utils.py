@@ -12,6 +12,7 @@ import functools
 # importing operator for operator functions 
 import operator 
 import re
+import pickle
 
 # -------------------------------------------------------------------------------
 # ----------------------CONSTANTS------------------------------------------
@@ -208,7 +209,93 @@ def SatSpeed(orbit = 100e3):
     # The orbital speed of the satellite using the following equation:
     # v = SQRT [ (G*M_earth ) / R ]
     V = np.sqrt((G*M_earth)/R) # units of [m/sec]
-    return V    
+    return V   
+
+def save_CloudCT_measurments_and_forward_model(directory, medium, solver, measurements):
+    """
+    Save the forward model parameters for reconstruction.
+    
+    Parameters
+    ----------
+    directory: str
+        Directory path where the forward modeling parameters are saved. 
+        If the folder doesnt exist it will be created.
+    medium: shdom.Medium object
+        The atmospheric medium. This ground-truth medium will be used for comparisons.
+    solver: shdom.RteSolver object
+        The solver and the parameters used. This includes the scene parameters (such as solar and surface parameters)
+        and the numerical parameters.
+    measurements: shdom.SpaceMultiView_Measurements
+        Contains the camera used and the measurements acquired. 
+        
+    Notes
+    -----
+    The ground-truth medium is later used for evaulation of the recovery.
+    """  
+    if not os.path.isdir(directory):
+        os.makedirs(directory)  
+    measurements.save(os.path.join(directory, 'cloudct_measurements'))
+    
+    medium.save(os.path.join(directory, 'ground_truth_medium'))
+    solver.save_params(os.path.join(directory, 'solver_parameters'))   
+
+
+def load_CloudCT_measurments_and_forward_model(directory):
+    """
+    Load the forward model parameters for reconstruction.
+    
+    Parameters
+    ----------
+    directory: str
+        Directory path where the forward modeling parameters are saved. 
+    
+    Returns
+    -------
+    medium: shdom.Medium object
+        The ground-truth atmospheric medium. 
+    solver: shdom.RteSolver object
+        The solver and the parameters used. This includes the scene parameters (such as solar and surface parameters)
+        and the numerical parameters.
+    measurements: shdom.Measurements
+        Contains the sensor used to image the mediu and the radiance measurements. 
+        
+    Notes
+    -----
+    The ground-truth medium is used for evaulation of the recovery.
+    """  
+    # Load the ground truth medium for error analysis and ground-truth known phase and albedo
+    medium_path = os.path.join(directory, 'ground_truth_medium')
+    if os.path.exists(medium_path):
+        medium = shdom.Medium()
+        medium.load(path=medium_path)   
+    else: 
+        medium = None
+        
+    # Load RteSolver according to numerical and scene parameters
+    solver_path = os.path.join(directory, 'solver_parameters')
+    if np.array(medium.wavelength).size == 1:
+        solver = shdom.RteSolver()
+    else:
+        solver = shdom.RteSolverArray()
+    if os.path.exists(solver_path):
+        solver.load_params(path=os.path.join(directory, 'solver_parameters'))   
+    
+    # Load the cloudct measurments:
+    path = os.path.join(directory, 'cloudct_measurements')
+    file = open(path, 'rb')
+    data = file.read()
+    CloudCT_measurments = pickle.loads(data)
+    
+    #CloudCT_measurments = shdom.Measurements()
+    #measurements_path = os.path.join(directory, 'measurements')
+    #assert os.path.exists(measurements_path), 'No measurements file in directory: {}'.format(directory)
+    #measurements.load(path=measurements_path)    
+    
+    
+        
+    return medium, solver, CloudCT_measurments
+
+
 # -----------------------------------------------------------------
 # ------------------------THE FUNCTIONS ABOVE----------------------
 # -----------------------------------------------------------------

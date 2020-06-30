@@ -101,7 +101,12 @@ swir_pixel_footprint, _ = swir_imager.get_footprints_at_nadir()
 vis_pixel_footprint = float_round(vis_pixel_footprint)
 swir_pixel_footprint = float_round(swir_pixel_footprint)
 
- 
+# play with temperatures:
+temp  = 15 # celsius
+swir_imager.change_temperature(temp)
+vis_imager.change_temperature(temp)
+
+
 # update solar irradince with the solar zenith angel:
 vis_imager.update_solar_angle(sun_zenith)
 swir_imager.update_solar_angle(sun_zenith)
@@ -115,9 +120,9 @@ swir_wavelegth_range = swir_imager.scene_spectrum
 vis_wavelegth_range = [float_round(1e-3*w) for w in vis_wavelegth_range]
 swir_wavelegth_range = [float_round(1e-3*w) for w in swir_wavelegth_range]
 
-# the finding of central wavelengths MUST be dose in the SAME way it is done in CloudCT utils.py.
-vis_centeral_wavelength = float_round(core.get_center_wavelen(vis_wavelegth_range[0],vis_wavelegth_range[1]))
-swir_centeral_wavelength = float_round(core.get_center_wavelen(swir_wavelegth_range[0],swir_wavelegth_range[1]))
+# central wavelengths.
+vis_centeral_wavelength = vis_imager.centeral_wavelength_in_microns
+swir_centeral_wavelength = swir_imager.centeral_wavelength_in_microns
 wavelengths_micron = [vis_centeral_wavelength, swir_centeral_wavelength]
 # wavelengths_micron will hold the vis swir wavelengths. It will be convinient to use the 
 # wavelengths_micron in some loops.
@@ -134,7 +139,8 @@ swir_mie_base_path = CALC_MIE_TABLES(MieTablesPath,
                                 swir_wavelegth_range,mie_options,wavelength_averaging=True)
 
 # where to save the forward outputs:
-forward_dir = './experiments/VIS_SWIR_NARROW_BANDS_VIS_{}-{}nm_active_sats_{}_GSD_{}m_and_SWIR__{}-{}nm_active_sats_{}_GSD_{}m_LES_cloud_field_rico_LES_cloud_field_rico'.format(vis_wavelegth_range[0],vis_wavelegth_range[1],SATS_NUMBER_SETUP,int(1e3*vis_pixel_footprint),swir_wavelegth_range[0],swir_wavelegth_range[1],SATS_NUMBER_SETUP,int(1e3*swir_pixel_footprint))
+forward_dir = './experiments/VIS_SWIR_NARROW_BANDS_VIS_{}-{}nm_active_sats_{}_GSD_{}m_and_SWIR__{}-{}nm_active_sats_{}_GSD_{}m_LES_cloud_field_rico_LES_cloud_field_rico'.\
+    format(int(1e3 *vis_wavelegth_range[0]),int(1e3 *vis_wavelegth_range[1]),SATS_NUMBER_SETUP,int(1e3*vis_pixel_footprint),int(1e3 *swir_wavelegth_range[0]),int(1e3 *swir_wavelegth_range[1]),SATS_NUMBER_SETUP,int(1e3*swir_pixel_footprint))
 
 # invers_dir, where to save evrerything that is related to invers model:
 invers_dir = forward_dir
@@ -335,17 +341,123 @@ if(DOFORWARD):
     CloudCT_measurments = CloudCT_setup.SpaceMultiView_Measurements(\
         setup_of_views_list)
     
-    CloudCT_measurments.connect_to_rte_solvers(rte_solvers)
-    CloudCT_measurments.simulate_measurements(n_jobs = n_jobs)
+    CloudCT_measurments.simulate_measurements(n_jobs = n_jobs,rte_solvers=rte_solvers,IF_REDUCE_EXPOSURE=True,IF_SCALE_IDEALLY=False,IF_APPLY_NOISE=True)
+    # The simulate_measurements() simulate images in gray levels.
+    # Now we need to save that images and be able to load that images in the inverse pipline/
+    
+    
+    # See the simulated images:
+    SEE_IMAGES = False
+    if(SEE_IMAGES):    
+        CloudCT_measurments.show_measurments()
+        plt.show()
+        
+    medium = atmosphere
+    shdom.save_CloudCT_measurments_and_forward_model(directory = forward_dir, medium = medium, solver = rte_solvers , measurements = CloudCT_measurments)
+    
+    print('DONE forwared simulation')
+    
+    
+
+# -----------------------------------------------
+# ---------SOLVE INVERSE ------------------------
+# -----------------------------------------------
+"""
+Solve inverse problem:
+"""
+if(DOINVERSE):
+    
+    # load the cloudct measurments to see the rendered images:
+    medium, solver, CloudCT_measurments = shdom.load_CloudCT_measurments_and_forward_model(forward_dir)
+    # A CloudCT Measurements object bundles together the imaging geometry and sensor measurements for later optimization.
     
     # See the simulated images:
     SEE_IMAGES = True
     if(SEE_IMAGES):    
         CloudCT_measurments.show_measurments()
         plt.show()
+        
+    # ---------what to optimize----------------------------
+        
+    # -----------------------------------------------
+    # ---------SOLVE for lwc and reff  ------------------
+    # -----------------------------------------------    
+    """
+    Estimate lwc with (what is known?):
+    1. ground truth phase function (use_forward_phase, with mie_base_path)
+    2. grid (use_forward_grid)
+    3. rayleigh scattering (add_rayleigh)
+    4. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
+
+    """
+    log_name = "rec_all_"+log_name_base
+    # -----------------------------------------------
+    # ---------------- inverse parameters:-----------
+    # -----------------------------------------------
     
-
-
+    stokes_weights = [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V].
+            
+    # Initialization and Medium parameters:
+    lwc = 0.01 # init lwc of the generator
+    reff = 12 # init reff of the generator
+    #veff = 0.15 # init veff of the generator
+    
+    # init_generator = 'Homogeneous'# it is the CloudGenerator from shdom.generate.py
+    init = 'Homogeneous'
+    # The mie_base_path is defined at the begining of this script.
+    INIT_USE = ' --init '+ init
+    add_rayleigh = False if CENCEL_AIR else True
+    use_forward_mask = True#False#True
+    use_forward_grid = True
+    if_save_gt_and_carver_masks = True
+    if_save_final3d = True
+    cloudct_use = True
+    
+    GT_USE = ''
+    GT_USE = GT_USE + ' --cloudct_use' if cloudct_use else GT_USE # -----------------                           
+    GT_USE = GT_USE + ' --use_forward_veff --lwc_scaling 15 --reff_scaling 0.01'# -----------------                       
+    GT_USE = GT_USE + ' --add_rayleigh' if add_rayleigh else GT_USE
+    GT_USE = GT_USE + ' --use_forward_mask' if use_forward_mask else GT_USE
+    GT_USE = GT_USE + ' --use_forward_grid' if use_forward_grid else GT_USE               
+    GT_USE = GT_USE + ' --save_gt_and_carver_masks' if if_save_gt_and_carver_masks else GT_USE
+    GT_USE = GT_USE + ' --save_final3d' if if_save_final3d else GT_USE
+    
+    # optimization:
+    globalopt = False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
+    maxiter = 1 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+    maxls = 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+    disp = True # Display optimization progression.
+    
+    gtol = 1e-16 # Stop criteria for the maximum projected gradient.
+    # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
+    ftol = 1e-16 # Stop criteria for the relative change in loss function.
+    # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
+    loss_type = 'l2'
+    # Different loss functions for optimization. Currently only l2 is supported.
+    
+    #-------------------------------------------------
+    # ---- start working with the above parameters:---
+    #-------------------------------------------------
+    # ' --veff ' + str(veff) +\
+    OTHER_PARAMS = ' --input_dir ' + forward_dir + \
+        ' --lwc ' + str(lwc) +\
+        ' --reff ' + str(reff) +\
+        ' --log ' + log_name +\
+        ' --n_jobs '+ str(n_jobs)+\
+        ' --loss_type '+ str(loss_type)+\
+        ' --maxls '+ str(maxls)+\
+        ' --maxiter '+ str(maxiter)
+        #' --radiance_threshold '+ str(radiance_threshold)
+    
+    OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS    
+    OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if (CENCEL_AIR == False) else OTHER_PARAMS
+    # We have: ground_truth, rte_solver, measurements.
+    SCRIPTS_PATH = '../scripts'
+    cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_microphysics_lbfgs.py')+\
+        OTHER_PARAMS + GT_USE + INIT_USE
+    
+    Optimaize1 = subprocess.call( cmd, shell=True)         
+    
 
 print('done')
 
@@ -357,45 +469,6 @@ if(0):
     
     
     
-
-    
-    if(DOFORWARD):   
-        
-        
-        """
-        Each projection in CloudCT_VIEWS is A Perspective projection (pinhole camera).
-        The method CloudCT_VIEWS.update_measurements(...) takes care of the rendering and updating the measurments.
-        """
-        CloudCT_VIEWS.update_measurements(sensor=shdom.RadianceSensor(), projection = CloudCT_VIEWS, rte_solver = rte_solvers, n_jobs=n_jobs)
-        # see the rendered images:
-        SEE_IMAGES = False
-        if(SEE_IMAGES):
-            CloudCT_VIEWS.show_measurements(compare_for_test = False)
-            # don't use the compare_for_test =  True, it is not mature enougth.
-            
-            
-            #It is a good place to pick the radiance_threshold = Threshold for the radiance to create a cloud mask.
-            #So here, we see the original images and below we will see the images after the radiance_threshold: 
-            # --------------------------------------------------
-            #  ----------------try radiance_threshold value:----
-            # --------------------------------------------------
-            #radiance_threshold = 0.04 # Threshold for the radiance to create a cloud mask.
-            radiance_threshold = [0.023,0.02] # Threshold for the radiance to create a cloud mask.
-            # Threshold is either a scalar or a list of length of measurements.
-            CloudCT_VIEWS.show_measurements(radiance_threshold=radiance_threshold,compare_for_test = False)    
-            
-            plt.show()
-            
-        
-        # -----------------------------------------------
-        # ---------SAVE EVERYTHING FOR THIS SETUP -------
-        # -----------------------------------------------
-        
-        medium = atmosphere
-        shdom.save_forward_model(forward_dir, medium, rte_solvers, CloudCT_VIEWS.measurements)
-            
-        print('DONE forwared simulation')
-    
     
     # -----------------------------------------------
     # ---------SOLVE INVERSE ------------------------
@@ -405,30 +478,8 @@ if(0):
     """
     if(DOINVERSE):
         
-        # load the measurments to see the rendered images:
-        medium, solver, measurements = shdom.load_forward_model(forward_dir)
-        # A Measurements object bundles together the imaging geometry and sensor measurements for later optimization.
-        USED_CAMERA = measurements.camera
-        RENDERED_IMAGES = measurements.images    
-        THIS_MULTI_VIEW_SETUP = USED_CAMERA.projection
         
-        # ---------what to optimize----------------------------
-        radiance_threshold = [0.023,0.02] # check these values befor inverse.
-        SEE_SETUP = False
-        SEE_IMAGES = True
-        MICROPHYSICS = True
         # ------------------------------------------------
-    
-        # show the mutli view setup if you want.
-        if(SEE_SETUP):
-            THIS_MULTI_VIEW_SETUP.show_setup(scale=scale ,axisWidth=axisWidth ,axisLenght=axisLenght,FullCone = True)
-            figh = mlab.gcf()
-            mlab.orientation_axes(figure=figh)    
-            mlab.show()    
-            
-        
-        # ----------------------------------------------------------
-        
         """
         Work with the optimization:
         """
@@ -773,85 +824,7 @@ if(0):
                 Optimaize1 = subprocess.call( cmd, shell=True)  
                 
                   
-            if(REC_all):
-                
-                # -----------------------------------------------
-                # ---------SOLVE for lwc and reff  ------------------
-                # -----------------------------------------------    
-                """
-                Estimate lwc with (what is known?):
-                1. ground truth phase function (use_forward_phase, with mie_base_path)
-                2. grid (use_forward_grid)
-                3. rayleigh scattering (add_rayleigh)
-                4. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
-    
-                """
-                log_name = "rec_all_"+log_name_base
-                # -----------------------------------------------
-                # ---------------- inverse parameters:-----------
-                # -----------------------------------------------
-                
-                stokes_weights = [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V].
-                        
-                # Initialization and Medium parameters:
-                lwc = 0.01 # init lwc of the generator
-                reff = 12 # init reff of the generator
-                #veff = 0.15 # init veff of the generator
-                
-                # init_generator = 'Homogeneous'# it is the CloudGenerator from shdom.generate.py
-                init = 'Homogeneous'
-                # The mie_base_path is defined at the begining of this script.
-                INIT_USE = ' --init '+ init
-                add_rayleigh = False if CENCEL_AIR else True
-                use_forward_mask = True#False#True
-                use_forward_grid = True
-                if_save_gt_and_carver_masks = True
-                if_save_final3d = True
-                
-                GT_USE = ''
-                GT_USE = GT_USE + ' --use_forward_veff --lwc_scaling 15 --reff_scaling 0.01'# -----------------                       
-                GT_USE = GT_USE + ' --add_rayleigh' if add_rayleigh else GT_USE
-                GT_USE = GT_USE + ' --use_forward_mask' if use_forward_mask else GT_USE
-                GT_USE = GT_USE + ' --use_forward_grid' if use_forward_grid else GT_USE               
-                GT_USE = GT_USE + ' --save_gt_and_carver_masks' if if_save_gt_and_carver_masks else GT_USE
-                GT_USE = GT_USE + ' --save_final3d' if if_save_final3d else GT_USE
-                
-                # optimization:
-                globalopt = False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
-                maxiter = 1000 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
-                maxls = 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
-                disp = True # Display optimization progression.
-                
-                gtol = 1e-16 # Stop criteria for the maximum projected gradient.
-                # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
-                ftol = 1e-16 # Stop criteria for the relative change in loss function.
-                # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
-                loss_type = 'l2'
-                # Different loss functions for optimization. Currently only l2 is supported.
-                
-                #-------------------------------------------------
-                # ---- start working with the above parameters:---
-                #-------------------------------------------------
-                # ' --veff ' + str(veff) +\
-                OTHER_PARAMS = ' --input_dir ' + forward_dir + \
-                    ' --lwc ' + str(lwc) +\
-                    ' --reff ' + str(reff) +\
-                    ' --log ' + log_name +\
-                    ' --n_jobs '+ str(n_jobs)+\
-                    ' --loss_type '+ str(loss_type)+\
-                    ' --maxls '+ str(maxls)+\
-                    ' --maxiter '+ str(maxiter)
-                    #' --radiance_threshold '+ str(radiance_threshold)
-                
-                OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS    
-                OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if (CENCEL_AIR == False) else OTHER_PARAMS
-                # We have: ground_truth, rte_solver, measurements.
-                SCRIPTS_PATH = '../scripts'
-                cmd = 'python '+ os.path.join(SCRIPTS_PATH, 'optimize_microphysics_lbfgs.py')+\
-                    OTHER_PARAMS + GT_USE + INIT_USE
-                
-                Optimaize1 = subprocess.call( cmd, shell=True)            
-                  
+               
     #-------------------------------------------------
     #-------------------------------------------------
     #-------------------------------------------------    

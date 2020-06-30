@@ -41,6 +41,9 @@ class OptimizationScript(object):
         parser: argparse.ArgumentParser()
             parser initialized with basic arguments that are common to most rendering scripts.
         """
+        parser.add_argument('--cloudct_use',
+                            action='store_true',
+                            help='Use it if you want to laoad and work with cloudct measurments.')          
         parser.add_argument('--input_dir',
                             help='Path to an input directory where the forward modeling parameters are be saved. \
                                   This directory will be used to save the optimization results and progress.')
@@ -417,9 +420,14 @@ class OptimizationScript(object):
             rec_scatterer = local_optimizer.medium.get_scatterer(name=self.scatterer_name)
             # local_optimizer.medium is shdom.optimize.MediumEstimator object.
             for parameter_name, parameter in rec_scatterer.estimators.items():
-                rec_param = parameter.data  
-                dx = parameter.grid.dx
-                dy = parameter.grid.dy
+                rec_param = parameter.data 
+                try:
+                    dx = parameter.grid.dx
+                    dy = parameter.grid.dy
+                except AttributeError:
+                    dx = -1
+                    dy = -1
+                    
                 nz = parameter.grid.nz
                 dz = (parameter.grid.zmax - parameter.grid.zmin)/nz
                 GT_parameter = ground_truth.__getattribute__(parameter_name).data

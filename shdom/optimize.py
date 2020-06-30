@@ -14,6 +14,7 @@ from collections import OrderedDict
 import tensorboardX as tb
 import matplotlib.pyplot as plt
 import warnings
+from itertools import chain
 
 class OpticalScattererDerivative(shdom.OpticalScatterer):
     """
@@ -206,10 +207,12 @@ class GridDataEstimator(shdom.GridData):
         """
         gradient = gradient.squeeze(axis=-1)
         state_gradient = shdom.GridData(grid, gradient).resample(self.grid)
+        debug_gradient = state_gradient.data # vadim added to get the gradient in the base grid to debug/visualize it later on.
         if self.mask is None:
-            return state_gradient.data.ravel()
+            return state_gradient.data.ravel(), debug_gradient
         else:
-            return state_gradient.data[self.mask.data]
+            debug_gradient[self.mask.data == False] = 0
+            return state_gradient.data[self.mask.data], debug_gradient
 
     @property
     def mask(self):
@@ -359,8 +362,9 @@ class ScattererEstimator(object):
         gradient = np.split(gradient, self.num_estimators, axis=-1)
         state_gradient = np.empty(shape=(0), dtype=np.float64)
         for estimator, gradient in zip(self.estimators.values(), gradient):
-            state_gradient = np.concatenate((state_gradient, estimator.project_gradient(gradient, grid)))
-        return state_gradient
+            state_gradient_new, debug_gradient_3d = estimator.project_gradient(gradient, grid) # vadim added to get the gradient in the base grid to debug/visualize it later on.
+            state_gradient = np.concatenate((state_gradient, state_gradient_new))
+        return state_gradient, debug_gradient_3d
         
     @property
     def estimators(self):
@@ -1267,7 +1271,7 @@ class MediumEstimator(shdom.Medium):
         ----------
         rte_solvers: shdom.RteSolverArray
             A solver array with all the associated parameters and the solution to the RTE
-        measurements: shdom.Measurements
+        measurements: shdom.Measurements or shdom.CloudCT_setup.SpaceMultiView_Measurements
             A measurements object storing the acquired images and sensor geometry
         n_jobs: int,
             The number of jobs to divide the gradient computation into.
@@ -1287,34 +1291,128 @@ class MediumEstimator(shdom.Medium):
             rte_solver._dext, rte_solver._dalb, rte_solver._diphase, \
                 rte_solver._dleg, rte_solver._dphasetab, rte_solver._dnumphase = self.get_derivatives(rte_solver)
 
-        projection = measurements.camera.projection
-        sensor = measurements.camera.sensor
-        pixels = measurements.pixels
-        
-        # Sequential or parallel processing using multithreading (threadsafe Fortran)
-        if n_jobs > 1:           
-            output = Parallel(n_jobs=n_jobs, backend="threading", verbose=0)(
-                delayed(self.core_grad, check_pickle=False)(
-                    rte_solver=rte_solvers[channel],
-                    projection=projection,
-                    pixels=spectral_pixels[..., channel]
-                ) for channel, (projection, spectral_pixels) in
-                itertools.product(range(self.num_wavelengths), zip(projection.split(n_jobs), np.array_split(pixels, n_jobs, axis=-2)))
-            )
-        else:
-            output = [
-                self.core_grad(rte_solvers[channel], projection, pixels[..., channel])
-                for channel in range(self.num_wavelengths)
-            ]
-        
-        # Sum over all the losses of the different channels
-        loss, gradient, images = self.output_transform(output, projection, sensor, self.num_wavelengths)
+        if(isinstance(measurements,shdom.CloudCT_setup.SpaceMultiView_Measurements)):
+            # relating to CloudCT multi-view setup with different imagers.
+            CloudCT_geometry_and_imagers = measurements.setup
+            images_dict = measurements.images.copy() # if the measurments of type cloudct...., the images in grayscale.
+            images = [] # will gather the output of the gradient calculation.
+            gradient = np.zeros(shape=(rte_solver._nbpts, self.num_derivatives), dtype=np.float64)
+            loss = 0
+            
+            imagers_channels = measurements.get_channels_of_imagers() # A list, it is the central wavelength of al imagers. 
+            for imager_index, wavelength in enumerate(imagers_channels):
+                acquired_images = images_dict[imager_index]
+                CloudCT_projection = CloudCT_geometry_and_imagers[imager_index]
+                # chack consistensy in the wavelengths:
+                assert wavelength == CloudCT_projection.imager.centeral_wavelength_in_microns,\
+                       "There is not consistency between the wavelengths between the imager and the CLoudCT setup measurements."
+                if(isinstance(rte_solvers.wavelength,list)):
+                    
+                    assert wavelength == rte_solvers.wavelength[imager_index],\
+                           "There is not consistency between the wavelengths between the rte solver and the CLoudCT setup measurements."
+                else:
+                    assert wavelength == rte_solvers.wavelength,\
+                           "There is not consistency between the wavelengths between the rte solver and the CLoudCT setup measurements."
+                    
+                if(measurements.sensor_type == 'RadianceSensor'):
+                    sensor=shdom.RadianceSensor()
+                    num_channels = CloudCT_projection.num_channels
+                    pixels = []
+                    for image in acquired_images:
+                        pixels.append(image.reshape((-1, num_channels), order='F'))  
+                        
+                    pixels = np.concatenate(pixels, axis=-2)
+                else:
+                    raise AttributeError('Only RadianceSensor is supported with the CloudCT setups.')                
+                
+                # ------ I AM HERE IN THE REIMPLEMENTATION -----
+                # TODO- consider to use num_channels>1 per one imager.
+                # Sequential or parallel processing using multithreading (threadsafe Fortran)
+                #n_jobs = 1
+                if n_jobs > 1:           
+                    output = Parallel(n_jobs=n_jobs, backend="threading", verbose=0)(
+                        delayed(self.core_grad, check_pickle=False)(
+                            rte_solver=rte_solvers[loop_imager_index],
+                            projection=projection,
+                            pixels=loop_pixels
+                        ) for loop_imager_index, projection, loop_pixels in
+                        zip(np.tile(imager_index,n_jobs) , CloudCT_projection.split(n_jobs), np.array_split(pixels, n_jobs, axis=-2))
+                    )
+                    
+                    #for loop_imager_index, projection, loop_pixels in zip(np.tile(imager_index,n_jobs, CloudCT_projection.split(n_jobs), np.array_split(pixels, n_jobs, axis=-2)):
+                        #print(loop_imager_index)
+                    
+                else:
+                    output = [self.core_grad(rte_solvers[imager_index], CloudCT_projection, pixels)]
 
-        gradient = gradient.reshape(self.grid.shape + tuple([self.num_derivatives]))
-        gradient = np.split(gradient, self.num_estimators, axis=-1)
-        state_gradient = np.empty(shape=(0), dtype=np.float64)
-        for estimator, gradient in zip(self.estimators.values(), gradient):
-            state_gradient = np.concatenate((state_gradient, estimator.project_gradient(gradient, self.grid)))
+
+                """ 
+                What we should get in the output?
+                gradient: np.array(shape=(rte_solver._nbpts, self.num_derivatives), dtype=np.float64)
+                    The gradient with respect to all parameters at every grid base point.
+                    The number of grid base points is rte_solver._nbpts = nx*ny*nz of the whole medium (includig Rayleigh).
+                loss: float64
+                    The total loss accumulated over all pixels
+                images: np.array(shape=(rte_solver._nstokes, projection.npix), dtype=np.float32)
+                    The rendered (synthetic) images.
+                      
+                Current problems:
+                1. The PIXEL_ERROR = VISOUT(N) - MEASUREMENTS(N) expresions in the SUBROUTINE GRADIENT_L2
+                in shdomsub4.f. We must scale the VISOUT with the radiance to grayscale converstion scaleing.
+                """ 
+                #loss_per_imager = output[1]
+                loss_per_imager = np.sum(list(map(lambda x: x[1], output)))
+                gradient_per_imager = np.sum(list(map(lambda x: x[0], output)), axis=0)    
+                images_per_imager = sensor.make_images(np.concatenate(list(map(lambda x: x[2], output)), axis=-1),
+                                            CloudCT_projection,
+                                            num_channels)   
+                
+                gradient = np.sum([gradient, gradient_per_imager], axis=0) 
+                loss += loss_per_imager
+                images += images_per_imager
+                
+                
+                
+            # Outside the imager_index loop:
+            gradient = gradient.reshape(self.grid.shape + tuple([self.num_derivatives])) # An array containing the gradient of the cost function with respect to the parameters. the shape is of the internal shdom grid upon which the gradient was computed.
+            gradient = np.split(gradient, self.num_estimators, axis=-1)
+            state_gradient = np.empty(shape=(0), dtype=np.float64) # State gradient representation
+            for estimator, gradient in zip(self.estimators.values(), gradient):
+                estimator_project_gradient, debug_gradient_3d = estimator.project_gradient(gradient, self.grid) # vadim added to get the gradient in the base grid to debug/visualize it later on. 
+                state_gradient = np.concatenate((state_gradient, estimator_project_gradient))
+                
+            print('k')
+                               
+            
+        else:
+            projection = measurements.camera.projection
+            sensor = measurements.camera.sensor
+            pixels = measurements.pixels
+        
+            # Sequential or parallel processing using multithreading (threadsafe Fortran)
+            if n_jobs > 1:           
+                output = Parallel(n_jobs=n_jobs, backend="threading", verbose=0)(
+                    delayed(self.core_grad, check_pickle=False)(
+                        rte_solver=rte_solvers[channel],
+                        projection=projection,
+                        pixels=spectral_pixels[..., channel]
+                    ) for channel, (projection, spectral_pixels) in
+                    itertools.product(range(self.num_wavelengths), zip(projection.split(n_jobs), np.array_split(pixels, n_jobs, axis=-2)))
+                )
+            else:
+                output = [
+                    self.core_grad(rte_solvers[channel], projection, pixels[..., channel])
+                    for channel in range(self.num_wavelengths)
+                ]
+            
+            # Sum over all the losses of the different channels
+            loss, gradient, images = self.output_transform(output, projection, sensor, self.num_wavelengths)
+    
+            gradient = gradient.reshape(self.grid.shape + tuple([self.num_derivatives]))
+            gradient = np.split(gradient, self.num_estimators, axis=-1)
+            state_gradient = np.empty(shape=(0), dtype=np.float64)
+            for estimator, gradient in zip(self.estimators.values(), gradient):
+                state_gradient = np.concatenate((state_gradient, estimator.project_gradient(gradient, self.grid)))
 
         return state_gradient, loss, images
 
@@ -1572,14 +1670,36 @@ class SummaryWriter(object):
         ckpt_period: float
            time [seconds] between updates. setting ckpt_period=-1 will log at every iteration.
         """
-        acquired_images = measurements.images
-        sensor_type = measurements.camera.sensor.type
-        num_images = len(acquired_images)
+        acquired_images = measurements.images.copy() # if the measurments of type cloudct...., the images in grayscale.
+        if(isinstance(measurements,shdom.CloudCT_setup.SpaceMultiView_Measurements)):
+            sensor_type = measurements.sensor_type
+            num_images = 0
+            vmax_dict  = OrderedDict()
+            
+            for imager_index, images in acquired_images.items():
+                num_images += len(images)
+                vmax_dict[imager_index] = max([image.max() * 1.25 for image in images])
+            
+            vmin = min([v for index, v in vmax_dict.items()])
+            
+            for imager_index, images in acquired_images.items():
+                tmp_max = max([image.max() * 1.25 for image in images])
+                if(tmp_max > vmin ):
+                    scale = vmin/tmp_max
+                    acquired_images[imager_index] = [image * scale for image in images]
+                    
+            # after scaling, return the vmax to be the maximum over the images which was the minumum over the maximums.
+            vmax = vmin
+            acquired_images = list(chain(*acquired_images.values())) # Concatenating dictionary value lists. 
+            
+        else:
+            sensor_type = measurements.camera.sensor.type
+            num_images = len(acquired_images)
 
-        if sensor_type == 'RadianceSensor':
-            vmax = [image.max() * 1.25 for image in acquired_images]
-        elif sensor_type == 'StokesSensor':
-            vmax = [image.reshape(image.shape[0], -1).max(axis=-1) * 1.25 for image in acquired_images]
+            if sensor_type == 'RadianceSensor':
+                vmax = [image.max() * 1.25 for image in acquired_images]
+            elif sensor_type == 'StokesSensor':
+                vmax = [image.reshape(image.shape[0], -1).max(axis=-1) * 1.25 for image in acquired_images]
 
         kwargs = {
             'ckpt_period': ckpt_period,
@@ -2002,7 +2122,7 @@ class LocalOptimizer(object):
         
         Parameters
         ----------
-        measurements: shdom.Measurements
+        measurements: shdom.Measurements or shdom.CloudCT_setup.SpaceMultiView_Measurements
             A measurements object storing the acquired images and sensor geometry
         """
         self._measurements = measurements
