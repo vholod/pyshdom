@@ -1,8 +1,8 @@
 {
     "PIXEL_SIZE": 10,
     "FULLWELL": 500000.0,
-    "CHeight": 12800,
-    "CWidth": 10240,
+    "CHeight": 1280,
+    "CWidth": 1024,
     "BitDepth": 14,
     "DYNAMIC_RANGE": null,
     "SNR": 707.107,
