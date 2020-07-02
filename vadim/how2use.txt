@@ -113,7 +113,7 @@ use pyshdom_dev:
 where I wanted to pull, I got problems since this repo doesn't have master, so to pull use:
 git branch -u polarized # return to defualte
 git pull origin polarized # pull
-git branch -u refactoring # return back to refactoring branch
+git branch -u refactcdoring # return back to refactoring branch
 got thiw strange warning:
 warning: Not setting branch refactoring as its own upstream.
 so I did:

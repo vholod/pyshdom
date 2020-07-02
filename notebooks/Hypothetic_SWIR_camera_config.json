@@ -1,15 +1,43 @@
 {
     "PIXEL_SIZE": 10,
     "FULLWELL": 500000.0,
-    "CHeight": 12800,
-    "CWidth": 10240,
+    "CHeight": 1280,
+    "CWidth": 1024,
     "BitDepth": 14,
     "DYNAMIC_RANGE": null,
     "SNR": 707.107,
-    "DARK_CURRENT_NOISE": 19000.0,
+    "DARK_CURRENT_NOISE": 33146.607,
+    "DARK_CURRENT_NOISE_TABLE": {
+        "temp": [
+            -35,
+            -25,
+            -15,
+            -5,
+            5,
+            15,
+            25,
+            35,
+            45,
+            55,
+            65
+        ],
+        "noise [electrons/sec]": [
+            78,
+            234,
+            703,
+            2111,
+            6333,
+            19000,
+            57000,
+            171000,
+            513000,
+            1539000,
+            4617000
+        ]
+    },
     "READOUT_NOISE": 160,
     "TEMPERTURE": 20,
-    "NOISE_FLOOR": 3521.177,
+    "NOISE_FLOOR": 453.155,
     "SYSTEM_EFFICIENCY": 1,
     "MAX_EXPOSURE_TIME": 8845,
     "START_SPECTRUM": 1628,
@@ -28,12 +56,12 @@
     ],
     "SENSOR_TYPE": "SWIR",
     "SPECTRAL_IRRADIANCE_TOA": [
-        0.20396769698593298,
-        0.20016492233090144,
-        0.19644759569882256,
-        0.19281351847578052
+        0.19731605670472793,
+        0.19365970985544934,
+        0.1900848911432108,
+        0.18658952414869234
     ],
-    "LENS_DIAMETER": 48.26090956684181,
+    "LENS_DIAMETER": 49.06627152544987,
     "LENS_FOCAL_LENGTH": 71.42857142857142,
     "LENS_TRANSMISSION": [
         0.9599999999999996,

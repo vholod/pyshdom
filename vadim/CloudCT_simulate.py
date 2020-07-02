@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 # -----------------------------------------------------------------
 # -----------------------------------------------------------------
 
+
 # Load run parameters
 params_file_path = "run_params.yaml"
 with open(params_file_path, 'r') as f:
@@ -61,6 +62,7 @@ sun_zenith = run_params['sun_zenith']
 
 SATS_NUMBER_SETUP = run_params['SATS_NUMBER_SETUP']
 SATS_NUMBER_INVERSE = run_params['SATS_NUMBER_INVERSE']
+
 
 """
 Check if mie tables exist, if not creat them, if yes skip it is long process.
@@ -266,8 +268,11 @@ if run_params['DOFORWARD']:
     Each projection in CloudCT_VIEWS is A Perspective projection (pinhole camera).
     The method CloudCT_VIEWS.update_measurements(...) takes care of the rendering and updating the measurments.
     """
+
     CloudCT_VIEWS.update_measurements(sensor=shdom.RadianceSensor(), projection=CloudCT_VIEWS, rte_solver=rte_solvers,
                                       n_jobs=n_jobs)
+    tested_radiance_threshold = SATS_NUMBER_SETUP*run_params['radiance_threshold']# Threshold for the radiance to create a cloud mask.
+
     # see the rendered images:
     SEE_IMAGES = False
     if SEE_IMAGES:
@@ -278,7 +283,8 @@ if run_params['DOFORWARD']:
         # --------------------------------------------------
         #  ----------------try radiance_threshold value:----
         # --------------------------------------------------
-        CloudCT_VIEWS.show_measurements(radiance_threshold=run_params['radiance_threshold'], compare_for_test=False)
+
+        CloudCT_VIEWS.show_measurements(radiance_threshold=tested_radiance_threshold, compare_for_test=False)
 
         plt.show()
 
@@ -298,8 +304,6 @@ if run_params['DOINVERSE']:
     USED_CAMERA = measurements.camera
     RENDERED_IMAGES = measurements.images
     THIS_MULTI_VIEW_SETUP = USED_CAMERA.projection
-
-    SEE_IMAGES = True  # TODO not in use
 
     # show the mutli view setup if you want.
     if inverse_options['SEE_SETUP']:
@@ -419,6 +423,7 @@ if run_params['DOINVERSE']:
     
             """
 
+
             GT_USE += ' --use_forward_veff'
             GT_USE += ' --lwc_scaling ' + str(inverse_options['lwc_scaling_val'])
             GT_USE += ' --reff_scaling ' + str(inverse_options['reff_scaling_val'])
@@ -467,6 +472,7 @@ if run_params['DOINVERSE']:
 
     # Time to show the results in 3D visualization:
     if inverse_options['VIS_RESULTS3D']:
+
         """
         The forward_dir id a folder that containes:
         medium, solver, measurements.
