@@ -20,14 +20,35 @@ import functools
 # importing operator for operator functions 
 import operator
 import yaml
+import logging
 
+# set up logging to file
+logging.basicConfig(
+    filename='run_tracker.log',
+    level=logging.DEBUG,
+    format='[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s'
+)
+
+# set up logging to console
+console = logging.StreamHandler()
+console.setLevel(logging.DEBUG)
+# set a format which is simpler for console use
+formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
+console.setFormatter(formatter)
+# add the handler to the root logger
+logging.getLogger('').addHandler(console)
+
+logger = logging.getLogger(__name__)
 # -----------------------------------------------------------------
 # -----------------------------------------------------------------
 
 # Load run parameters
-with open("run_params.yaml", 'r') as f:
+params_file_path = "run_params.yaml"
+with open(params_file_path, 'r') as f:
     run_params = yaml.full_load(f)
 
+logger.debug(f"loading params from {params_file_path}")
+logger.debug(f"running with params:{run_params}")
 mie_options = run_params['mie_options']  # mie params
 viz_options = run_params['viz_options']  # visualization params
 n_jobs = run_params['n_jobs']
@@ -54,7 +75,8 @@ middle_dir_name = f'unity_flux_active_sats_{SATS_NUMBER_SETUP}_GSD_{int(1e3 * GS
 if isinstance(wavelengths_micron, list):
 
     wavelengths_micron.sort()  # just for convenience, let's have it sorted.
-    wavelengths_string = functools.reduce(operator.add, [str(int(1e3 * j)) + "_" for j in wavelengths_micron]).rstrip('_')
+    wavelengths_string = functools.reduce(operator.add, [str(int(1e3 * j)) + "_" for j in wavelengths_micron]).rstrip(
+        '_')
 
     # forward_dir, where to save everything that is related to forward model:
     forward_dir = f'./experiments/polychromatic_{middle_dir_name}_{wavelengths_string}nm'
@@ -123,17 +145,17 @@ print(20 * "-")
 print(20 * "-")
 print(20 * "-")
 
-print("CAMERA intrinsics summary")
-print(f"fov = {fov}[deg], cnx = {cnx}[pixels],cny ={cny}[pixels]")
+logger.debug("CAMERA intrinsics summary")
+logger.debug(f"fov = {fov}[deg], cnx = {cnx}[pixels],cny ={cny}[pixels]")
 
 print(20 * "-")
 print(20 * "-")
 print(20 * "-")
 
-print("Medium summary")
-print(f"nx = {nx}, ny = {ny},nz ={nz}")
-print(f"dx = {dx}, dy = {dy},dz ={dz}")
-print(f"Lx = {Lx}, Ly = {Ly},Lz ={Lz}")
+logger.debug("Medium summary")
+logger.debug(f"nx = {nx}, ny = {ny},nz ={nz}")
+logger.debug(f"dx = {dx}, dy = {dy},dz ={dz}")
+logger.debug(f"Lx = {Lx}, Ly = {Ly},Lz ={Lz}")
 
 x_min = atmospheric_grid.bounding_box.xmin
 x_max = atmospheric_grid.bounding_box.xmax
@@ -144,8 +166,8 @@ y_max = atmospheric_grid.bounding_box.ymax
 z_min = atmospheric_grid.bounding_box.zmin
 z_max = atmospheric_grid.bounding_box.zmax
 
-print(f"xmin = {x_min}, ymin = {y_min},zmin ={z_min}")
-print(f"xmax = {x_max}, ymax = {y_max},zmax ={z_max}")
+logger.debug(f"xmin = {x_min}, ymin = {y_min},zmin ={z_min}")
+logger.debug(f"xmax = {x_max}, ymax = {y_max},zmax ={z_max}")
 
 print(20 * "-")
 print(20 * "-")
@@ -176,7 +198,8 @@ if run_params['DOFORWARD']:
         L_TOA_per_view = []
         for wavelength in wavelengths_per_view:
             # loop over the wavelengths is a view
-            L_TOA_per_view.append(Cosain * 6.8e-5 * 1e-9 * CloudCT_setup.plank(1e-6 * wavelength, forward_options['temp']))  # units fo W/(m^2))
+            L_TOA_per_view.append(Cosain * 6.8e-5 * 1e-9 * CloudCT_setup.plank(1e-6 * wavelength, forward_options[
+                'temp']))  # units fo W/(m^2))
 
         L_TOA.append(L_TOA_per_view)
 
@@ -218,7 +241,6 @@ if run_params['DOFORWARD']:
 
     for wavelength, split_accuracy, solar_flux, surface_albedo in \
             zip(wavelengths_micron, split_accuracies, solar_fluxes, surface_albedos):
-
         numerical_params = shdom.NumericalParameters(num_mu_bins=forward_options['num_mu'],
                                                      num_phi_bins=forward_options['num_phi'],
                                                      split_accuracy=split_accuracy,
@@ -264,7 +286,7 @@ if run_params['DOFORWARD']:
     medium = atmosphere
     shdom.save_forward_model(forward_dir, medium, rte_solvers, CloudCT_VIEWS.measurements)
 
-    print('DONE forward simulation')
+    logger.debug('DONE forward simulation')
 
 # ---------SOLVE INVERSE ------------------------
 if run_params['DOINVERSE']:
@@ -325,7 +347,8 @@ if run_params['DOINVERSE']:
 
     OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if not viz_options['CENCEL_AIR'] else OTHER_PARAMS
 
-    OTHER_PARAMS = OTHER_PARAMS + ' --radiance_threshold ' + " ".join(map(str, run_params['radiance_threshold'])) if run_type != 'reff_and_lwc' else OTHER_PARAMS
+    OTHER_PARAMS = OTHER_PARAMS + ' --radiance_threshold ' + " ".join(
+        map(str, run_params['radiance_threshold'])) if run_type != 'reff_and_lwc' else OTHER_PARAMS
 
     if inverse_options['MICROPHYSICS']:
         # -----------------------------------------------
@@ -419,7 +442,8 @@ if run_params['DOINVERSE']:
         GT_USE += ' --use_forward_phase'
         OTHER_PARAMS += ' --extinction ' + str(inverse_options['extinction'])
 
-    optimizer_path = inverse_options['microphysics_optimizer'] if inverse_options['MICROPHYSICS'] else inverse_options['extinction_optimizer']
+    optimizer_path = inverse_options['microphysics_optimizer'] if inverse_options['MICROPHYSICS'] else inverse_options[
+        'extinction_optimizer']
 
     # We have: ground_truth, rte_solver, measurements.
 
@@ -428,17 +452,18 @@ if run_params['DOINVERSE']:
           OTHER_PARAMS + \
           GT_USE + \
           INIT_USE
-
-    os.mkdir(os.path.join(forward_dir, 'run_params_files'))
-    with open(os.path.join(forward_dir, 'run_params_files',time.strftime("%d-%b-%Y-%H:%M:%S")), 'w') as f:
+    if not os.path.exists(os.path.join(forward_dir, 'run_params_files')):
+        os.mkdir(os.path.join(forward_dir, 'run_params_files'))
+    run_params_file_name = os.path.join(forward_dir, 'run_params_files',
+                                        'run_params_' + time.strftime("%d%m%Y_%H%M%S") + '.yaml')
+    with open(run_params_file_name, 'w') as f:
         yaml.dump(run_params, f)
+        logger.debug(f"Saving run params to {run_params_file_name}")
     with open(os.path.join(forward_dir, 'run_tracker.csv'), 'a') as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow([time.strftime("%d-%b-%Y-%H:%M:%S"), log_name, cmd])
 
     Optimize1 = subprocess.call(cmd, shell=True)
-
-
 
     # Time to show the results in 3D visualization:
     if inverse_options['VIS_RESULTS3D']:
@@ -466,7 +491,7 @@ if run_params['DOINVERSE']:
         log2load = logs_prefix + '-' + timestamp[-1]
         # print here the Final results files:
         Final_results_3Dfiles = glob.glob(log2load + '/FINAL_3D_*.mat')
-        print(f"{len(Final_results_3Dfiles)} files with the results in 3D were created:")
+        logger.debug(f"{len(Final_results_3Dfiles)} files with the results in 3D were created:")
         for _file in Final_results_3Dfiles:
             print(_file)
 
@@ -474,6 +499,6 @@ if run_params['DOINVERSE']:
 
         # Don't want to use it now, state2load = os.path.join(log2load,'final_state.ckpt')
 
-        print(f"use tensorboard --logdir {log2load} --bind_all")
+        logger.debug(f"use tensorboard --logdir {log2load} --bind_all")
 
-    print("done")
+    logger.debug("done")
