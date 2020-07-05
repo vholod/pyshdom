@@ -67,7 +67,7 @@ def Generate_dark_noise_table(temperature=[-10,50],SAVE_RESOLT_AS = 'dark_noise.
 class SensorFPA(object):
     
     def __init__(self, QE=None, PIXEL_SIZE = 5.5 , FULLWELL = None, CHeight = 1000, CWidth = 1000, SENSOR_ID = '0',
-                 READOUT_NOISE = 100, DARK_CURRENT_NOISE = 10,TEMP=15, BitDepth = 8, TYPE = 'VIS'):
+                 READOUT_NOISE = 100, DARK_CURRENT_NOISE = 10,TEMP=15, BitDepth = 8, TYPE = 'SIMPLE'):
         """
         Parameters:
         QE - quantum effciency, which measures the prob-
@@ -78,9 +78,9 @@ class SensorFPA(object):
         FULLWELL: int
             pixel full well, how much eletrons a pixel can generate befor it saturates.
         CHeight: int
-            Number of pixels in camera y axis
-        CWidth: int
             Number of pixels in camera x axis
+        CWidth: int
+            Number of pixels in camera y axis
         SENSOR_ID: string
             It is possible to set an ID to object.
         READOUT_NOISE: int
@@ -103,8 +103,10 @@ class SensorFPA(object):
         self._CWidth = CWidth
         self._CHeight = CHeight
         self._PIXEL_SIZE = PIXEL_SIZE # PIXEL_SIZE im microns
-        
-        self._SENSOR_SIZE = np.array([CHeight,CWidth])*self._PIXEL_SIZE
+        if((CHeight is None) or (CWidth is None)):
+            self._SENSOR_SIZE = None
+        else:
+            self._SENSOR_SIZE = np.array([CHeight,CWidth])*self._PIXEL_SIZE
         
         self._Exposure = 10 # mirco sec
         self._Gain = 0 # 0 means no gain.
@@ -121,16 +123,22 @@ class SensorFPA(object):
         self._FULLWELL = FULLWELL
         # A common Rule of thumb is Full "well " ~ 1000 p^2, where p^2 is a pixel area in microns^2.
         if FULLWELL is None:
-            
-            if(TYPE is 'VIS'):
+            if(TYPE is 'SIMPLE'):
+                self._FULLWELL = 1
+                self._SNR = 1
+                
+            elif(TYPE is 'VIS'):
                 self._FULLWELL = 1000*self._PIXEL_SIZE**2 # e-
+                self._SNR = np.sqrt(self._FULLWELL)
+                    
             elif(TYPE is 'SWIR'):
                 self._FULLWELL = (self._PIXEL_SIZE/15)*12e6 # e-
                 # I based on Goldeye camera of alline vision, Saturation capacity -> 1.2 Me- <- (Gain0), 25 ke- (Gain2)
+                self._SNR = np.sqrt(self._FULLWELL)
             else:
                 raise Exception("Unknown sensor type")
             
-            self._SNR = np.sqrt(self._FULLWELL)
+            
             
         else:
             self._SNR = np.sqrt(self._FULLWELL)
@@ -300,6 +308,22 @@ class SensorFPA(object):
         self._SENSOR_SIZE = val  
 
     @property
+    def nx(self):
+        """
+        CHeight: int
+            Number of pixels in camera x axis   
+        """
+        return self._CHeight
+    
+    @property
+    def ny(self):
+        """
+        CWidth: int
+            Number of pixels in camera y axis   
+        """
+        return self._CWidth
+    
+    @property
     def alpha(self):
         return self._alpha
     
@@ -452,11 +476,12 @@ class Imager(object):
         
         self._pixel_footprint = None # km, will be defined by function set_Imager_altitude()
         self._camera_footprint = None # km, will be defined by function set_Imager_altitude()
+        self._NOISE_FLOOR = None
         
         if(self._SENSOR_DEFINED):# means we have here defined sensor
             self._DR = self._sensor.DynamicRange #dynamic range.
             self._SNR = self._sensor.SNR 
-            if(self._temp is not None):
+            if((self._temp is not None) and (self._sensor.dark_noise_table is not None)):
                 self._dark_noise_table = self._sensor.dark_noise_table
                 DN = InterpolatedUnivariateSpline(self._dark_noise_table['temp'].values, self._dark_noise_table['noise [electrons/sec]'].values)
                 DN_interpol = DN(self._temp)                
@@ -464,7 +489,7 @@ class Imager(object):
                 # Since imager temperature may be differena then sensor's.
                 
             self._READ_NOISE = self._sensor._READOUT_NOISE
-            self._NOISE_FLOOR = None
+            
             # self._NOISE_FLOOR = self._READOUT_NOISE + self._DARK_CURRENT_NOISE*(exposure*temp) , will be calculated later.
             # self._DR = self._FULLWELL/self._NOISE_FLOOR, will be calculated later.            
         else:
@@ -491,16 +516,21 @@ class Imager(object):
             start = self._scene_spectrum[0]
             stop = self._scene_spectrum[1]
             step = integration_Dlambda # nm
-            self._lambdas = np.linspace(start, stop, int(((stop-start)/step) + 1)) 
-            self._centeral_wavelength = float_round(core.get_center_wavelen(start,stop))
-            self._centeral_wavelength_in_microns = float_round(core.get_center_wavelen(self._scene_spectrum_in_microns[0],self._scene_spectrum_in_microns[1]))
+            if(start == stop):
+                self._lambdas = start
+                self._centeral_wavelength = start
+                self._centeral_wavelength_in_microns = self._scene_spectrum_in_microns[0]
+            else:
+                self._lambdas = np.linspace(start, stop, int(((stop-start)/step) + 1)) 
+                self._centeral_wavelength = float_round(core.get_center_wavelen(start,stop))
+                self._centeral_wavelength_in_microns = float_round(core.get_center_wavelen(self._scene_spectrum_in_microns[0],self._scene_spectrum_in_microns[1]))
             # self._centeral_wavelength will be relevant when we use spectrally-averaged atmospheric parameters.
         else:
             self._lambdas = None
             self._centeral_wavelength = None
             self._centeral_wavelength_in_microns = None
             # The self._centeral_wavelength_in_microns can be different from 1e-3*self._centeral_wavelength since the core.get_center_wavelen function depends on the order of the spectrum values.
-        
+            self._LTOA = None # irradiance on the top of Atmosphere.
         
         if(self._LENS_DEFINED and self._SENSOR_DEFINED):
             
@@ -510,6 +540,7 @@ class Imager(object):
                 assert(self._SENSOR_DEFINED), "Dad use of this class!, At this point at least the sensor should be defined."
                     
                 self._adjust_spectrum()# updates self._lambdas, self._Imager_EFFICIANCY and self._Imager_QE
+                self._LTOA = self.calculate_scene_solar_irradiance() # irradiance on the top of Atmosphere.
                 
         else:
             print("Remember to set sensor QE and lens TRANSMISSION!")
@@ -548,7 +579,7 @@ class Imager(object):
         
         """
         
-        self._LTOA = None # irradiance on the top of Atmosphere.
+        
     
     def change_temperature(self,val):
         """
@@ -636,7 +667,7 @@ class Imager(object):
         DARK_NOISE_variance = DARK_NOISE_mean # since itcomes from poisson distribution.
         DN_noise = np.random.normal(
                     loc=DARK_NOISE_mean,
-                    scale=DARK_NOISE_variance,
+                    scale=DARK_NOISE_variance**0.5,#The scale parameter controls the standard deviation of the normal distribution.
                     size=electrons_number.shape
                     ).astype(np.int)
         
@@ -647,8 +678,8 @@ class Imager(object):
         READ_NOISE_mean = (self._READ_NOISE**2)
         READ_NOISE_variance = (self._READ_NOISE**2) # since it comes from poisson distribution.
         READ_noise = np.random.normal(
-                        loc=READ_NOISE_mean,
-                        scale=READ_NOISE_variance,
+                        loc=0, # TODO ask Yoav
+                        scale=READ_NOISE_variance**0.5,#The scale parameter controls the standard deviation of the normal distribution.
                         size=electrons_number.shape
                         ).astype(np.int)
     
@@ -656,9 +687,13 @@ class Imager(object):
         
         electrons_number = np.clip(electrons_number, a_min = 0, a_max=None)
         return electrons_number 
-        
+      
+      
     def convert_radiance_to_graylevel(self,images,IF_APPLY_NOISE = False,IF_SCALE_IDEALLY=False):
         """
+        This method convert radiances to grayscals. In addition, it returns the scale that would convert radiance to grayscale BUT without noise addition in the electrons lavel. 
+        The user decides if to use that as normalization or not.
+        
         Parameters:
         Input:
         images - np.array or list of np.arrays, it is the images that represent radiances that reache the lens where the simulation of that radiance considered
@@ -669,40 +704,58 @@ class Imager(object):
         IF_SCALE_IDEALLY - bool, if it is True, ignore imager parameters that plays in the convertion of
         radiance to electrons. It may be used just for simulations of ideal senarios or debug.
         
+        Output:
+        gray_scales - list of images in grayscale
+        
+        radiance_to_graylevel_scale - foalt,
+              The scale that would convert radiance to grayscale BUT without noise addition in the electrons lavel
         """
         
-        gray_level_bound = 2**self._sensor.bits
-        GAMMA_lambda = self.get_GAMMA_lambda()
-        INTEGRAL = np.trapz(GAMMA_lambda*self._LTOA, x = self._lambdas)
-        # units of INTEGRAL are [electrons*st/sec]        
-         
         gray_scales = []
         max_of_all_images = np.array(images).max()
+        
+        gray_level_bound = 2**self._sensor.bits
+        
+        
+        if(IF_SCALE_IDEALLY):
+            # Adjust synthetic scale induced by exposure, gain, lens diameter etc. to make maximum signal that reach the full well
+            scale = self._sensor.full_well / max_of_all_images
+            radiance_to_graylevel_scale = self._sensor.alpha*scale
+        else:
+            GAMMA_lambda = self.get_GAMMA_lambda()
+            INTEGRAL = np.trapz(GAMMA_lambda*self._LTOA, x = self._lambdas)
+            # units of INTEGRAL are [electrons*st/sec]        
+            radiance_to_graylevel_scale = self._sensor.alpha*(1e-6*self._exposure_time)*INTEGRAL
+            
+        
         for index, image in enumerate(images):
             # image - pixels units of [1/st]
             
             if(IF_SCALE_IDEALLY):
                 # Adjust synthetic scale induced by exposure, gain, lens diameter etc. to make maximum signal that reach the full well
                 scale = self._sensor.full_well / max_of_all_images
-                electrons_number = np.round(image * scale)
+                electrons_number = image * scale
+                gray_scale = self._sensor.alpha*electrons_number
+                gray_scales.append(gray_scale)
             else:
                 electrons_number = 1e-6*self._exposure_time*INTEGRAL*image
                 # The 1e-6* scales electrons_number to units of [electrons]
                 electrons_number = np.round(electrons_number)
             
-            # Here is the place to put the noise, since the noise is on the electrons levels:
-            if(IF_APPLY_NOISE):
-                electrons_number = self.add_noise(electrons_number)
-
-            # ---------------- finish the noise ------------------------------------------------
-            gray_scale = self._sensor.alpha*electrons_number
-            # For a sensor having a linear radiometric response, the conversion between pixel electrons to grayscale is by a fixxed ratio self._alpha
-            # Quantisize and cut overflow values.
-            gray_scale = np.round(gray_scale).astype(np.int) 
-            gray_scale = np.clip(gray_scale, a_min = 0, a_max = gray_level_bound)            
-            gray_scales.append(gray_scale)
-            
-        return gray_scales
+                # Here is the place to put the noise, since the noise is on the electrons levels:
+                if(IF_APPLY_NOISE):
+                    electrons_number = self.add_noise(electrons_number)
+    
+                # ---------------- finish the noise ------------------------------------------------
+                gray_scale = self._sensor.alpha*electrons_number
+                
+                # For a sensor having a linear radiometric response, the conversion between pixel electrons to grayscale is by a fixxed ratio self._alpha
+                # Quantisize and cut overflow values.
+                gray_scale = np.round(gray_scale).astype(np.int) 
+                gray_scale = np.clip(gray_scale, a_min = 0, a_max = gray_level_bound)            
+                gray_scales.append(gray_scale)
+                
+        return gray_scales, radiance_to_graylevel_scale
     
     
     
@@ -732,24 +785,35 @@ class Imager(object):
         time - float, units nicro sec.
         
         """
-        assert time<self._max_exposure_time, "The exposure time must be less than the maximum exposure time!"
-        self._exposure_time = time
+        if(time is not None):
+            
+            assert time<self._max_exposure_time, "The exposure time must be less than the maximum exposure time!"
+            self._exposure_time = time
+            
+            if(self._SENSOR_DEFINED): # means that the sensor should be defined
+                
+                if((self._DARK_NOISE is not None) and (self._NOISE_FLOOR is not None) and (self._sensor.full_well is not None)):
+                    
+                    self._NOISE_FLOOR = self._READ_NOISE + (self._DARK_NOISE*1e-6*self._exposure_time)
+                    self._DR = self._sensor.full_well/self._NOISE_FLOOR          
+                    
+                    # SNR:
+                    QUANTIZATION_NOISE = 0.5*(self._sensor.full_well/(2**self._sensor.bits))
+                    DARK_NOISE = (self._DARK_NOISE*1e-6*self._exposure_time)
+                    self._SNR = (self._sensor.full_well)/np.sqrt(self._sensor.full_well + DARK_NOISE + (self._READ_NOISE**2) + (QUANTIZATION_NOISE**2))    # see https://www.photometrics.com/learn/imaging-topics/signal-to-noise-ratio    
+                    #self._SNR = (self._sensor.full_well)**0.5 old version
+                    print("Noise and thus SNR (at full well) will change in this step, This what do you want to do?")
+                    print("----> Exposure bound is {}[micro sec]".format(float_round(self._max_exposure_time)))
+                    print("----> You set exposure time to {}[micro sec]".format(float_round(self._exposure_time)))
+                    print("----> Dynamic range (at full well) changed to {} or {}[db]".format(float_round(self._DR),float_round(20*np.log10(self._DR))))
+                    print("----> Noise floor changed to {}[electrons]".format(float_round(self._NOISE_FLOOR)))
+                    print("----> SNR (at full well) changed to {} or {}[db]".format(float_round(self._SNR),float_round(self._sensor.get_SNR_IN_DB())))
         
-        self._NOISE_FLOOR = self._READ_NOISE + (self._DARK_NOISE*1e-6*self._exposure_time)
-        self._DR = self._sensor.full_well/self._NOISE_FLOOR          
-        
-        # SNR:
-        QUANTIZATION_NOISE = 0.5*(self._sensor.full_well/(2**self._sensor.bits))
-        DARK_NOISE = (self._DARK_NOISE*1e-6*self._exposure_time)
-        self._SNR = (self._sensor.full_well)/np.sqrt(self._sensor.full_well + DARK_NOISE + (self._READ_NOISE**2) + (QUANTIZATION_NOISE**2))    # see https://www.photometrics.com/learn/imaging-topics/signal-to-noise-ratio    
-        #self._SNR = (self._sensor.full_well)**0.5 old version
-        print("Noise and thus SNR (at full well) will change in this step, This what do you want to do?")
-        print("----> Exposure bound is {}[micro sec]".format(float_round(self._max_exposure_time)))
-        print("----> You set exposure time to {}[micro sec]".format(float_round(self._exposure_time)))
-        print("----> Dynamic range (at full well) changed to {} or {}[db]".format(float_round(self._DR),float_round(20*np.log10(self._DR))))
-        print("----> Noise floor changed to {}[electrons]".format(float_round(self._NOISE_FLOOR)))
-        print("----> SNR (at full well) changed to {} or {}[db]".format(float_round(self._SNR),float_round(self._sensor.get_SNR_IN_DB())))
-        
+        else:
+            
+            self._exposure_time = None
+            self._SNR = None
+            
         
         
     def set_lens_diameter(self,diameter):
@@ -821,6 +885,18 @@ class Imager(object):
         Cosain = np.cos(np.deg2rad((180-val)))
         self._LTOA = self._LTOA * Cosain
             
+    
+    def calculate_scene_solar_irradiance(self):
+        """
+        calculate the solar irradiance that would reach the TOA.
+        It is done very simple, just black body radiation.
+        
+        """
+        
+        LTOA = 6.8e-5*1e-9*shdom.plank(1e-9*self._lambdas) # units fo W/(m^2 nm)
+        # I am assuming a solid angle of 6.8e-5 steradian for the source (the solar disk).
+        return LTOA
+        
         
     def calculate_scene_radiance(self,rho=0.1,TYPE = 'simple'):
         """
@@ -833,13 +909,10 @@ class Imager(object):
         
         """
         if(TYPE is 'simple'):
-            self._LTOA = 6.8e-5*1e-9*shdom.plank(1e-9*self._lambdas) # units fo W/(m^2 nm)
-            # I am assuming a solid angle of 6.8e-5 steradian for the source (the solar disk).
             self._radiance = (rho*self._LTOA)/np.pi # it is of units W/(m^2 st nm)
         
         elif(TYPE is 'SHDOM'):
-            self._LTOA = 6.8e-5*1e-9*shdom.plank(1e-9*self._lambdas) # units fo W/(m^2 nm)
-            # I am assuming a solid angle of 6.8e-5 steradian for the source (the solar disk).
+            # TODO
             self._radiance = None # it is of units W/(m^2 st nm), in this case it will be set after the pyshdom rendering.
                 
             
@@ -995,25 +1068,33 @@ class Imager(object):
         self._H = H # km
         self._orbital_speed = 1e-3*SatSpeed(orbit=self._H) # units of [m/sec] converted to [km/sec]
         print("----> Speed in {}[km] orbit is {}[km/sec]".format(self._H,float_round(self._orbital_speed)))
-        if self._lens._FOCAL_LENGTH is not None:
-            self.calculate_footprints()
-        
-            # bound the exposure time:
-            # Let self._orbital_speed be the speed of the satellites. To avoid motion blur, it is important that:
-            self._max_exposure_time = 1e6*self._pixel_footprint/self._orbital_speed # in micron sec
+        if(self._LENS_DEFINED): # means the lens should be defined
             
-            # camera FOV:
-            # Let self._camera_footprint be the footprint of the camera at nadir view in x axis. The field of view of the camera in radians is,
-            self._FOV = 2*np.arctan(self._camera_footprint/2*self._H)
-        
-         
-            self._NOISE_FLOOR = self._READ_NOISE + (self._DARK_NOISE*1e-6*self._max_exposure_time)
-            self._DR = self._sensor.full_well/self._NOISE_FLOOR  
+            if self._lens._FOCAL_LENGTH is not None:
+                self.calculate_footprints()
             
-            self.set_exposure_time(self._max_exposure_time - 1)# set to max exposur time -1 micron.
-            print("The exposure time is set here to be the maximum exposure time. The maximum exposure time is calculated to avoide pixel blaring due to motion.")
+                # bound the exposure time:
+                # Let self._orbital_speed be the speed of the satellites. To avoid motion blur, it is important that:
+                self._max_exposure_time = 1e6*self._pixel_footprint/self._orbital_speed # in micron sec
+                
+                # camera FOV:
+                # Let self._camera_footprint be the footprint of the camera at nadir view in x axis. The field of view of the camera in radians is,
+                self._FOV = 2*np.arctan(self._camera_footprint/2*self._H)
+            
+                if((self._DARK_NOISE is not None) and (self._NOISE_FLOOR is not None)):
+                    
+                    self._NOISE_FLOOR = self._READ_NOISE + (self._DARK_NOISE*1e-6*self._max_exposure_time)
+                    self._DR = self._sensor.full_well/self._NOISE_FLOOR  
+                
+                self.set_exposure_time(self._max_exposure_time - 1)# set to max exposur time -1 micron.
+                print("The exposure time is set here to be the maximum exposure time. The maximum exposure time is calculated to avoide pixel blaring due to motion.")
          
-                 
+        else:
+            print("Be careful the lens is not defined.")
+            self._max_exposure_time = None
+            self._FOV = None
+            self.set_exposure_time(self._max_exposure_time)
+            
     def set_radiance_at_whole_spectrum(self,val):
         """
         Set required radiance that should reach the lens.
@@ -1032,36 +1113,51 @@ class Imager(object):
         assert self._H is not None, "You must set the atltitude of the imager before you can set the footprint of a pixel."
         
         self._pixel_footprint = val
-        self._lens._FOCAL_LENGTH = 1e-3*(self._H*self._sensor.pixel_size)/self._pixel_footprint # mm
-        self._camera_footprint = 1e-3*(self._H*self._sensor.sensor_size)/self._lens._FOCAL_LENGTH #km
-        # here self._camera_footprint is a np.array with 2 elements, relative to [H,W]. Which element to take?
-        # currently I take the minimal volue:
-        self._camera_footprint = max(self._camera_footprint)
         
-        # bound the exposure time:
-        # Let self._orbital_speed be the speed of the satellites. To avoid motion blur, it is important that:
-        self._max_exposure_time = 1e6*self._pixel_footprint/self._orbital_speed # in micron sec
-        self._NOISE_FLOOR = self._READ_NOISE + (self._DARK_NOISE*1e-6*self._max_exposure_time)
-        self._DR = self._sensor.full_well/self._NOISE_FLOOR          
-        # camera FOV:
-        # Let self._camera_footprint be the footprint of the camera at nadir view in x axis. The field of view of the camera in radians is,
-        self._FOV = 2*np.arctan(self._camera_footprint/2*self._H)
-        
-        # SNR:
-        QUANTIZATION_NOISE = 0.5*(self._sensor.full_well/(2**self._sensor.bits))
-        DARK_NOISE = (self._DARK_NOISE*1e-6*self._max_exposure_time)
-        self._SNR = (self._sensor.full_well)/np.sqrt(self._sensor.full_well + DARK_NOISE + (self._READ_NOISE**2) + (QUANTIZATION_NOISE**2))        
-        #self._SNR = (self._sensor.full_well)**0.5 old version
-        print("The focal length will change in this step, This what do you want to do?")
-        print("----> Focal length is set to {}[mm]".format(float_round(self._lens.focal_length)))
-        print("----> Exposure bound is set to {}[micro sec]".format(float_round(self._max_exposure_time)))
-        print("----> Dynamic range (at full well) bound is set to {} or {}[db]".format(float_round(self._DR),float_round(20*np.log10(self._DR))))
-        print("----> Noise floor bound is set to {}[electrons]".format(float_round(self._NOISE_FLOOR)))
-        print("----> SNR (at full well) is {} or {}[db]".format(float_round(self._SNR),float_round(self._sensor.get_SNR_IN_DB())))
-        
-        self.set_exposure_time(self._max_exposure_time - 1)# set to max exposur time -1 micron.
-        print("The exposure time is set here to be the maximum exposure time. The maximum exposure time is calculated to avoide pixel blaring due to motion.")
+        if(self._LENS_DEFINED): # means the lens should be defined
+            
+            self._lens._FOCAL_LENGTH = 1e-3*(self._H*self._sensor.pixel_size)/self._pixel_footprint # mm
+            self._camera_footprint = 1e-3*(self._H*self._sensor.sensor_size)/self._lens._FOCAL_LENGTH #km
+            # here self._camera_footprint is a np.array with 2 elements, relative to [H,W]. Which element to take?
+            # currently I take the minimal volue:
+            self._camera_footprint = max(self._camera_footprint)
+            
+            # bound the exposure time:
+            # Let self._orbital_speed be the speed of the satellites. To avoid motion blur, it is important that:
+            self._max_exposure_time = 1e6*self._pixel_footprint/self._orbital_speed # in micron sec
+            
+            # camera FOV:
+            # Let self._camera_footprint be the footprint of the camera at nadir view in x axis. The field of view of the camera in radians is,
+            self._FOV = 2*np.arctan(self._camera_footprint/2*self._H)
+            
+            if((self._DARK_NOISE is not None) and (self._NOISE_FLOOR is not None)):
+                self._NOISE_FLOOR = self._READ_NOISE + (self._DARK_NOISE*1e-6*self._max_exposure_time)
+                self._DR = self._sensor.full_well/self._NOISE_FLOOR          
+            
+            
+                # SNR:
+                QUANTIZATION_NOISE = 0.5*(self._sensor.full_well/(2**self._sensor.bits))
+                DARK_NOISE = (self._DARK_NOISE*1e-6*self._max_exposure_time)
+                self._SNR = (self._sensor.full_well)/np.sqrt(self._sensor.full_well + DARK_NOISE + (self._READ_NOISE**2) + (QUANTIZATION_NOISE**2))        
+                #self._SNR = (self._sensor.full_well)**0.5 old version
+                print("The focal length will change in this step, This what do you want to do?")
+                print("----> Focal length is set to {}[mm]".format(float_round(self._lens.focal_length)))
+                print("----> Exposure bound is set to {}[micro sec]".format(float_round(self._max_exposure_time)))
+                print("----> Dynamic range (at full well) bound is set to {} or {}[db]".format(float_round(self._DR),float_round(20*np.log10(self._DR))))
+                print("----> Noise floor bound is set to {}[electrons]".format(float_round(self._NOISE_FLOOR)))
+                print("----> SNR (at full well) is {} or {}[db]".format(float_round(self._SNR),float_round(self._sensor.get_SNR_IN_DB())))
+                
+            self.set_exposure_time(self._max_exposure_time - 1)# set to max exposur time -1 micron.
+            print("The exposure time is set here to be the maximum exposure time. The maximum exposure time is calculated to avoide pixel blaring due to motion.")
              
+             
+        else:
+            # bound the exposure time:
+            # Let self._orbital_speed be the speed of the satellites. To avoid motion blur, it is important that:
+            self._max_exposure_time = 1e6*self._pixel_footprint/self._orbital_speed # in micron sec            
+            self.set_exposure_time(self._max_exposure_time - 1)# set to max exposur time -1 micron.
+            
+            
     def calculate_footprints(self):
         """
         Calculats footprints in km:
@@ -1073,7 +1169,30 @@ class Imager(object):
         self._camera_footprint = max(self._camera_footprint)
         
         
+    def set_scene_spectrum_in_microns(self,scene_spectrum):
+        """
+        set the spectrum and update the solar irradiance in that spectrum.
+        """
+        assert len(scene_spectrum) == 2 , "The spectrum is a list of [stera,end] in microns."
         
+        self._scene_spectrum = [1e3*s for s in scene_spectrum]
+        self._scene_spectrum_in_microns = scene_spectrum
+        
+        step = self._integration_Dlambda # nm
+        start = self._scene_spectrum[0]
+        stop = self._scene_spectrum[1]
+        
+        if(start == stop):
+            self._lambdas = start
+            self._centeral_wavelength = start
+            self._centeral_wavelength_in_microns = self._scene_spectrum_in_microns[0]
+        else:
+            self._lambdas = np.linspace(start, stop, int(((stop-start)/step) + 1)) 
+            self._centeral_wavelength = float_round(core.get_center_wavelen(start,stop))
+            self._centeral_wavelength_in_microns = float_round(core.get_center_wavelen(self._scene_spectrum_in_microns[0],self._scene_spectrum_in_microns[1]))
+             
+        self._LTOA = self.calculate_scene_solar_irradiance() # irradiance on the top of Atmosphere.
+    
     def set_system_efficiency(self,val):
         """
         Set the camera system efficiency. The camera system efficiency is due to optics losses and sensor reflection (it is not a part of QE).
@@ -1103,6 +1222,11 @@ class Imager(object):
     @property 
     def scene_spectrum(self):
         return self._scene_spectrum
+    
+    @scene_spectrum.setter
+    def scene_spectrum(self,scene_spectrum):
+        assert len(scene_spectrum) == 2 , "The spectrum is a list of [stera,end] in nm"
+        self._scene_spectrum = scene_spectrum
     
     @property 
     def max_noise_floor(self):
@@ -1139,77 +1263,133 @@ class Imager(object):
         
         # Define sensor:
         QE = pd.DataFrame(data={"<wavelength [nm]>":data['SPECTRUM'],'<Efficiency>':data['SENSOR_QE']},index=None)
-        
-        sensor = SensorFPA(QE=QE,PIXEL_SIZE = data['PIXEL_SIZE'],
-                           FULLWELL = data['FULLWELL'],
-                           CHeight = data['CHeight'],
-                           CWidth = data['CWidth'],
-                           SENSOR_ID = '111',
-                           READOUT_NOISE = data['READOUT_NOISE'],
-                           DARK_CURRENT_NOISE = data['DARK_CURRENT_NOISE'],
-                           BitDepth = data['BitDepth'],
-                           TYPE = data['SENSOR_TYPE']) 
+        if(data['SENSOR_TYPE'] is 'SIMPLE'):
+            sensor = None
+            obj._SENSOR_DEFINED = False
+            
+        else:
+            sensor = SensorFPA(QE=QE,PIXEL_SIZE = data['PIXEL_SIZE'],
+                               FULLWELL = data['FULLWELL'],
+                               CHeight = data['CHeight'],
+                               CWidth = data['CWidth'],
+                               SENSOR_ID = '111',
+                               READOUT_NOISE = data['READOUT_NOISE'],
+                               DARK_CURRENT_NOISE = data['DARK_CURRENT_NOISE'],
+                               BitDepth = data['BitDepth'],
+                               TYPE = data['SENSOR_TYPE']) 
+            
+            obj._SENSOR_DEFINED = True # means we have here defined sensor
         
     
         # Define lens:  
         
         TRANSMISSION = pd.DataFrame(data={"<wavelength [nm]>":data['SPECTRUM'],'<Efficiency>':data['LENS_TRANSMISSION']},index=None)
-        
-        lens = LensSimple(TRANSMISSION= TRANSMISSION,
-                         FOCAL_LENGTH = data['LENS_FOCAL_LENGTH'],
-                         DIAMETER = data['LENS_DIAMETER'],
-                         LENS_ID = '101')
+        if(data['SENSOR_TYPE'] is 'SIMPLE'):
+            lens = None
+            obj._LENS_DEFINED = False
+            
+        else:
+            
+            lens = LensSimple(TRANSMISSION= TRANSMISSION,
+                             FOCAL_LENGTH = data['LENS_FOCAL_LENGTH'],
+                             DIAMETER = data['LENS_DIAMETER'],
+                             LENS_ID = '101')
        
-             
+            obj._LENS_DEFINED = True # means we have here defined lens
+            
         super(Imager, obj).__init__()  # Don't forget to call any polymorphic base class initializers
         
+        if(data['SENSOR_TYPE'] is not 'SIMPLE'):
+            obj._sensor = sensor
+            obj._lens = lens
+            obj._temp = data['TEMPERTURE'] # celsius
         
-        obj._SENSOR_DEFINED = True # means we have here defined sensor
-        obj._LENS_DEFINED = True # means we have here defined lens
-        
-        obj._sensor = sensor
-        obj._lens = lens
-        obj._temp = data['TEMPERTURE'] # celsius
-    
-        
-        obj._DR = obj._sensor.DynamicRange #dynamic range.
-        obj._SNR = obj._sensor.SNR 
-        obj._DARK_NOISE = obj._sensor._DARK_CURRENT_NOISE
-        
-        #['DARK_CURRENT_NOISE_TABLE']:
-        if('DARK_CURRENT_NOISE_TABLE' in data.keys()):
             
-            _dark_noise_table = data['DARK_CURRENT_NOISE_TABLE']
-            obj._dark_noise_table = pd.DataFrame(data=_dark_noise_table,index=None)
-        else:
-            obj._dark_noise_table  = None
+            obj._DR = obj._sensor.DynamicRange #dynamic range.
+            obj._SNR = obj._sensor.SNR 
+            obj._DARK_NOISE = obj._sensor._DARK_CURRENT_NOISE
             
-        obj._READ_NOISE = obj._sensor._READOUT_NOISE
-        obj._NOISE_FLOOR = obj._sensor._NOISE_FLOOR
+            #['DARK_CURRENT_NOISE_TABLE']:
+            if('DARK_CURRENT_NOISE_TABLE' in data.keys()):
+                
+                _dark_noise_table = data['DARK_CURRENT_NOISE_TABLE']
+                obj._dark_noise_table = pd.DataFrame(data=_dark_noise_table,index=None)
+            else:
+                obj._dark_noise_table  = None
+                
+            obj._READ_NOISE = obj._sensor._READOUT_NOISE
+            obj._NOISE_FLOOR = obj._sensor._NOISE_FLOOR
+            
+            obj._Imager_QE = obj._sensor.QE # At the end we must call obj._adjust_spectrum() for the correct assaiment.
+            
+            obj._ETA = data['SYSTEM_EFFICIENCY'] # It is the camera system efficiency, I don't know yet how to set its value, 
+            obj._Imager_EFFICIANCY = obj._ETA
+            
+            obj._lambdas = obj._sensor.spectrum 
+            obj._scene_spectrum = [data['START_SPECTRUM'], data['END_SPECTRUM']]
+            obj._scene_spectrum_in_microns = [float_round(1e-3*w) for w in obj._scene_spectrum]
+            obj._centeral_wavelength = float_round(core.get_center_wavelen(obj._scene_spectrum[0],obj._scene_spectrum[1]))   
+            obj._centeral_wavelength_in_microns = float_round(core.get_center_wavelen(obj._scene_spectrum_in_microns[0],obj._scene_spectrum_in_microns[1]))
+            obj._integration_Dlambda = integration_Dlambda
+            
+            obj._H = None 
+            obj._orbital_speed = None 
+            obj._max_exposure_time = None 
+            obj._exposure_time = None
+            obj._FOV = None       
+            
+            obj._radiance = None
+            obj._LTOA = np.array(data['SPECTRAL_IRRADIANCE_TOA'])
+            
+            obj._adjust_spectrum()
+            
+        else: # when the sensor type is SIMPLE - means the simplest imager, with all empty parameters.
+            
+            obj._sensor = sensor
+            obj._lens = lens
+            obj._temp = data['TEMPERTURE'] # celsius
         
-        obj._Imager_QE = obj._sensor.QE # At the end we must call obj._adjust_spectrum() for the correct assaiment.
+            
+            obj._DR = None #dynamic range.
+            obj._SNR = None
+            obj._DARK_NOISE = None
+            
+            #['DARK_CURRENT_NOISE_TABLE']:
+            if('DARK_CURRENT_NOISE_TABLE' in data.keys()):
+                
+                _dark_noise_table = data['DARK_CURRENT_NOISE_TABLE']
+                obj._dark_noise_table = pd.DataFrame(data=_dark_noise_table,index=None)
+            else:
+                obj._dark_noise_table  = None
+                
+            obj._READ_NOISE = None
+            obj._NOISE_FLOOR = None
+            
+            obj._Imager_QE = None # At the end we must call obj._adjust_spectrum() for the correct assaiment.
+            
+            obj._ETA = data['SYSTEM_EFFICIENCY'] # It is the camera system efficiency, I don't know yet how to set its value, 
+            obj._Imager_EFFICIANCY = obj._ETA
+            
+            obj._lambdas = None
+            obj._scene_spectrum = None
+            obj._scene_spectrum_in_microns = None
+            obj._centeral_wavelength = None
+            obj._centeral_wavelength_in_microns = None
+            obj._integration_Dlambda = None
+            
+            obj._H = None 
+            obj._orbital_speed = None 
+            obj._max_exposure_time = None 
+            obj._exposure_time = None
+            obj._FOV = None       
+            
+            obj._radiance = None
+            obj._LTOA = None
+            
         
-        obj._ETA = data['SYSTEM_EFFICIENCY'] # It is the camera system efficiency, I don't know yet how to set its value, 
-        obj._Imager_EFFICIANCY = obj._ETA
-        
-        obj._lambdas = obj._sensor.spectrum 
-        obj._scene_spectrum = [data['START_SPECTRUM'], data['END_SPECTRUM']]
-        obj._scene_spectrum_in_microns = [float_round(1e-3*w) for w in obj._scene_spectrum]
-        obj._centeral_wavelength = float_round(core.get_center_wavelen(obj._scene_spectrum[0],obj._scene_spectrum[1]))   
-        obj._centeral_wavelength_in_microns = float_round(core.get_center_wavelen(obj._scene_spectrum_in_microns[0],obj._scene_spectrum_in_microns[1]))
-        obj._integration_Dlambda = integration_Dlambda
-        
-        obj._H = None 
-        obj._orbital_speed = None 
-        obj._max_exposure_time = None 
-        obj._exposure_time = None
-        obj._FOV = None       
-        
-        obj._radiance = None
-        obj._LTOA = np.array(data['SPECTRAL_IRRADIANCE_TOA'])
-        
-        obj._adjust_spectrum()
         print('Finish to import imager from {}.\n'.format(file_name))
+        
+        
         return obj
         
     def short_description(self):
@@ -1219,19 +1399,23 @@ class Imager(object):
         """
         return self._sensor.sensor_type
         
-    def ExportConfig(self,file_name = 'Imager_config.json'):
+    def ExportConfig(self,file_name = 'Imager_config.json',force = False):
         """
         report evrey thing in a table:
+        Inputs:
+         file_name - path where to save the configuration
+         
+         force - bool, if to force export even the sensor and lens are empty. 
         """
         _DICT_ = OrderedDict()
-        _DICT_['PIXEL_SIZE'] = self._sensor.pixel_size # microns
-        _DICT_['FULLWELL'] = self._sensor.full_well  # electrons
-        _DICT_['CHeight'] =  int(self._sensor.sensor_size[0]) if self._sensor.sensor_size[0] is not None else None# pixels
-        _DICT_['CWidth'] =  int(self._sensor.sensor_size[1]) if self._sensor.sensor_size[1] is not None else None# pixels
-        _DICT_['BitDepth'] = self._sensor.bits # unitless
-        _DICT_['DYNAMIC_RANGE'] = self._sensor.DynamicRange # unitless, it is not in DB
-        _DICT_['SNR'] = float_round(self._sensor.SNR) # unitless, it is not in DB
-        _DICT_['DARK_CURRENT_NOISE'] = self._DARK_NOISE # [electrons/(sec)]
+        _DICT_['PIXEL_SIZE'] = self._sensor.pixel_size if self._sensor is not None else None# microns
+        _DICT_['FULLWELL'] = self._sensor.full_well if self._sensor is not None else None # electrons
+        _DICT_['CHeight'] =  int(self._sensor.nx) if self._sensor is not None else None# pixels
+        _DICT_['CWidth'] =  int(self._sensor.ny) if self._sensor is not None else None# pixels
+        _DICT_['BitDepth'] = self._sensor.bits if self._sensor is not None else None# unitless
+        _DICT_['DYNAMIC_RANGE'] = self._sensor.DynamicRange if self._sensor is not None else None# unitless, it is not in DB
+        _DICT_['SNR'] = float_round(self._sensor.SNR) if self._sensor is not None else None# unitless, it is not in DB
+        _DICT_['DARK_CURRENT_NOISE'] = self._DARK_NOISE if self._DARK_NOISE is not None else None# [electrons/(sec)]
         
         #_DICT_['DARK_CURRENT_NOISE_TABLE']:
         new_dict = OrderedDict()
@@ -1239,25 +1423,25 @@ class Imager(object):
         new_dict['noise [electrons/sec]'] = self._dark_noise_table['noise [electrons/sec]'].values.tolist() if self._dark_noise_table is not None else None
         _DICT_['DARK_CURRENT_NOISE_TABLE'] = new_dict
         
-        _DICT_['READOUT_NOISE'] = self._sensor._READOUT_NOISE # electrons
+        _DICT_['READOUT_NOISE'] = self._sensor._READOUT_NOISE if self._sensor is not None else None# electrons
         _DICT_['TEMPERTURE'] = self._temp # celsius
         _DICT_['NOISE_FLOOR'] = float_round(self._NOISE_FLOOR) if self._NOISE_FLOOR is not None else None # electrons
-        _DICT_['SYSTEM_EFFICIENCY'] = self._ETA # unitless
+        _DICT_['SYSTEM_EFFICIENCY'] = self._ETA if self._ETA is not None else None# unitless
         _DICT_['MAX_EXPOSURE_TIME'] = int(self._max_exposure_time) if self._max_exposure_time is not None else None# in [micro sec]
-        _DICT_['START_SPECTRUM'] = self._scene_spectrum[0] # in nm
-        _DICT_['END_SPECTRUM'] = self._scene_spectrum[1] # in nm
-        _DICT_['SPECTRUM'] = self._lambdas.tolist() if self._lambdas is not None else None # in nm
+        _DICT_['START_SPECTRUM'] = self._scene_spectrum[0] if (self._scene_spectrum is not None and self._sensor is not None) else None# in nm
+        _DICT_['END_SPECTRUM'] = self._scene_spectrum[1] if (self._scene_spectrum is not None and self._sensor is not None) else None# in nm
+        _DICT_['SPECTRUM'] = self._lambdas.tolist() if (self._lambdas is not None and self._sensor is not None) else None # in nm
         _DICT_['SENSOR_QE'] = self._Imager_QE.tolist() if self._Imager_QE is not None else None # to update units.
-        _DICT_['SENSOR_TYPE'] = self._sensor.sensor_type
+        _DICT_['SENSOR_TYPE'] = self._sensor.sensor_type if self._sensor is not None else None
         _DICT_['SPECTRAL_IRRADIANCE_TOA'] = self._LTOA.tolist() if self._LTOA is not None else None # in W/(m^2 st nm)
-        _DICT_['LENS_DIAMETER'] = self._lens.diameter # in mm 
-        _DICT_['LENS_FOCAL_LENGTH'] = self._lens.focal_length # in mm 
-        T = self._Imager_EFFICIANCY/self._ETA if self._Imager_EFFICIANCY is not None else None
-        _DICT_['SYSTEM_EFFICIENCY'] = self._ETA
+        _DICT_['LENS_DIAMETER'] = self._lens.diameter if self._lens is not None else None# in mm 
+        _DICT_['LENS_FOCAL_LENGTH'] = self._lens.focal_length if self._lens is not None else None# in mm 
+        T = self._Imager_EFFICIANCY/self._ETA if (self._Imager_EFFICIANCY and self._ETA) is not None else None
+        _DICT_['SYSTEM_EFFICIENCY'] = self._ETA if self._ETA is not None else None
         if(np.isscalar(T)):
             _DICT_['LENS_TRANSMISSION'] = T
         else:
-            _DICT_['LENS_TRANSMISSION'] = T.tolist() # unitless
+            _DICT_['LENS_TRANSMISSION'] = T.tolist() if T is not None else None # unitless
         
         #dumping a dictionary to a YAML file while preserving order
         # https://stackoverflow.com/a/8661021
@@ -1275,30 +1459,31 @@ class Imager(object):
                 #'Read noise':,'Dark current':,'Full well':,'Dynamic range':,'SNR':,'Bit depth':,
                 #'Orbit':,'Focal length':,'Exposure bound':,'Lens diameter'}
                 
-        
-        assert (self._SENSOR_DEFINED and  self._LENS_DEFINED), "Too soon to report, define all needed"
-
-        if(self._radiance is not None):
+        if(force is False): # force the export without anyy chacking of the content.
             
-            G1 = (1/(h*c))*self._max_exposure_time*(((np.pi)/4)/(self._lens._FOCAL_LENGTH**2))*(self._sensor.pixel_size**2)
-            G2 = np.trapz((self._radiance*self._Imager_EFFICIANCY*self._Imager_QE)*self._lambdas, x = self._lambdas)
-            G = 1e-21*G1*G2
-            
-            signal = ((1e-3*self._lens.diameter)**2)*G
-            self._NOISE_FLOOR = self._READ_NOISE + (self._DARK_NOISE*1e-6*self._max_exposure_time)            
-            self._DR = signal/self._NOISE_FLOOR   
-        else:
-            self._NOISE_FLOOR = None
-            self._DR  = None
+            assert (self._SENSOR_DEFINED and  self._LENS_DEFINED), "Too soon to report, define all needed"
         
-        print("\nReport all at maximun exposure time:")
-        print("----> Diameter is {}[mm]".format(float_round(self._lens.diameter))) 
-        if(self._DR is not None):
-            print("----> Dynamic range is {} or {}[db]".format(float_round(self._DR),float_round(20*np.log10(self._DR))))
-        print("----> SNR is {} or {}[db]".format(float_round(self._SNR),float_round(20*np.log10(self._SNR))))
-        print("----> Full_well is {}[electrons]".format(float_round(self._sensor.full_well)))
-        if(self._radiance is not None):
-            print("----> signal is {}[electrons]".format(float_round(signal)))
+            if(self._radiance is not None):
+                
+                G1 = (1/(h*c))*self._max_exposure_time*(((np.pi)/4)/(self._lens._FOCAL_LENGTH**2))*(self._sensor.pixel_size**2)
+                G2 = np.trapz((self._radiance*self._Imager_EFFICIANCY*self._Imager_QE)*self._lambdas, x = self._lambdas)
+                G = 1e-21*G1*G2
+                
+                signal = ((1e-3*self._lens.diameter)**2)*G
+                self._NOISE_FLOOR = self._READ_NOISE + (self._DARK_NOISE*1e-6*self._max_exposure_time)            
+                self._DR = signal/self._NOISE_FLOOR   
+            else:
+                self._NOISE_FLOOR = None
+                self._DR  = None
+            
+            print("\nReport all at maximun exposure time:")
+            print("----> Diameter is {}[mm]".format(float_round(self._lens.diameter))) 
+            if(self._DR is not None):
+                print("----> Dynamic range is {} or {}[db]".format(float_round(self._DR),float_round(20*np.log10(self._DR))))
+            print("----> SNR is {} or {}[db]".format(float_round(self._SNR),float_round(20*np.log10(self._SNR))))
+            print("----> Full_well is {}[electrons]".format(float_round(self._sensor.full_well)))
+            if(self._radiance is not None):
+                print("----> signal is {}[electrons]".format(float_round(signal)))
         
 #---------------------------------------------------------------------
 #-------------------------MAIN----------------------------------------
@@ -1407,6 +1592,17 @@ def test_tmperature():
     # play with temperature:
         
     
+def Creat_Simple_imager():
+    """
+    Creat simple imager that just exprot fictive parametrs such that it would be imported by the simulation and the simulation dectaits 
+    its parameters.
+    """
+    # Define sensor:
+    imager = Imager()
+    imager.ExportConfig(file_name = '../vadim/simple_imager_config.json',force = True)
+    
+    
+
 
 if __name__ == '__main__':
-    main()
+    Creat_Simple_imager()

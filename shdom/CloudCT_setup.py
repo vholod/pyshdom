@@ -16,6 +16,7 @@ import functools
 # importing operator for operator functions 
 import operator 
 import pickle
+import warnings
 
 # -----------------------------------------------------------------
 # ------------------------THE CLASSES BELOW------------------------
@@ -35,12 +36,18 @@ class SpaceMultiView_Measurements(object):
          
          """
         assert setup_of_views_list is not None, "You must provied the lisst of setup views."
-        self._setup_of_views_list = setup_of_views_list
-        print("Before the simulation of the measurments don\'t forgate to conect an rte solver to the instance.")
+        # delete views setup if the imager is inactive in al the views:
+        self._setup_of_views_list = []
+        for setup_of_views in setup_of_views_list:
+            if(setup_of_views.num_projections > 0):
+                
+                self._setup_of_views_list.append(setup_of_views)
+                
         self._imagers_unique_wavelengths_list = [float_round(w.imager.centeral_wavelength_in_microns) for w in self._setup_of_views_list] # Actualy the list may be not uniqe if for instance 2 imagers have the same centeral wavelength. 
         # wavelengths in microns.
         self._Images_per_imager = None
         self._Radiances_per_imager = None
+        self._radiance_to_graylevel_scales = len(setup_of_views_list)*[1]
         
         self._sensor_type = None # Currently, it sopports only sensor of type shdom.RadianceSensor().
         self._shdom_sensor = None
@@ -104,9 +111,12 @@ class SpaceMultiView_Measurements(object):
             if(wavelength in self._imagers_unique_wavelengths_list):
                 imager_index = self._imagers_unique_wavelengths_list.index(wavelength)
                 projections = self._setup_of_views_list[imager_index]
+                assert projections.num_projections > 0 , "Inactive imager appears in the list of views."
+                
                 rte_solver = Solvers_dict[wavelength]
             else:
-                raise Exception("It is very strange that the solver does not have a wavelength that exists in the images list.")
+                warnings.warn("It is very strange that the solver does not have a wavelength that exists in the images list.\nMaybe you deactivate an imager? if not, you have a bug in the setup definition.")
+                # raise Exception("It is very strange that the solver does not have a wavelength that exists in the images list.")
             
             print('The rendering is beeing done for centeral_wavelength of {}nm.\n'.format(wavelength))
             camera = shdom.Camera(sensor, projections)
@@ -123,17 +133,23 @@ class SpaceMultiView_Measurements(object):
             if(IF_REDUCE_EXPOSURE):
                 projections.imager.adjust_exposure_time(images_list_per_imager)
                  
-            self._Images_per_imager[imager_index] = projections.imager.convert_radiance_to_graylevel(images_list_per_imager,IF_APPLY_NOISE=IF_APPLY_NOISE)
-            # TODO - delete the below line:
-            self._Images_per_imager[imager_index] = images_list_per_imager
-            
+            self._Images_per_imager[imager_index], radiance_to_graylevel_scale = projections.imager.convert_radiance_to_graylevel(images_list_per_imager,IF_APPLY_NOISE=IF_APPLY_NOISE,IF_SCALE_IDEALLY=IF_SCALE_IDEALLY)
+            # the lines below does the following: It scale back the grayscale values to radiances but it does that after nosie addition.
+            # TODO - Ensure the feasability of that step with Yoav.
+            images_in_grayscale = self._Images_per_imager[imager_index]
+                           
+                    
+            self._Images_per_imager[imager_index] = [(i/radiance_to_graylevel_scale) for i in images_in_grayscale] # 
+                         
+                    
+            self._radiance_to_graylevel_scales[imager_index] = radiance_to_graylevel_scale
         
     
     def show_measurments(self, radiance_threshold_dict = None):
         """
         TODO - help
         TODO - use radiance_threshold_dict which is a dictionary: keys air the imager indexes, values are intensity tresholds per view.
-        You can use radiance_threshold_dict in the visualization just to see how the images look like with that tresholds.
+        You can use radiance_threshold_dict in the visualization just to see how the images (in grayscale) look like with that tresholds.
         """
         if(radiance_threshold_dict is None):
             radiance_threshold_dict = dict()
@@ -148,54 +164,58 @@ class SpaceMultiView_Measurements(object):
             ncols = 5 # colums, in subplots
             nrows_ncols = [int(np.ceil(projections.num_projections/ncols)), int(ncols)]
             
-            images = self._Images_per_imager[imager_index].copy()
-            # calculate images maximum:
-            images_array = np.array(images)
-            #MAXI = images_array.max()
-            MAXI = projections.imager.get_gray_lavel_maximum()
-            
-            if(nrows_ncols[0] == 1):
-                nrows_ncols[1] = min(nrows_ncols[1],projections.num_projections)
-            
-            if(nrows_ncols == [1,1]):
-                fig = plt.figure(figsize=(8, 8))
-                ax = plt.gca()
+            if(self._Images_per_imager[imager_index] is not None):
                 
-                image = images[0].copy()
-                image[image<=radiance_thresholds[0]] = 0
-                assert len(images) == 1, "Imposible that there is more than 1 image here."
-                im = plt.imshow(image,cmap='gray',vmin=0, vmax=MAXI)
+                images = self._Images_per_imager[imager_index].copy()
+                # calculate images maximum:
+                images_array = np.array(images)
+                #MAXI = images_array.max()
+                MAXI = projections.imager.get_gray_lavel_maximum()
                 
-                divider = make_axes_locatable(ax)
-                cax = divider.append_axes("right", size="5%", pad=0.05)
-                plt.colorbar(im, cax=cax)                
-            else:   
-                fig = plt.figure(figsize=(20, 20))
-                grid = AxesGrid(fig, 111,
-                                nrows_ncols=nrows_ncols,
-                                axes_pad=0.3,
-                                cbar_mode='single',
-                                cbar_location='right',
-                                cbar_pad=0.1
-                                )  
+                if(nrows_ncols[0] == 1):
+                    nrows_ncols[1] = min(nrows_ncols[1],projections.num_projections)
                 
-                # show all
-                for projection_index, (ax, name) in enumerate(zip(grid, projections.projection_names)):
-                    image = images[projection_index].copy()
-                    image[image<=radiance_thresholds[projection_index]] = 0
+                if(nrows_ncols == [1,1]):
+                    fig = plt.figure(figsize=(8, 8))
+                    ax = plt.gca()
                     
-                    ax.set_axis_off()
-                    im = ax.imshow(image,cmap='gray',vmin=0, vmax=MAXI)
-                    ax.set_title("{}".format(name))
-                
-                # super title:    
-                
-                # Since currently the view per same imager have identicale nx and ny:
-                nx, ny =  image.shape
-                title = "Imager type is {}, nx={} , ny={}".format(projections.imager.short_description(),nx,ny)
-                cbar = ax.cax.colorbar(im)
-                cbar = grid.cbar_axes[0].colorbar(im)
-                fig.suptitle(title, size=16,y=0.95)        
+                    image = images[0].copy()*\
+                        self._radiance_to_graylevel_scales[imager_index] # to set the images in the grayscale level.
+                    image[image<=radiance_thresholds[0]] = 0
+                    assert len(images) == 1, "Imposible that there is more than 1 image here."
+                    im = plt.imshow(image,cmap='gray',vmin=0, vmax=MAXI)
+                    
+                    divider = make_axes_locatable(ax)
+                    cax = divider.append_axes("right", size="5%", pad=0.05)
+                    plt.colorbar(im, cax=cax)                
+                else:   
+                    fig = plt.figure(figsize=(20, 20))
+                    grid = AxesGrid(fig, 111,
+                                    nrows_ncols=nrows_ncols,
+                                    axes_pad=0.3,
+                                    cbar_mode='single',
+                                    cbar_location='right',
+                                    cbar_pad=0.1
+                                    )  
+                    
+                    # show all
+                    for projection_index, (ax, name) in enumerate(zip(grid, projections.projection_names)):
+                        image = images[projection_index].copy()\
+                            *self._radiance_to_graylevel_scales[imager_index] # to set the images in the grayscale level..
+                        image[image<=radiance_thresholds[projection_index]] = 0
+                        
+                        ax.set_axis_off()
+                        im = ax.imshow(image,cmap='gray')#,vmin=0, vmax=MAXI)
+                        ax.set_title("{}".format(name))
+                    
+                    # super title:    
+                    
+                    # Since currently the view per same imager have identicale nx and ny:
+                    nx, ny =  image.shape
+                    title = "Imager type is {}, nx={} , ny={}".format(projections.imager.short_description(),nx,ny)
+                    cbar = ax.cax.colorbar(im)
+                    cbar = grid.cbar_axes[0].colorbar(im)
+                    fig.suptitle(title, size=16,y=0.95)
             
 
     def save(self, path):
