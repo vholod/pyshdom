@@ -51,18 +51,11 @@ with open(params_file_path, 'r') as f:
 logger.debug(f"loading params from {params_file_path}")
 logger.debug(f"running with params:{run_params}")
 mie_options = run_params['mie_options']  # mie params
-viz_options = run_params['viz_options']  # visualization params
-n_jobs = run_params['n_jobs']
 
-Rsat = run_params['Rsat']
-GSD = run_params['GSD']
 wavelengths_micron = run_params['wavelengths_micron']
-sun_azimuth = run_params['sun_azimuth']
-sun_zenith = run_params['sun_zenith']
 
 SATS_NUMBER_SETUP = run_params['SATS_NUMBER_SETUP']
 SATS_NUMBER_INVERSE = run_params['SATS_NUMBER_INVERSE']
-
 
 """
 Check if mie tables exist, if not creat them, if yes skip it is long process.
@@ -73,7 +66,7 @@ mie_base_path = CALC_MIE_TABLES(MieTablesPath, wavelengths_micron, mie_options)
 # mie_base_path = mie_base_path[0]
 # for example, mie_base_path = './mie_tables/polydisperse/Water_672nm.scat'
 
-middle_dir_name = f'unity_flux_active_sats_{SATS_NUMBER_SETUP}_GSD_{int(1e3 * GSD)}m_LES_cloud_field_rico_Water'
+middle_dir_name = f"unity_flux_active_sats_{SATS_NUMBER_SETUP}_GSD_{int(1e3 * run_params['GSD'])}m_LES_cloud_field_rico_Water"
 if isinstance(wavelengths_micron, list):
 
     wavelengths_micron.sort()  # just for convenience, let's have it sorted.
@@ -92,7 +85,7 @@ log_name_base = f'active_sats_{SATS_NUMBER_SETUP}_easiest_rico32x37x26'
 # Write intermediate TensorBoardX results into log_name.
 # The provided string is added as a comment to the specific run.
 
-
+viz_options = run_params['viz_options']  # visualization params
 # -------------LOAD SOME MEDIUM TO RECONSTRUCT--------------------------------
 # Path to csv file which contains temperature measurements or None if the atmosphere will not consider any air.
 AirFieldFile = run_params['AirFieldFile'] if not viz_options['CENCEL_AIR'] else None
@@ -118,8 +111,10 @@ L = max(Lx, Ly)
 Lz_droplets = droplets.grid.bounding_box.zmax - droplets.grid.bounding_box.zmin
 dz = Lz_droplets / nz
 
+Rsat = run_params['Rsat']
+
 # USED FOV, RESOLUTION and SAT_LOOKATS:
-PIXEL_FOOTPRINT = GSD  # km
+PIXEL_FOOTPRINT = run_params['GSD']  # km
 fov = 2 * np.rad2deg(np.arctan(0.5 * L / (Rsat)))
 cny = int(np.floor(L / PIXEL_FOOTPRINT))
 cnx = int(np.floor(L / PIXEL_FOOTPRINT))
@@ -143,37 +138,18 @@ if run_params['IFTUNE_CAM']:
 
 SAT_LOOKATS = np.array(SATS_NUMBER_SETUP * LOOKAT).reshape(-1, 3)  # currently, all satellites lookat the same point.
 
-print(20 * "-")
-print(20 * "-")
-print(20 * "-")
-
 logger.debug("CAMERA intrinsics summary")
 logger.debug(f"fov = {fov}[deg], cnx = {cnx}[pixels],cny ={cny}[pixels]")
-
-print(20 * "-")
-print(20 * "-")
-print(20 * "-")
 
 logger.debug("Medium summary")
 logger.debug(f"nx = {nx}, ny = {ny},nz ={nz}")
 logger.debug(f"dx = {dx}, dy = {dy},dz ={dz}")
 logger.debug(f"Lx = {Lx}, Ly = {Ly},Lz ={Lz}")
 
-x_min = atmospheric_grid.bounding_box.xmin
-x_max = atmospheric_grid.bounding_box.xmax
-
-y_min = atmospheric_grid.bounding_box.ymin
-y_max = atmospheric_grid.bounding_box.ymax
-
-z_min = atmospheric_grid.bounding_box.zmin
-z_max = atmospheric_grid.bounding_box.zmax
-
-logger.debug(f"xmin = {x_min}, ymin = {y_min},zmin ={z_min}")
-logger.debug(f"xmax = {x_max}, ymax = {y_max},zmax ={z_max}")
-
-print(20 * "-")
-print(20 * "-")
-print(20 * "-")
+logger.debug(
+    f"xmin = {atmospheric_grid.bounding_box.xmin}, ymin = {atmospheric_grid.bounding_box.ymin},zmin ={atmospheric_grid.bounding_box.zmin}")
+logger.debug(
+    f"xmax = {atmospheric_grid.bounding_box.xmax}, ymax = {atmospheric_grid.bounding_box.ymax},zmax ={atmospheric_grid.bounding_box.zmax}")
 
 if run_params['DOFORWARD']:
     forward_options = run_params['forward_options']
@@ -194,7 +170,7 @@ if run_params['DOFORWARD']:
     # Calculate irradiance of the specific wavelength:
     # use plank function:
     L_TOA = []
-    Cosain = np.cos(np.deg2rad((180 - sun_zenith)))
+    Cosain = np.cos(np.deg2rad((180 - run_params['sun_zenith'])))
     for wavelengths_per_view in setup_wavelengths_list:
         # loop over the dimensios of the views
         L_TOA_per_view = []
@@ -248,10 +224,11 @@ if run_params['DOFORWARD']:
                                                      split_accuracy=split_accuracy,
                                                      max_total_mb=forward_options['max_total_mb'])
 
-        scene_params = shdom.SceneParameters(
-            wavelength=wavelength,
-            surface=shdom.LambertianSurface(albedo=surface_albedo),
-            source=shdom.SolarSource(azimuth=sun_azimuth, zenith=sun_zenith, flux=solar_flux))
+        scene_params = shdom.SceneParameters(wavelength=wavelength,
+                                             surface=shdom.LambertianSurface(albedo=surface_albedo),
+                                             source=shdom.SolarSource(azimuth=run_params['sun_azimuth'],
+                                                                      zenith=run_params['sun_zenith'],
+                                                                      flux=solar_flux))
 
         # ---------initilize an RteSolver object---------    
         rte_solver = shdom.RteSolver(scene_params, numerical_params)
@@ -270,8 +247,10 @@ if run_params['DOFORWARD']:
     """
 
     CloudCT_VIEWS.update_measurements(sensor=shdom.RadianceSensor(), projection=CloudCT_VIEWS, rte_solver=rte_solvers,
-                                      n_jobs=n_jobs)
-    tested_radiance_threshold = SATS_NUMBER_SETUP*run_params['radiance_threshold']# Threshold for the radiance to create a cloud mask.
+                                      n_jobs=run_params['n_jobs'])
+
+    # Threshold for the radiance to create a cloud mask.
+    tested_radiance_threshold = SATS_NUMBER_SETUP * run_params['radiance_threshold']
 
     # see the rendered images:
     SEE_IMAGES = False
@@ -342,7 +321,7 @@ if run_params['DOINVERSE']:
 
     OTHER_PARAMS = ' --input_dir ' + forward_dir + \
                    ' --log ' + log_name + \
-                   ' --n_jobs ' + str(n_jobs) + \
+                   ' --n_jobs ' + str(run_params['n_jobs']) + \
                    ' --loss_type ' + inverse_options['loss_type'] + \
                    ' --maxls ' + str(inverse_options['maxls']) + \
                    ' --maxiter ' + str(inverse_options['maxiter'])
@@ -423,7 +402,6 @@ if run_params['DOINVERSE']:
     
             """
 
-
             GT_USE += ' --use_forward_veff'
             GT_USE += ' --lwc_scaling ' + str(inverse_options['lwc_scaling_val'])
             GT_USE += ' --reff_scaling ' + str(inverse_options['reff_scaling_val'])
@@ -457,13 +435,17 @@ if run_params['DOINVERSE']:
           OTHER_PARAMS + \
           GT_USE + \
           INIT_USE
+
     if not os.path.exists(os.path.join(forward_dir, 'run_params_files')):
         os.mkdir(os.path.join(forward_dir, 'run_params_files'))
+
     run_params_file_name = os.path.join(forward_dir, 'run_params_files',
                                         'run_params_' + time.strftime("%d%m%Y_%H%M%S") + '.yaml')
+
     with open(run_params_file_name, 'w') as f:
         yaml.dump(run_params, f)
         logger.debug(f"Saving run params to {run_params_file_name}")
+
     with open(os.path.join(forward_dir, 'run_tracker.csv'), 'a') as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow([time.strftime("%d-%b-%Y-%H:%M:%S"), log_name, cmd])
@@ -508,3 +490,6 @@ if run_params['DOINVERSE']:
         logger.debug(f"use tensorboard --logdir {log2load} --bind_all")
 
     logger.debug("done")
+
+
+
