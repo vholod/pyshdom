@@ -1,26 +1,14 @@
 import csv
-import os
-import sys
-# import mayavi.mlab as mlab
-import scipy.io as sio
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-import shdom
-from shdom import CloudCT_setup
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import subprocess
-from mpl_toolkits.axes_grid1 import AxesGrid
-import time
-import glob
-from shdom.CloudCT_Utils import *
-
-# importing functools for reduce() 
-import functools
-# importing operator for operator functions 
-import operator
-import yaml
 import logging
+
+# import mayavi.mlab as mlab
+import matplotlib.pyplot as plt
+# importing functools for reduce()
+# importing operator for operator functions
+import yaml
+
+from shdom import CloudCT_setup
+from shdom.CloudCT_Utils import *
 
 
 def main():
@@ -38,7 +26,7 @@ def main():
     # where different imagers are located:
     vis_imager_config = SATS_NUMBER_SETUP * [True]
     swir_imager_config = SATS_NUMBER_SETUP * [False]
-    swir_imager_config[5] = True
+    swir_imager_config[4], swir_imager_config[5] = True, True
 
     """
         Here load the imagers, the imagers dictates the spectral bands of the rte solver and rendering.
@@ -48,28 +36,51 @@ def main():
 
         THe imagers aslo dictate the ground spatial resolution (GSD).
     """
-    # load Imager at VIS:
-    vis_imager = shdom.Imager.ImportConfig(file_name='../notebooks/Gecko_config.json')
 
-    # load Imager at SWIR:
-    swir_imager = shdom.Imager.ImportConfig(file_name='../notebooks/Hypothetic_SWIR_camera_config.json')
+    if not run_params['USE_SIMPLE_IMAGER']:
+
+        # load Imager at VIS:
+        vis_imager = shdom.Imager.ImportConfig(file_name='../notebooks/Gecko_config.json')
+        # load Imager at SWIR:
+        swir_imager = shdom.Imager.ImportConfig(file_name='../notebooks/Hypothetic_SWIR_camera_config.json')
+    else:
+        # the imager is simple it will be defined here:
+        simple_sensor = shdom.SensorFPA(PIXEL_SIZE=1, CHeight=100, CWidth=100)
+        simple_lens = shdom.LensSimple(FOCAL_LENGTH=1, DIAMETER=1)
+        # shdom.LensSimple means that the lens model is simlpe and without MTF considerations but still with focal and diameter.
+
+        swir_imager = shdom.Imager(sensor=simple_sensor, lens=simple_lens)
+        vis_imager = shdom.Imager(sensor=simple_sensor, lens=simple_lens)
+        # you must define the spectrum for each defined imager:
+        swir_imager.set_scene_spectrum_in_microns([1.6, 1.6])
+        vis_imager.set_scene_spectrum_in_microns([0.672, 0.672])
 
     Rsat = run_params['Rsat']
 
     # set the nadir view altitude:
     vis_imager.set_Imager_altitude(H=Rsat)
     swir_imager.set_Imager_altitude(H=Rsat)
-    # the following parametere refers only to nadir view.
-    vis_pixel_footprint, _ = vis_imager.get_footprints_at_nadir()
-    swir_pixel_footprint, _ = swir_imager.get_footprints_at_nadir()
 
-    vis_pixel_footprint = float_round(vis_pixel_footprint)
-    swir_pixel_footprint = float_round(swir_pixel_footprint)
+    if not run_params['USE_SIMPLE_IMAGER']:
+        # the following parametere refers only to nadir view.
+        vis_pixel_footprint, _ = vis_imager.get_footprints_at_nadir()
+        swir_pixel_footprint, _ = swir_imager.get_footprints_at_nadir()
+
+        vis_pixel_footprint = float_round(vis_pixel_footprint)
+        swir_pixel_footprint = float_round(swir_pixel_footprint)
+
+    else:
+        # set required pixel footprint:
+        vis_pixel_footprint = 0.02  # km
+        swir_pixel_footprint = 0.02  # km
+        vis_imager.set_pixel_footprint(vis_pixel_footprint)
+        swir_imager.set_pixel_footprint(swir_pixel_footprint)
 
     # play with temperatures:
-    temp = 15  # celsius
-    swir_imager.change_temperature(temp)
-    vis_imager.change_temperature(temp)
+    if not run_params['USE_SIMPLE_IMAGER']:
+        # if we want to use the simple imager, the temperature does not make any differences.
+        swir_imager.change_temperature(run_params['imager_temperature'])
+        vis_imager.change_temperature(run_params['imager_temperature'])
 
     # update solar irradince with the solar zenith angel:
     vis_imager.update_solar_angle(run_params['sun_zenith'])
@@ -78,11 +89,12 @@ def main():
     # It will be used to set the solar zenith.
 
     # calculate mie tables:
-    vis_wavelegth_range = vis_imager.scene_spectrum
-    swir_wavelegth_range = swir_imager.scene_spectrum
+    vis_wavelegth_range_nm = vis_imager.scene_spectrum  # in nm
+    swir_wavelegth_range_nm = swir_imager.scene_spectrum  # in nm
+
     # convert nm to microns: It is must
-    vis_wavelegth_range = [float_round(1e-3 * w) for w in vis_wavelegth_range]
-    swir_wavelegth_range = [float_round(1e-3 * w) for w in swir_wavelegth_range]
+    vis_wavelegth_range = [float_round(1e-3 * w) for w in vis_wavelegth_range_nm]
+    swir_wavelegth_range = [float_round(1e-3 * w) for w in swir_wavelegth_range_nm]
 
     # central wavelengths.
     vis_centeral_wavelength = vis_imager.centeral_wavelength_in_microns
@@ -96,15 +108,24 @@ def main():
     table file name example: mie_tables/polydisperse/Water_<1000*wavelength_micron>nm.scat
     """
     MieTablesPath = os.path.abspath("./mie_tables")
-    vis_mie_base_path = CALC_MIE_TABLES(where_to_check_path=MieTablesPath,
-                                        wavelength_micron=vis_wavelegth_range,
-                                        options=mie_options,
-                                        wavelength_averaging=True)
+    if vis_wavelegth_range[0] == vis_wavelegth_range[1]:
 
-    swir_mie_base_path = CALC_MIE_TABLES(where_to_check_path=MieTablesPath,
-                                         wavelength_micron=swir_wavelegth_range,
-                                         options=mie_options,
-                                         wavelength_averaging=True)
+        vis_mie_base_path = CALC_MIE_TABLES(MieTablesPath,
+                                            vis_wavelegth_range[0], mie_options, wavelength_averaging=False)
+    else:
+
+        vis_mie_base_path = CALC_MIE_TABLES(MieTablesPath,
+                                            vis_wavelegth_range, mie_options, wavelength_averaging=True)
+
+    if swir_wavelegth_range[0] == swir_wavelegth_range[1]:
+
+        swir_mie_base_path = CALC_MIE_TABLES(MieTablesPath,
+                                             swir_wavelegth_range[0], mie_options, wavelength_averaging=False)
+
+    else:
+
+        swir_mie_base_path = CALC_MIE_TABLES(MieTablesPath,
+                                             swir_wavelegth_range, mie_options, wavelength_averaging=True)
 
     # where to save the forward outputs:
     forward_dir = f'./experiments/VIS_SWIR_NARROW_BANDS_VIS_{int(1e3 * vis_wavelegth_range[0])}-' \
@@ -125,11 +146,17 @@ def main():
     # Path to csv file which contains temperature measurements or None if the atmosphere will not consider any air.
     AirFieldFile = run_params['AirFieldFile'] if not viz_options['CENCEL_AIR'] else None
 
+    if not run_params['USE_SIMPLE_IMAGER']:
+        # If we do not use simple imager we probably use imager with a band so:
+        wavelength_averaging = True
+    else:
+        wavelength_averaging = False
+
     atmosphere = CloudCT_setup.Prepare_Medium(CloudFieldFile=run_params['CloudFieldFile'],
                                               AirFieldFile=AirFieldFile,
                                               MieTablesPath=MieTablesPath,
                                               wavelengths_micron=wavelengths_micron,
-                                              wavelength_averaging=True)
+                                              wavelength_averaging=wavelength_averaging)
 
     droplets = atmosphere.get_scatterer('cloud')
 
@@ -172,9 +199,6 @@ def main():
     # In addition we update Imager's FOV.
     vis_imager.update_sensor_size_with_number_of_pixels(vis_cnx, vis_cny)
     swir_imager.update_sensor_size_with_number_of_pixels(swir_cnx, swir_cny)
-
-    vis_pixel_footprint, vis_camera_footprint = vis_imager.get_footprints_at_nadir()
-    swir_pixel_footprint, swir_camera_footprint = swir_imager.get_footprints_at_nadir()
 
     # not for all the mediums the CENTER_OF_MEDIUM_BOTTOM is a good place to lookat.
     # tuning is applied by the variable LOOKAT.
@@ -239,6 +263,7 @@ def main():
                                                                           forward_options['split_accuracies'],
                                                                           forward_options['solar_fluxes'],
                                                                           forward_options['surface_albedos']):
+
             numerical_params = shdom.NumericalParameters(num_mu_bins=forward_options['num_mu'],
                                                          num_phi_bins=forward_options['num_phi'],
                                                          split_accuracy=split_accuracy,
@@ -269,11 +294,22 @@ def main():
         # the order of the bands is important here.
         CloudCT_measurements = CloudCT_setup.SpaceMultiView_Measurements([vis_CloudCT_VIEWS, swir_CloudCT_VIEWS])
 
-        CloudCT_measurements.simulate_measurements(n_jobs=run_params['n_jobs'],
-                                                   rte_solvers=rte_solvers,
-                                                   IF_REDUCE_EXPOSURE=True,
-                                                   IF_SCALE_IDEALLY=False,
-                                                   IF_APPLY_NOISE=True)
+        if not run_params['USE_SIMPLE_IMAGER']:
+            # If we do not use simple imager we probably use imager such that noise can be applied:
+            CloudCT_measurements.simulate_measurements(n_jobs=run_params['n_jobs'],
+                                                       rte_solvers=rte_solvers,
+                                                       IF_REDUCE_EXPOSURE=True,
+                                                      IF_SCALE_IDEALLY=False,
+                                                       IF_APPLY_NOISE=True)
+        else:
+            # If we do not use realistic imager, we MUST use IF_SCALE_IDEALLY=True so the images will have values in maximum range.
+            CloudCT_measurements.simulate_measurements(n_jobs=run_params['n_jobs'],
+                                                       rte_solvers=rte_solvers,
+                                                       IF_REDUCE_EXPOSURE=False,
+                                                      IF_SCALE_IDEALLY=True,
+                                                       IF_APPLY_NOISE=False)
+
+
 
         # The simulate_measurements() simulate images in gray levels.
         # Now we need to save that images and be able to load that images in the inverse pipline/

@@ -5,6 +5,9 @@
 # Simulation flags
 DOFORWARD: True
 DOINVERSE: True
+USE_VIS: True # if to use vis in the simulation
+USE_SWIR: False # if to use vis in the simulation
+USE_SIMPLE_IMAGER: False   # if it's true, the imager is simple and not loaded from the imagers data set.
 
 CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
 AirFieldFile: './ancillary_data/AFGL_summer_mid_lat.txt' # Path to csv file which contains temperature measurements
@@ -13,6 +16,7 @@ AirFieldFile: './ancillary_data/AFGL_summer_mid_lat.txt' # Path to csv file whic
 # so the FOV is also tuned:
 IFTUNE_CAM: True
 
+imager_temperature: 15 # celsius
 
 # mia table parameters:
 mie_options:
@@ -34,7 +38,7 @@ viz_options:
   axisWidth: 0.02
   axisLenght: 5000
 
-n_jobs: 30
+n_jobs: 28
 
 Rsat: 500 # orbit altitude, km
 GSD: 0.02 # in km, it is the ground spatial resolution.
