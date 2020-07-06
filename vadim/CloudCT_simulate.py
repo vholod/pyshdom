@@ -282,6 +282,15 @@ def main():
 
 
 def write_to_run_tracker(forward_dir, msg):
+    """
+    TODO
+    Args:
+        forward_dir ():
+        msg ():
+
+    Returns:
+
+    """
     tracker_path = os.path.join(forward_dir, 'run_tracker.csv')
     with open(tracker_path, 'a') as csv_file:
         writer = csv.writer(csv_file)
@@ -291,6 +300,16 @@ def write_to_run_tracker(forward_dir, msg):
 
 
 def visualize_results(forward_dir, log_name, wavelength_micron):
+    """
+    TODO
+    Args:
+        forward_dir ():
+        log_name ():
+        wavelength_micron ():
+
+    Returns:
+
+    """
     """
          The forward_dir id a folder that containes:
          medium, solver, measurements.
@@ -326,6 +345,17 @@ def visualize_results(forward_dir, log_name, wavelength_micron):
 
 
 def setup_imager(imager_options, run_params, MieTablesPath, simple_type):
+    """
+    TODO
+    Args:
+        imager_options ():
+        run_params ():
+        MieTablesPath ():
+        simple_type ():
+
+    Returns:
+
+    """
     if not run_params['USE_SIMPLE_IMAGER']:
         imager = shdom.Imager.ImportConfig(file_name=imager_options['ImportConfigPath'])
         imager.set_Imager_altitude(H=run_params['Rsat'])
@@ -387,6 +417,15 @@ def setup_imager(imager_options, run_params, MieTablesPath, simple_type):
 
 
 def dump_run_params(run_params, dump_dir):
+    """
+    TODO
+    Args:
+        run_params ():
+        dump_dir ():
+
+    Returns:
+
+    """
     logger = logging.getLogger()
     if not os.path.exists(os.path.join(dump_dir, 'run_params_files')):
         os.mkdir(os.path.join(dump_dir, 'run_params_files'))
@@ -401,6 +440,20 @@ def dump_run_params(run_params, dump_dir):
 
 def create_inverse_command(run_params, inverse_options, vizual_options,
                            forward_dir, AirFieldFile, run_type, log_name):
+    """
+    TODO
+    Args:
+        run_params ():
+        inverse_options ():
+        vizual_options ():
+        forward_dir ():
+        AirFieldFile ():
+        run_type ():
+        log_name ():
+
+    Returns:
+
+    """
     INIT_USE = ' --init ' + inverse_options['init']
 
     GT_USE = ''
@@ -547,6 +600,14 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
 
 
 def create_and_configer_logger(log_name):
+    """
+    TODO
+    Args:
+        log_name ():
+
+    Returns:
+
+    """
     # set up logging to file
     logging.basicConfig(
         filename=log_name,
@@ -568,6 +629,14 @@ def create_and_configer_logger(log_name):
 
 
 def load_run_params(params_path):
+    """
+    TODO
+    Args:
+        params_path ():
+
+    Returns:
+
+    """
     # Load run parameters
     params_file_path = params_path
     with open(params_file_path, 'r') as f:
