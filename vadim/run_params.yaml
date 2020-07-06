@@ -23,6 +23,8 @@ mie_options:
   end_veff: 0.4
   num_veff: 117
   radius_cutoff: 65.0 # The cutoff radius for the pdf averaging [Micron]
+  wavelength_resolution: 0.001 # it is the delta in the wavelengths (microns) for the optical parameters avaraging inside shdom.
+
 
 # visualization params:
 viz_options:
@@ -63,6 +65,8 @@ surface_albedos_val: 0.05
 # ---------------- Forward parameters:-----------
 # -----------------------------------------------
 forward_options:
+  SEE_IMAGES: False
+
   # units fo W/(m^2))
   temp: 5900  # K
 
@@ -76,7 +80,13 @@ forward_options:
   num_phi: 32
   max_total_mb: 100000.0
   rte_solver_max_iter: 100 # max number of iterations for rte solver
-
+  solar_fluxes: [1, 1]  # unity flux, IT IS IMPORTANT HERE!
+  split_accuracies: [0.1, 0.1]
+  surface_albedos: [0.05, 0.05]  # later we must update it since it depends on the wavelegth.
+  # split_accuracy of 0.1 gives nice results, For the rico cloud i didn't see that decreasing the split accuracy improves the rec.
+  # so fo the rico loud Let's use split_accuracy = 0.1.
+  adapt_grid_factor: 5  # TODO not in use
+  solution_accuracy: 0.0001  # TODO not in use
 
 # check these values before inverse.
 radiance_threshold: [0.023, 0.02] # Threshold is either a scalar or a list of length of measurements.
@@ -87,7 +97,7 @@ radiance_threshold: [0.023, 0.02] # Threshold is either a scalar or a list of le
 # -----------------------------------------------
 inverse_options:
   SEE_SETUP: False
-  SEE_IMAGES: True
+  SEE_IMAGES: False
   VIS_RESULTS3D: False  # show the results in 3D visualization
 
   MICROPHYSICS: True
@@ -122,7 +132,7 @@ inverse_options:
 
   use_forward_mask: True
   use_forward_grid: True
-
+  cloudct_use: True
   use_forward_albedo: True
   use_forward_phase: True
 
