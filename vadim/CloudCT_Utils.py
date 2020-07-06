@@ -12,7 +12,7 @@ import functools
 import operator 
 
 
-def CALC_MIE_TABLES(where_to_check_path = './mie_tables/polydisperse',wavelength_micron=None,options=None):
+def CALC_MIE_TABLES(where_to_check_path = '../mie_tables/polydisperse',wavelength_micron=None,options=None):
     where_to_check_path = os.path.join(where_to_check_path,'polydisperse')
     """
     Check if mie tables exist, if not creat them, if yes skip it is long process.

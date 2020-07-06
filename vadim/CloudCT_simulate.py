@@ -1,6 +1,6 @@
 import os 
 import sys
-import mayavi.mlab as mlab
+#import mayavi.mlab as mlab
 import scipy.io as sio
 import matplotlib.pyplot as plt
 import numpy as np
@@ -23,8 +23,8 @@ import operator
 # mia table parameters:
 start_reff = 1
 end_reff = 25.0
-start_veff = 0.05
-end_veff = 0.4
+start_veff = 0.01
+end_veff = 0.6
 radius_cutoff = 65.0
 mie_options = {
     'start_reff': start_reff,# Starting effective radius [Micron]
@@ -51,20 +51,22 @@ n_jobs = 30
 # orbit altitude:
 Rsat = 500 # km
 GSD = 0.02 # in km, it is the ground spatial resolution.
-wavelengths_micron = [0.672, 1.6]  #0.672 , 1.6
-sun_azimuth = 45
+wavelengths_micron = [0.672, 1.58,1.6, 1.62]  #0.672 , 1.6
+sun_azimuth = 180
 sun_zenith = 150
 #azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
-#zenith: Solar beam zenith angle in range (90,180]  
+#zenith: Solar beam zenith angle in range (90,180]
 
-SATS_NUMBER_SETUP = 10 # satellites number to build the setup, for the inverse, we can use less satellites.
-SATS_NUMBER_INVERSE = SATS_NUMBER_SETUP#10 # how much satelliets will be used for the inverse.
+field_name ='t01_horizontally_uni'
+SATS_NUMBER_SETUP = 10 #satellites number to build the setup, for the inverse, we can use less satellites.
+SATS_NUMBER_INVERSE = SATS_NUMBER_SETUP #10 # how much satelliets will be used for the inverse.
 
 """
 Check if mie tables exist, if not creat them, if yes skip it is long process.
 table file name example: mie_tables/polydisperse/Water_<1000*wavelength_micron>nm.scat
 """
-MieTablesPath = os.path.abspath("./mie_tables")
+
+MieTablesPath = os.path.abspath("../mie_tables")
 mie_base_path = CALC_MIE_TABLES(MieTablesPath,wavelengths_micron,mie_options)
 #mie_base_path = mie_base_path[0]
 # for example, mie_base_path = './mie_tables/polydisperse/Water_672nm.scat'
@@ -74,13 +76,14 @@ if(isinstance(wavelengths_micron, list)):
     wavelengths_micron.sort()# just for convenience, let's have it sorted.
     wavelengths_string = functools.reduce(operator.add,[str(int(1e3*j))+"_" for j in wavelengths_micron]).rstrip('_')
     # forward_dir, where to save evrerything that is related to forward model:
-    forward_dir = './experiments/polychromatic_unity_flux_active_sats_{}_GSD_{}m_LES_cloud_field_rico_Water_{}nm'.format(SATS_NUMBER_SETUP,int(1e3*GSD),wavelengths_string)
+    forward_dir = './experiments/polychromatic_unity_flux_active_sats_{}_GSD_{}m_LES_cloud_field_'.format(SATS_NUMBER_SETUP,int(1e3*GSD))+field_name+'_Water_{}nm'.format(wavelengths_string)
 else: # if wavelengths_micron is scalar
-    forward_dir = './experiments/monochromatic_unity_flux_active_sats_{}_GSD_{}m_LES_cloud_field_rico_Water_{}nm'.format(SATS_NUMBER_SETUP,int(1e3*GSD),int(1e3*wavelengths_micron))
+    forward_dir = './experiments/monochromatic_unity_flux_active_sats_{}_GSD_{}m_LES_cloud_field_'.format(SATS_NUMBER_SETUP,int(1e3*GSD))+field_name+'_Water_{}nm'.format(int(1e3*wavelengths_micron))
 
 # invers_dir, where to save evrerything that is related to invers model:
 invers_dir = forward_dir
-log_name_base = 'active_sats_{}_easiest_rico32x37x26'.format(SATS_NUMBER_SETUP)
+
+log_name_base = 'active_sats_{}_'.format(SATS_NUMBER_SETUP)+field_name
 # Write intermediate TensorBoardX results into log_name.
 # The provided string is added as a comment to the specific run.
 
@@ -93,7 +96,7 @@ DOINVERSE = True
 # -------------LOAD SOME MEDIUM TO RECONSTRUCT--------------------------------
 # ---------------------------------------------------------------
 
-CloudFieldFile = '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
+CloudFieldFile = '../synthetic_cloud_fields/jpl_les/'+field_name+'.txt'
 if(CENCEL_AIR):
     AirFieldFile = None # here the atmosphere will note condsider any air.
     
@@ -192,7 +195,24 @@ if(DOFORWARD):
     """  
     if(np.isscalar(wavelengths_micron)):
         wavelengths_micron = [wavelengths_micron]
-    setup_wavelengths_list = SATS_NUMBER_SETUP*[wavelengths_micron]
+    setup_wavelengths_list = SATS_NUMBER_SETUP*[wavelengths_micron] # all cameras same wavelength
+    #setup_wavelengths_list = [[1.6],[0.672],[0.672]]
+    '''
+        radiance_threshold = []  # Threshold for the radiance to create a cloud mask.
+    str_radiance_threshold = ''
+    for setup_waves in range(len(setup_wavelengths_list)):
+        if setup_wavelengths_list[setup_waves] == [0.672]:
+            thresh = 0.023
+        elif setup_wavelengths_list[setup_waves] == [1.6]:
+            thresh = 0.02
+        radiance_threshold.append(thresh)
+        str_radiance_threshold = str_radiance_threshold+str(thresh)+' '# check these values befor inverse.
+    '''
+    radiance_threshold = 0.02
+    str_radiance_threshold = str(radiance_threshold)
+
+
+    # 0.023 for 0.672; 0.02 for 1.6;
     # Calculate irradiance of the spesific wavelength:
     # use plank function:
     temp = 5900 #K
@@ -294,9 +314,8 @@ if(DOFORWARD):
         #  ----------------try radiance_threshold value:----
         # --------------------------------------------------
         #radiance_threshold = 0.04 # Threshold for the radiance to create a cloud mask.
-        radiance_threshold = [0.023,0.02] # Threshold for the radiance to create a cloud mask.
         # Threshold is either a scalar or a list of length of measurements.
-        CloudCT_VIEWS.show_measurements(radiance_threshold=radiance_threshold,compare_for_test = False)    
+        CloudCT_VIEWS.show_measurements(radiance_threshold=radiance_threshold,compare_for_test = False)
         
         plt.show()
         
@@ -327,26 +346,24 @@ if(DOINVERSE):
     THIS_MULTI_VIEW_SETUP = USED_CAMERA.projection
     
     # ---------what to optimize----------------------------
-    radiance_threshold = [0.023,0.02] # check these values befor inverse.
     SEE_SETUP = False
     SEE_IMAGES = True
     MICROPHYSICS = True
     # ------------------------------------------------
-
+    '''
     # show the mutli view setup if you want.
     if(SEE_SETUP):
         THIS_MULTI_VIEW_SETUP.show_setup(scale=scale ,axisWidth=axisWidth ,axisLenght=axisLenght,FullCone = True)
         figh = mlab.gcf()
         mlab.orientation_axes(figure=figh)    
         mlab.show()    
-        
-    
+          
     # ----------------------------------------------------------
-    
+    '''
     """
     Work with the optimization:
     """
-    
+
     if not MICROPHYSICS:
     
         # -----------------------------------------------
@@ -375,7 +392,7 @@ if(DOINVERSE):
         # The mie_base_path is defined at the begining of this script.
         INIT_USE = ' --init '+ init
         add_rayleigh = True
-        use_forward_mask = False#True
+        use_forward_mask = True
         use_forward_grid = True
         use_forward_albedo = True
         use_forward_phase = True
@@ -429,7 +446,7 @@ if(DOINVERSE):
             ' --loss_type '+ str(loss_type)+\
             ' --maxls '+ str(maxls)+\
             ' --maxiter '+ str(maxiter)+\
-            ' --radiance_threshold '+ str(radiance_threshold)
+            ' --radiance_threshold '+ str_radiance_threshold #str(radiance_threshold)
         
         OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS    
         
@@ -443,9 +460,9 @@ if(DOINVERSE):
     
     else: # if we here, we rec. MICROPHYSICS, but which?
         REC_only_lwc = False
-        REC_only_reff = False
+        REC_only_reff = True
         REC_only_veff = False
-        REC_all = True
+        REC_all = False
         if(REC_only_lwc):
             
             # -----------------------------------------------
@@ -541,7 +558,7 @@ if(DOINVERSE):
             5. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
 
             """
-            log_name = "reff_only_"+log_name_base
+            log_name = "reff_only_both_"+log_name_base
             # -----------------------------------------------
             # ---------------- inverse parameters:-----------
             # -----------------------------------------------
@@ -549,13 +566,13 @@ if(DOINVERSE):
             stokes_weights = [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V].
                     
             # Initialization and Medium parameters:
-            reff = 15 # init reff of the generator
+            reff = 8 # init reff of the generator
             # init_generator = 'Homogeneous'# it is the CloudGenerator from shdom.generate.py
             init = 'Homogeneous'
             # The mie_base_path is defined at the begining of this script.
             INIT_USE = ' --init '+ init
             add_rayleigh = True
-            use_forward_mask = False#True
+            use_forward_mask = True
             use_forward_grid = True
             use_forward_lwc = True
             use_forward_veff = True
@@ -596,7 +613,7 @@ if(DOINVERSE):
                 ' --loss_type '+ str(loss_type)+\
                 ' --maxls '+ str(maxls)+\
                 ' --maxiter '+ str(maxiter)+\
-                ' --radiance_threshold '+ str(radiance_threshold)
+                ' --radiance_threshold '+ str_radiance_threshold #str(radiance_threshold)
             
             OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if globalopt else OTHER_PARAMS    
             

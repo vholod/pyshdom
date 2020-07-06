@@ -125,12 +125,13 @@ def compute_mie_table(wavelength, args):
         Arguments required for this function
     """
     mono_path, poly_path = get_file_paths(wavelength, args)
-
+    band = 0.05
     mie_mono = shdom.MieMonodisperse()
     if os.path.exists(mono_path):
         mie_mono.read_table(mono_path)
     else:
-        mie_mono.set_wavelength_integration(wavelength_band=(wavelength, wavelength))   
+        mie_mono.set_wavelength_integration(wavelength_band=(wavelength*(1-band), wavelength*(1+band)),
+                                            wavelength_averaging=True)   #masada changed here
         mie_mono.set_radius_integration(minimum_effective_radius=args.start_reff, 
                                         max_integration_radius=args.radius_cutoff)
         mie_mono.compute_table()
