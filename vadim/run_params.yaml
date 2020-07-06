@@ -11,9 +11,31 @@
 # --------------------------------------------------
 DOFORWARD: True
 DOINVERSE: True
-USE_VIS: True  # if to use vis in the simulation # TODO not in use
-USE_SWIR: False  # if to use vis in the simulation  # TODO not in use
-USE_SIMPLE_IMAGER: False   # if it's true, the imager is simple and not loaded from the imagers data set.
+
+# --------------------------------------------------
+# --------------   Use Simple Imager?  --------------
+# --------------------------------------------------
+USE_SIMPLE_IMAGER: False
+# if it's true, the imager is simple and not loaded from the imagers data set.
+
+
+# --------------------------------------------------
+# ------------   VIS Imager Parameters  ------------
+# --------------------------------------------------
+vis_options:
+  USE_VIS: True  # if to use vis in the simulation # TODO not in use
+  ImportConfigPath: '../notebooks/Gecko_config.json'
+  temperature: 15 # celsius
+  true_indices: [0,1,2,3,4,5,6,7,8,9]  # where imagers are located
+
+# --------------------------------------------------
+# ------------   VIS Imager Parameters  ------------
+# --------------------------------------------------
+swir_options:
+  USE_SWIR: True  # if to use vis in the simulation # TODO not in use
+  ImportConfigPath: '../notebooks/Hypothetic_SWIR_camera_config.json'
+  temperature: 15 # celsius
+  true_indices: [4,5]  # where imagers are located
 
 
 # --------------------------------------------------
@@ -21,12 +43,6 @@ USE_SIMPLE_IMAGER: False   # if it's true, the imager is simple and not loaded f
 # --------------------------------------------------
 CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
 AirFieldFile: './ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file which contains temperature measurements
-
-
-# --------------------------------------------------
-# -------------  Imager Temperature  ---------------
-# --------------------------------------------------
-imager_temperature: 15 # celsius
 
 
 # --------------------------------------------------
@@ -45,7 +61,6 @@ GSD: 0.02  # in km, it is the ground spatial resolution.
 # --------------------------------------------------
 # -----------------   Wavelengths  -----------------
 # --------------------------------------------------
-wavelengths_micron: [0.672, 1.6]  #0.672 , 1.6
 
 
 # --------------------------------------------------
@@ -59,7 +74,7 @@ sun_zenith: 150  # zenith: Solar beam zenith angle in range (90,180]
 # ------------   Number of Satellites  -------------
 # --------------------------------------------------
 SATS_NUMBER_SETUP: &num_sats 10  # satellites number to build the setup, for the inverse, we can use less satellites.
-SATS_NUMBER_INVERSE: *num_sats  #10, how much satellites will be used for the inverse.
+SATS_NUMBER_INVERSE: *num_sats  #10, how much satellites will be used for the inverse. TODO not in use
 
 
 # --------------------------------------------------
@@ -96,7 +111,7 @@ mie_options:
 # -------------------------------------------------
 # -----------  Visualization parameters  ----------
 # -------------------------------------------------
-viz_options:
+vizual_options:
   VISSETUP: False
   CENCEL_AIR: False # just for debugging, in runtime  must be false.
   scale: 500
