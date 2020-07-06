@@ -432,6 +432,8 @@ class Projection(object):
         self._mu = mu
         self._phi = phi
         self._npix = None
+        # vadim added the consept of samples_per_pixel in the sensor.py.
+        self._samples_per_pixel = 1 # rays per pixel that will be backprojected to space.
         if type(x)==type(y)==type(z)==type(mu)==type(phi)==np.ndarray:
             assert x.size==y.size==z.size==mu.size==phi.size, 'All input arrays must be of equal size'
             self._npix = x.size
@@ -507,6 +509,10 @@ class Projection(object):
     @property 
     def npix(self):
         return self._npix    
+    
+    @property
+    def samples_per_pixel(self):
+        return self._samples_per_pixel
     
     @property
     def resolution(self):
@@ -633,10 +639,16 @@ class PerspectiveProjection(HomographyProjection):
         Location in global y coordinates [km] (East)
     z: float
         Location in global z coordinates [km] (Up)
+    samples: int
+        samples per pixel, e.g. rays backprojected per pixel.
     """
-    def __init__(self, fov, nx, ny, x, y, z):
+    def __init__(self, fov, nx, ny, x, y, z, samples=1):
+        assert samples>=1, "Sample per pixel is an integer >= 1"
+        assert int(samples) == samples, "Sample per pixel is an integer >= 1"
+        
         super().__init__()
         self._resolution = [nx, ny]
+        self._samples_per_pixel = samples 
         self._npix = nx*ny
         self._position = np.array([x, y, z], dtype=np.float32)
         self._fov = fov
@@ -652,6 +664,16 @@ class PerspectiveProjection(HomographyProjection):
         self._dy = 2*R[1]/ny # pixel length in y direction in the normalized image plane.
         self._dx = 2*R[0]/nx # pixel length in x direction in the normalized image plane.            
         x_c, y_c, z_c = np.meshgrid(np.linspace(-R[0], R[0]-self._dx, nx), np.linspace(-R[1], R[1]-self._dy, ny), 1.0)                
+        
+        # Randomly replicate rays inside each pixel.
+        if(self._samples_per_pixel>1):
+            
+            x_c = np.tile(x_c[:, :, np.newaxis], [1, 1, self._samples_per_pixel])
+            y_c = np.tile(y_c[:, :, np.newaxis], [1, 1, self._samples_per_pixel])
+            z_c = np.tile(z_c[:, :, np.newaxis], [1, 1, self._samples_per_pixel])
+            x_c += np.random.rand(*x_c.shape)*self._dx
+            y_c += np.random.rand(*y_c.shape)*self._dy  
+            
         self._homogeneous_coordinates = np.stack([x_c.ravel(), y_c.ravel(), z_c.ravel()])
         self.update_global_coordinates()
         
@@ -667,9 +689,9 @@ class PerspectiveProjection(HomographyProjection):
 
         self._mu = -z_c.astype(np.float64)
         self._phi = (np.arctan2(y_c, x_c) + np.pi).astype(np.float64)
-        self._x = np.full(self.npix, self.position[0], dtype=np.float32)
-        self._y = np.full(self.npix, self.position[1], dtype=np.float32)
-        self._z = np.full(self.npix, self.position[2], dtype=np.float32)
+        self._x = np.full(self.npix*self._samples_per_pixel, self.position[0], dtype=np.float32)
+        self._y = np.full(self.npix*self._samples_per_pixel, self.position[1], dtype=np.float32)
+        self._z = np.full(self.npix*self._samples_per_pixel, self.position[2], dtype=np.float32)        
 
     def look_at_transform(self, point, up):
         """
@@ -880,6 +902,14 @@ class PerspectiveProjection(HomographyProjection):
     def position(self):
         return self._position
     
+    @property
+    def samples_per_pixel(self):
+        return self._samples_per_pixel
+
+    @samples_per_pixel.setter
+    def samples_per_pixel(self,val):
+        self._samples_per_pixel = val      
+        
     
 class PrincipalPlaneProjection(Projection):
     """
@@ -1207,6 +1237,7 @@ class MultiViewProjection(Projection):
             for attr in attributes:
                 self.__setattr__('_' + attr, projection.__getattribute__(attr))
             self._npix = [projection.npix]
+            self._samples_per_pixel = [projection.samples_per_pixel]
             self._resolution = [projection.resolution]
             self._names = [name]
         else:
@@ -1214,6 +1245,7 @@ class MultiViewProjection(Projection):
                 self.__setattr__('_' + attr, np.concatenate((self.__getattribute__(attr), 
                                                              projection.__getattribute__(attr))))
             self._npix.append(projection.npix)
+            self._samples_per_pixel.append(projection.samples_per_pixel)
             self._names.append(name)  
             self._resolution.append(projection.resolution)
                                     

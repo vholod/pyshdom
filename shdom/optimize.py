@@ -1381,7 +1381,6 @@ class MediumEstimator(shdom.Medium):
                 estimator_project_gradient, debug_gradient_3d = estimator.project_gradient(gradient, self.grid) # vadim added to get the gradient in the base grid to debug/visualize it later on. 
                 state_gradient = np.concatenate((state_gradient, estimator_project_gradient))
                 
-            print('k')
                                
             
         else:

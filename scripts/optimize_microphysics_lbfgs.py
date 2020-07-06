@@ -155,6 +155,7 @@ class OptimizationScript(ExtinctionOptimizationScript):
         veff.apply_mask(mask)
 
         # Define a MicrophysicalScattererEstimator object
+        
         cloud_estimator = shdom.MicrophysicalScattererEstimator(ground_truth.mie, lwc, reff, veff)
         cloud_estimator.set_mask(mask)
 
