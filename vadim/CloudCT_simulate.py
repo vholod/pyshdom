@@ -1,10 +1,6 @@
 import csv
 import logging
-
-# import mayavi.mlab as mlab
 import matplotlib.pyplot as plt
-# importing functools for reduce()
-# importing operator for operator functions
 import yaml
 
 from shdom import CloudCT_setup
@@ -16,141 +12,57 @@ def main():
 
     run_params = load_run_params(params_path="run_params.yaml")
 
-    mie_options = run_params['mie_options']  # mie params
-
-    wavelengths_micron = run_params['wavelengths_micron']
-
-    SATS_NUMBER_SETUP = run_params['SATS_NUMBER_SETUP']
-    SATS_NUMBER_INVERSE = run_params['SATS_NUMBER_INVERSE']
-
-    # where different imagers are located:
-    vis_imager_config = SATS_NUMBER_SETUP * [True]
-    swir_imager_config = SATS_NUMBER_SETUP * [False]
-    swir_imager_config[4], swir_imager_config[5] = True, True
-
     """
         Here load the imagers, the imagers dictates the spectral bands of the rte solver and rendering.
-        Since the spectrum in this script referes to narrow bands, the nerrow bands will be treated in the following maner:
+        Since the spectrum in this script referes to narrow bands, 
+        the nerrow bands will be treated in the following maner:
         We will use the wavelength averaging of shdom. It averages scattering properties over the wavelength band.
-        Be carfule, the wavelengths in Imager methods are in nm. Pyshdom the wavelength are usualy in microns.
+        Be careful, the wavelengths in Imager methods are in nm. Pyshdom the wavelength are usualy in microns.
 
         THe imagers aslo dictate the ground spatial resolution (GSD).
     """
-
-    if not run_params['USE_SIMPLE_IMAGER']:
-
-        # load Imager at VIS:
-        vis_imager = shdom.Imager.ImportConfig(file_name='../notebooks/Gecko_config.json')
-        # load Imager at SWIR:
-        swir_imager = shdom.Imager.ImportConfig(file_name='../notebooks/Hypothetic_SWIR_camera_config.json')
-    else:
-        # the imager is simple it will be defined here:
-        simple_sensor = shdom.SensorFPA(PIXEL_SIZE=1, CHeight=100, CWidth=100)
-        simple_lens = shdom.LensSimple(FOCAL_LENGTH=1, DIAMETER=1)
-        # shdom.LensSimple means that the lens model is simlpe and without MTF considerations but still with focal and diameter.
-
-        swir_imager = shdom.Imager(sensor=simple_sensor, lens=simple_lens)
-        vis_imager = shdom.Imager(sensor=simple_sensor, lens=simple_lens)
-        # you must define the spectrum for each defined imager:
-        swir_imager.set_scene_spectrum_in_microns([1.6, 1.6])
-        vis_imager.set_scene_spectrum_in_microns([0.672, 0.672])
-
-    Rsat = run_params['Rsat']
-
-    # set the nadir view altitude:
-    vis_imager.set_Imager_altitude(H=Rsat)
-    swir_imager.set_Imager_altitude(H=Rsat)
-
-    if not run_params['USE_SIMPLE_IMAGER']:
-        # the following parametere refers only to nadir view.
-        vis_pixel_footprint, _ = vis_imager.get_footprints_at_nadir()
-        swir_pixel_footprint, _ = swir_imager.get_footprints_at_nadir()
-
-        vis_pixel_footprint = float_round(vis_pixel_footprint)
-        swir_pixel_footprint = float_round(swir_pixel_footprint)
-
-    else:
-        # set required pixel footprint:
-        vis_pixel_footprint = 0.02  # km
-        swir_pixel_footprint = 0.02  # km
-        vis_imager.set_pixel_footprint(vis_pixel_footprint)
-        swir_imager.set_pixel_footprint(swir_pixel_footprint)
-
-    # play with temperatures:
-    if not run_params['USE_SIMPLE_IMAGER']:
-        # if we want to use the simple imager, the temperature does not make any differences.
-        swir_imager.change_temperature(run_params['imager_temperature'])
-        vis_imager.change_temperature(run_params['imager_temperature'])
-
-    # update solar irradince with the solar zenith angel:
-    vis_imager.update_solar_angle(run_params['sun_zenith'])
-    swir_imager.update_solar_angle(run_params['sun_zenith'])
-    # TODO -  use here pysat   or pyEpham package to predict the orbital position of the nadir view sattelite.
-    # It will be used to set the solar zenith.
-
-    # calculate mie tables:
-    vis_wavelegth_range_nm = vis_imager.scene_spectrum  # in nm
-    swir_wavelegth_range_nm = swir_imager.scene_spectrum  # in nm
-
-    # convert nm to microns: It is must
-    vis_wavelegth_range = [float_round(1e-3 * w) for w in vis_wavelegth_range_nm]
-    swir_wavelegth_range = [float_round(1e-3 * w) for w in swir_wavelegth_range_nm]
-
-    # central wavelengths.
-    vis_centeral_wavelength = vis_imager.centeral_wavelength_in_microns
-    swir_centeral_wavelength = swir_imager.centeral_wavelength_in_microns
-    wavelengths_micron = [vis_centeral_wavelength, swir_centeral_wavelength]
-    # wavelengths_micron will hold the vis swir wavelengths. It will be convinient to use the
-    # wavelengths_micron in some loops.
-
-    """
-    Check if mie tables exist, if not creat them, if yes skip it is long process.
-    table file name example: mie_tables/polydisperse/Water_<1000*wavelength_micron>nm.scat
-    """
     MieTablesPath = os.path.abspath("./mie_tables")
-    if vis_wavelegth_range[0] == vis_wavelegth_range[1]:
 
-        vis_mie_base_path = CALC_MIE_TABLES(MieTablesPath,
-                                            vis_wavelegth_range[0], mie_options, wavelength_averaging=False)
-    else:
+    # Setup the imagers, can be simple!
+    vis_imager, vis_wavelength_range, vis_pixel_footprint, vis_imager_config = setup_imager(
+        imager_options=run_params['vis_options'],
+        run_params=run_params,
+        MieTablesPath=MieTablesPath,
+        simple_type='vis')
 
-        vis_mie_base_path = CALC_MIE_TABLES(MieTablesPath,
-                                            vis_wavelegth_range, mie_options, wavelength_averaging=True)
+    swir_imager, swir_wavelength_range, swir_pixel_footprint, swir_imager_config = setup_imager(
+        imager_options=run_params['swir_options'],
+        run_params=run_params,
+        MieTablesPath=MieTablesPath,
+        simple_type='swir')
 
-    if swir_wavelegth_range[0] == swir_wavelegth_range[1]:
-
-        swir_mie_base_path = CALC_MIE_TABLES(MieTablesPath,
-                                             swir_wavelegth_range[0], mie_options, wavelength_averaging=False)
-
-    else:
-
-        swir_mie_base_path = CALC_MIE_TABLES(MieTablesPath,
-                                             swir_wavelegth_range, mie_options, wavelength_averaging=True)
+    SATS_NUMBER_SETUP = run_params['SATS_NUMBER_SETUP']
 
     # where to save the forward outputs:
-    forward_dir = f'./experiments/VIS_SWIR_NARROW_BANDS_VIS_{int(1e3 * vis_wavelegth_range[0])}-' \
-                  f'{int(1e3 * vis_wavelegth_range[1])}nm_active_sats_{SATS_NUMBER_SETUP}_' \
+    forward_dir = f'./experiments/VIS_SWIR_NARROW_BANDS_VIS_{int(1e3 * vis_wavelength_range[0])}-' \
+                  f'{int(1e3 * vis_wavelength_range[1])}nm_active_sats_{SATS_NUMBER_SETUP}_' \
                   f'GSD_{int(1e3 * vis_pixel_footprint)}m_and' \
-                  f'_SWIR__{int(1e3 * swir_wavelegth_range[0])}-{int(1e3 * swir_wavelegth_range[1])}' \
+                  f'_SWIR_{int(1e3 * swir_wavelength_range[0])}-{int(1e3 * swir_wavelength_range[1])}' \
                   f'nm_active_sats_{SATS_NUMBER_SETUP}_GSD_{int(1e3 * swir_pixel_footprint)}m' \
-                  f'_LES_cloud_field_rico_LES_cloud_field_rico'
+                  f'_LES_cloud_field'
 
-    # inverse_dir, where to save evrerything that is related to invers model:
-    inverse_dir = forward_dir
+    # inverse_dir, where to save everything that is related to invers model:
+    inverse_dir = forward_dir  # TODO not in use
     log_name_base = f'active_sats_{SATS_NUMBER_SETUP}_easiest_rico32x37x26'
     # Write intermediate TensorBoardX results into log_name.
     # The provided string is added as a comment to the specific run.
 
-    viz_options = run_params['viz_options']  # visualization params
+    vizual_options = run_params['vizual_options']  # visualization params
     # -------------LOAD SOME MEDIUM TO RECONSTRUCT--------------------------------
     # Path to csv file which contains temperature measurements or None if the atmosphere will not consider any air.
-    AirFieldFile = run_params['AirFieldFile'] if not viz_options['CENCEL_AIR'] else None
+    AirFieldFile = run_params['AirFieldFile'] if not vizual_options['CENCEL_AIR'] else None
 
-    if not run_params['USE_SIMPLE_IMAGER']:
-        # If we do not use simple imager we probably use imager with a band so:
-        wavelength_averaging = True
-    else:
-        wavelength_averaging = False
+    # If we do not use simple imager we probably use imager with a band so:
+    wavelength_averaging = False if run_params['USE_SIMPLE_IMAGER'] else True
+
+    # central wavelengths
+    wavelengths_micron = [vis_imager.centeral_wavelength_in_microns, swir_imager.centeral_wavelength_in_microns]
+    # wavelengths_micron will hold the vis swir wavelengths. It will be convinient to use in some loops
 
     atmosphere = CloudCT_setup.Prepare_Medium(CloudFieldFile=run_params['CloudFieldFile'],
                                               AirFieldFile=AirFieldFile,
@@ -179,8 +91,7 @@ def main():
 
     # USED FOV, RESOLUTION and SAT_LOOKATS:
     # cny x cnx is the camera resolution in pixels
-    PIXEL_FOOTPRINT = run_params['GSD']  # km
-    fov = 2 * np.rad2deg(np.arctan(0.5 * L / (Rsat)))
+    fov = 2 * np.rad2deg(np.arctan(0.5 * L / (run_params['Rsat'])))
     vis_cnx = vis_cny = int(np.floor(L / vis_pixel_footprint))
     swir_cnx = swir_cny = int(np.floor(L / swir_pixel_footprint))
 
@@ -190,8 +101,8 @@ def main():
     # so the FOV is also tuned:
     # -- TUNE FOV, CNY,CNX:
     if run_params['IFTUNE_CAM']:
-        L = 1.5 * L
-        fov = 2 * np.rad2deg(np.arctan(0.5 * L / (Rsat)))
+        L *= 1.5
+        fov = 2 * np.rad2deg(np.arctan(0.5 * L / (run_params['Rsat'])))
         vis_cnx = vis_cny = int(np.floor(L / vis_pixel_footprint))
         swir_cnx = swir_cny = int(np.floor(L / swir_pixel_footprint))
 
@@ -219,9 +130,13 @@ def main():
     logger.debug(f"Lx = {Lx}, Ly = {Ly},Lz ={Lz}")
 
     logger.debug(
-        f"xmin = {droplets_grid.bounding_box.xmin}, ymin = {droplets_grid.bounding_box.ymin},zmin ={droplets_grid.bounding_box.zmin}")
+        f"xmin = {droplets_grid.bounding_box.xmin}, "
+        f"ymin = {droplets_grid.bounding_box.ymin}, "
+        f"zmin ={droplets_grid.bounding_box.zmin}")
     logger.debug(
-        f"xmax = {droplets_grid.bounding_box.xmax}, ymax = {droplets_grid.bounding_box.ymax},zmax ={droplets_grid.bounding_box.zmax}")
+        f"xmax = {droplets_grid.bounding_box.xmax}, "
+        f"ymax = {droplets_grid.bounding_box.ymax}, "
+        f"zmax ={droplets_grid.bounding_box.zmax}")
 
     if run_params['DOFORWARD']:
         forward_options = run_params['forward_options']
@@ -235,35 +150,34 @@ def main():
         """
 
         # create CloudCT setups:
-        vis_CloudCT_VIEWS, near_nadir_view_index = CloudCT_setup.Create(SATS_NUMBER=SATS_NUMBER_SETUP,
-                                                                        ORBIT_ALTITUDE=Rsat,
-                                                                        SAT_LOOKATS=SAT_LOOKATS,
-                                                                        Imager_config=vis_imager_config,
-                                                                        imager=vis_imager,
-                                                                        VISSETUP=viz_options['VISSETUP'])
+        vis_CloudCT_VIEWS, _ = CloudCT_setup.Create(SATS_NUMBER=SATS_NUMBER_SETUP,
+                                                    ORBIT_ALTITUDE=run_params['Rsat'],
+                                                    SAT_LOOKATS=SAT_LOOKATS,
+                                                    Imager_config=vis_imager_config,
+                                                    imager=vis_imager,
+                                                    VISSETUP=vizual_options['VISSETUP'])
 
-        swir_CloudCT_VIEWS, near_nadir_view_index = CloudCT_setup.Create(SATS_NUMBER=SATS_NUMBER_SETUP,
-                                                                         ORBIT_ALTITUDE=Rsat,
-                                                                         SAT_LOOKATS=SAT_LOOKATS,
-                                                                         Imager_config=swir_imager_config,
-                                                                         imager=swir_imager,
-                                                                         VISSETUP=viz_options['VISSETUP'])
+        swir_CloudCT_VIEWS, _ = CloudCT_setup.Create(SATS_NUMBER=SATS_NUMBER_SETUP,
+                                                     ORBIT_ALTITUDE=run_params['Rsat'],
+                                                     SAT_LOOKATS=SAT_LOOKATS,
+                                                     Imager_config=swir_imager_config,
+                                                     imager=swir_imager,
+                                                     VISSETUP=vizual_options['VISSETUP'])
 
-        # Generate a solver array for a multispectral solution.
+        # Generate a solver array for a multi-spectral solution.
         # it is great that we can use the parallel solution of all solvers.
         # -----IMPORTANT NOTE---------
-        # Rigth now the /numerical parameter of vis and swir are the same:
+        # Right now the /numerical parameter of vis and swir are the same:
 
         rte_solvers = shdom.RteSolverArray()
 
-        # TODO - what if the imagers have the same central wavelenghts?
+        # TODO - what if the imagers have the same central wavelengths?
         # iter 0 of wavelength is for vis
         # iter 1 of wavelength is for swir
         for wavelength, split_accuracy, solar_flux, surface_albedo in zip(wavelengths_micron,
                                                                           forward_options['split_accuracies'],
                                                                           forward_options['solar_fluxes'],
                                                                           forward_options['surface_albedos']):
-
             numerical_params = shdom.NumericalParameters(num_mu_bins=forward_options['num_mu'],
                                                          num_phi_bins=forward_options['num_phi'],
                                                          split_accuracy=split_accuracy,
@@ -296,20 +210,22 @@ def main():
 
         if not run_params['USE_SIMPLE_IMAGER']:
             # If we do not use simple imager we probably use imager such that noise can be applied:
-            CloudCT_measurements.simulate_measurements(n_jobs=run_params['n_jobs'],
-                                                       rte_solvers=rte_solvers,
-                                                       IF_REDUCE_EXPOSURE=True,
-                                                      IF_SCALE_IDEALLY=False,
-                                                       IF_APPLY_NOISE=True)
+            reduce_exposure = True
+            scale_ideally = False
+            apply_noise = True
+
         else:
-            # If we do not use realistic imager, we MUST use IF_SCALE_IDEALLY=True so the images will have values in maximum range.
-            CloudCT_measurements.simulate_measurements(n_jobs=run_params['n_jobs'],
-                                                       rte_solvers=rte_solvers,
-                                                       IF_REDUCE_EXPOSURE=False,
-                                                      IF_SCALE_IDEALLY=True,
-                                                       IF_APPLY_NOISE=False)
+            # If we do not use realistic imager, we MUST use IF_SCALE_IDEALLY=True so the images will have values in
+            # maximum range.
+            reduce_exposure = False
+            scale_ideally = True
+            apply_noise = False
 
-
+        CloudCT_measurements.simulate_measurements(n_jobs=run_params['n_jobs'],
+                                                   rte_solvers=rte_solvers,
+                                                   IF_REDUCE_EXPOSURE=reduce_exposure,
+                                                   IF_SCALE_IDEALLY=scale_ideally,
+                                                   IF_APPLY_NOISE=apply_noise)
 
         # The simulate_measurements() simulate images in gray levels.
         # Now we need to save that images and be able to load that images in the inverse pipline/
@@ -344,69 +260,177 @@ def main():
 
         log_name = run_type + "_only_" + log_name_base
 
-        cmd = create_inverse_command(run_params=run_params, inverse_options=inverse_options, viz_options=viz_options,
+        cmd = create_inverse_command(run_params=run_params, inverse_options=inverse_options,
+                                     vizual_options=vizual_options,
                                      forward_dir=forward_dir, AirFieldFile=AirFieldFile,
                                      run_type=run_type, log_name=log_name)
-        logger.debug(f'inverse command is {cmd}')
 
-        dump_run_params(run_params=run_params, dir=forward_dir)
+        dump_run_params(run_params=run_params, dump_dir=forward_dir)
 
-        with open(os.path.join(forward_dir, 'run_tracker.csv'), 'a') as csv_file:
-            writer = csv.writer(csv_file)
-            writer.writerow([time.strftime("%d-%b-%Y-%H:%M:%S"), log_name, cmd])
+        write_to_run_tracker(forward_dir=forward_dir, msg=[time.strftime("%d-%b-%Y-%H:%M:%S"), log_name, cmd])
 
-        optimize1 = subprocess.call(cmd, shell=True)
+        logger.debug(f'Starting Inverse: {cmd}')
+
+        _ = subprocess.call(cmd, shell=True)
 
         # Time to show the results in 3D visualization:
         if inverse_options['VIS_RESULTS3D']:
-            """
-                The forward_dir id a folder that containes:
-                medium, solver, measurements.
-                They loaded before. To see the final state, the medium is not 
-                enough, the medium_estimator is needed.
-                load the measurments to see the rendered images:
-            """
-
-            # what state to load? I prefere the last one!
-            logs_dir = os.path.join(forward_dir, 'logs')
-            logs_prefix = os.path.join(logs_dir, log_name)
-            logs_files = glob.glob(logs_prefix + '-*')
-
-            times = [i.split('{}-'.format(int(1e3 * wavelength_micron)))[-1] for i in logs_files]
-            # sort the times to find the last one.
-            timestamp = [time.mktime(time.strptime(i, "%d-%b-%Y-%H:%M:%S")) for i in times]
-            # time.mktime(t) This is the inverse function of localtime()
-            timestamp.sort()
-            timestamp = [time.strftime("%d-%b-%Y-%H:%M:%S", time.localtime(i)) for i in timestamp]
-            # now, the timestamp are sorted, and I want the last stamp to visualize.
-            connector = '{}-'.format(int(1e3 * wavelength_micron))
-            log2load = logs_prefix + '-' + timestamp[-1]
-            # print here the Final results files:
-            Final_results_3Dfiles = glob.glob(log2load + '/FINAL_3D_*.mat')
-            print("{} files with the results in 3D were created:".format(len(Final_results_3Dfiles)))
-            for _file in Final_results_3Dfiles:
-                print(_file)
-
-            # ---------------------------------------------------------
-
-            # Don't want to use it now, state2load = os.path.join(log2load,'final_state.ckpt')
-
-            logger.debug(f"use tensorboard --logdir {log2load} --bind_all")
+            # TODO wavelength_micron=wavelengths_micron[0] is just placeholder for?
+            visualize_results(forward_dir=forward_dir, log_name=log_name, wavelength_micron=wavelengths_micron[0])
 
         logger.debug("done inverse")
 
-        # This distribution can be excellently approximated by a Gaussian
-        # distribution having this expectation and variance, for nphoto
-        # electr > 10, which is
-        # typically the case for cameras.
 
+def write_to_run_tracker(forward_dir, msg):
+    """
+    TODO
+    Args:
+        forward_dir ():
+        msg ():
 
-def dump_run_params(run_params, dir):
+    Returns:
+
+    """
+    tracker_path = os.path.join(forward_dir, 'run_tracker.csv')
+    with open(tracker_path, 'a') as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(msg)
     logger = logging.getLogger()
-    if not os.path.exists(os.path.join(dir, 'run_params_files')):
-        os.mkdir(os.path.join(dir, 'run_params_files'))
+    logger.debug(f"Wrote to tracker{tracker_path} message - {msg}")
 
-    run_params_file_name = os.path.join(dir, 'run_params_files',
+
+def visualize_results(forward_dir, log_name, wavelength_micron):
+    """
+    TODO
+    Args:
+        forward_dir ():
+        log_name ():
+        wavelength_micron ():
+
+    Returns:
+
+    """
+    """
+         The forward_dir id a folder that containes:
+         medium, solver, measurements.
+         They loaded before. To see the final state, the medium is not
+         enough, the medium_estimator is needed.
+         load the measurments to see the rendered images:
+     """
+
+    # what state to load? I prefere the last one!
+    logs_dir = os.path.join(forward_dir, 'logs')
+    logs_prefix = os.path.join(logs_dir, log_name)
+    logs_files = glob.glob(logs_prefix + '-*')
+
+    times = [i.split('{}-'.format(int(1e3 * wavelength_micron)))[-1] for i in logs_files]
+    # sort the times to find the last one.
+    timestamp = [time.mktime(time.strptime(i, "%d-%b-%Y-%H:%M:%S")) for i in times]
+    # time.mktime(t) This is the inverse function of localtime()
+    timestamp.sort()
+    timestamp = [time.strftime("%d-%b-%Y-%H:%M:%S", time.localtime(i)) for i in timestamp]
+    # now, the timestamp are sorted, and I want the last stamp to visualize.
+    connector = '{}-'.format(int(1e3 * wavelength_micron))
+    log2load = logs_prefix + '-' + timestamp[-1]
+    # print here the Final results files:
+    Final_results_3Dfiles = glob.glob(log2load + '/FINAL_3D_*.mat')
+    print("{} files with the results in 3D were created:".format(len(Final_results_3Dfiles)))
+    for _file in Final_results_3Dfiles:
+        print(_file)
+
+    # ---------------------------------------------------------
+    # Don't want to use it now, state2load = os.path.join(log2load,'final_state.ckpt')
+    logger = logging.getLogger()
+    logger.debug(f"use tensorboard --logdir {log2load} --bind_all")
+
+
+def setup_imager(imager_options, run_params, MieTablesPath, simple_type):
+    """
+    TODO
+    Args:
+        imager_options ():
+        run_params ():
+        MieTablesPath ():
+        simple_type ():
+
+    Returns:
+
+    """
+    if not run_params['USE_SIMPLE_IMAGER']:
+        imager = shdom.Imager.ImportConfig(file_name=imager_options['ImportConfigPath'])
+        imager.set_Imager_altitude(H=run_params['Rsat'])
+        imager_pixel_footprint, _ = imager.get_footprints_at_nadir()
+        imager_pixel_footprint = float_round(imager_pixel_footprint)
+        imager.change_temperature(imager_options['temperature'])
+    else:
+        # the imager is simple and will be defined here:
+        simple_sensor = shdom.SensorFPA(PIXEL_SIZE=1, CHeight=100, CWidth=100)
+        simple_lens = shdom.LensSimple(FOCAL_LENGTH=1, DIAMETER=1)
+        # shdom.LensSimple means that the lens model is simple and without MTF considerations but still with focal
+        # and diameter.
+
+        imager = shdom.Imager(sensor=simple_sensor, lens=simple_lens)
+        # you must define the spectrum for each defined imager:
+        if simple_type == 'vis':
+            imager.set_scene_spectrum_in_microns([0.672, 0.672])  #
+        elif simple_type == 'swir':
+            imager.set_scene_spectrum_in_microns([1.6, 1.6])
+        else:
+            print("if using simple imager, simple_type must be 'vis' or 'swir'")
+            return
+        imager.set_Imager_altitude(H=run_params['Rsat'])
+        imager_pixel_footprint = run_params['GSD']
+        imager.set_pixel_footprint(imager_pixel_footprint)
+
+    # update solar irradince with the solar zenith angel:
+    imager.update_solar_angle(run_params['sun_zenith'])
+    # TODO -  use here pysat   or pyEpham package to predict the orbital position of the nadir view sattelite.
+    # It will be used to set the solar zenith.
+
+    # calculate mie tables:
+    wavelegth_range_nm = imager.scene_spectrum  # in nm
+
+    # convert nm to microns: It is must
+    wavelegth_range = [float_round(1e-3 * w) for w in wavelegth_range_nm]
+
+    """
+    Check if mie tables exist, if not creat them, if yes skip it is long process.
+    table file name example: mie_tables/polydisperse/Water_<1000*wavelength_micron>nm.scat
+    """
+
+    if wavelegth_range[0] == wavelegth_range[1]:
+        _ = CALC_MIE_TABLES(where_to_check_path=MieTablesPath,
+                            wavelength_micron=wavelegth_range[0],
+                            options=run_params['mie_options'],
+                            wavelength_averaging=False)
+    else:
+        _ = CALC_MIE_TABLES(where_to_check_path=MieTablesPath,
+                            wavelength_micron=wavelegth_range,
+                            options=run_params['mie_options'],
+                            wavelength_averaging=True)
+
+    imager_config = run_params['SATS_NUMBER_SETUP'] * [False]
+    for index in imager_options['true_indices']:
+        imager_config[index] = [True]
+
+    return imager, wavelegth_range, imager_pixel_footprint, imager_config
+
+
+def dump_run_params(run_params, dump_dir):
+    """
+    TODO
+    Args:
+        run_params ():
+        dump_dir ():
+
+    Returns:
+
+    """
+    logger = logging.getLogger()
+    if not os.path.exists(os.path.join(dump_dir, 'run_params_files')):
+        os.mkdir(os.path.join(dump_dir, 'run_params_files'))
+
+    run_params_file_name = os.path.join(dump_dir, 'run_params_files',
                                         'run_params_' + time.strftime("%d%m%Y_%H%M%S") + '.yaml')
 
     with open(run_params_file_name, 'w') as f:
@@ -414,14 +438,27 @@ def dump_run_params(run_params, dir):
         logger.debug(f"Saving run params to {run_params_file_name}")
 
 
-def create_inverse_command(run_params, inverse_options, viz_options,
+def create_inverse_command(run_params, inverse_options, vizual_options,
                            forward_dir, AirFieldFile, run_type, log_name):
+    """
+    TODO
+    Args:
+        run_params ():
+        inverse_options ():
+        vizual_options ():
+        forward_dir ():
+        AirFieldFile ():
+        run_type ():
+        log_name ():
 
+    Returns:
+
+    """
     INIT_USE = ' --init ' + inverse_options['init']
 
     GT_USE = ''
     GT_USE = GT_USE + ' --cloudct_use' if inverse_options['cloudct_use'] else GT_USE  # -----------------
-    GT_USE = GT_USE + ' --add_rayleigh' if inverse_options['add_rayleigh'] and not viz_options[
+    GT_USE = GT_USE + ' --add_rayleigh' if inverse_options['add_rayleigh'] and not vizual_options[
         'CENCEL_AIR'] else GT_USE
     GT_USE = GT_USE + ' --use_forward_mask' if inverse_options['use_forward_mask'] else GT_USE
     GT_USE = GT_USE + ' --use_forward_grid' if inverse_options['use_forward_grid'] else GT_USE
@@ -451,7 +488,7 @@ def create_inverse_command(run_params, inverse_options, viz_options,
 
     OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if inverse_options['globalopt'] else OTHER_PARAMS
 
-    OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if not viz_options['CENCEL_AIR'] else OTHER_PARAMS
+    OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if not vizual_options['CENCEL_AIR'] else OTHER_PARAMS
 
     OTHER_PARAMS = OTHER_PARAMS + ' --radiance_threshold ' + " ".join(
         map(str, run_params['radiance_threshold'])) if run_type != 'reff_and_lwc' else OTHER_PARAMS
@@ -511,7 +548,6 @@ def create_inverse_command(run_params, inverse_options, viz_options,
             GT_USE += ' --use_forward_reff'
             OTHER_PARAMS += ' --veff ' + str(inverse_options['veff'])
 
-
         # -----------------------------------------------
         # ---------SOLVE for lwc and reff  ------------------
         # -----------------------------------------------
@@ -564,6 +600,14 @@ def create_inverse_command(run_params, inverse_options, viz_options,
 
 
 def create_and_configer_logger(log_name):
+    """
+    TODO
+    Args:
+        log_name ():
+
+    Returns:
+
+    """
     # set up logging to file
     logging.basicConfig(
         filename=log_name,
@@ -585,6 +629,14 @@ def create_and_configer_logger(log_name):
 
 
 def load_run_params(params_path):
+    """
+    TODO
+    Args:
+        params_path ():
+
+    Returns:
+
+    """
     # Load run parameters
     params_file_path = params_path
     with open(params_file_path, 'r') as f:

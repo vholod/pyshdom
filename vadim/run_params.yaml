@@ -1,24 +1,102 @@
-# TODO forward_dir
-# TODO log_name_base,
-# TODO Cosain*6.8e-5*1e-9*CloudCT_setup.plank(1e-6*wavelength,temp)
+# ------------------------------------------------------------
+# ------------------------------------------------------------
+# -------------  CloudCT Simulate  ---------------------------
+# --------------  Run Paramaters  ----------------------------
+# ------------------------------------------------------------
+# ------------------------------------------------------------
 
-# Simulation flags
+
+# --------------------------------------------------
+# -------------   Simulation flags  ----------------
+# --------------------------------------------------
 DOFORWARD: True
 DOINVERSE: True
-USE_VIS: True # if to use vis in the simulation
-USE_SWIR: False # if to use vis in the simulation
-USE_SIMPLE_IMAGER: False   # if it's true, the imager is simple and not loaded from the imagers data set.
 
+# --------------------------------------------------
+# --------------   Use Simple Imager?  --------------
+# --------------------------------------------------
+USE_SIMPLE_IMAGER: False
+# if it's true, the imager is simple and not loaded from the imagers data set.
+
+
+# --------------------------------------------------
+# ------------   VIS Imager Parameters  ------------
+# --------------------------------------------------
+vis_options:
+  USE_VIS: True  # if to use vis in the simulation # TODO not in use
+  ImportConfigPath: '../notebooks/Gecko_config.json'
+  temperature: 15 # celsius
+  true_indices: [0,1,2,3,4,5,6,7,8,9]  # where imagers are located
+
+# --------------------------------------------------
+# ------------   VIS Imager Parameters  ------------
+# --------------------------------------------------
+swir_options:
+  USE_SWIR: True  # if to use vis in the simulation # TODO not in use
+  ImportConfigPath: '../notebooks/Hypothetic_SWIR_camera_config.json'
+  temperature: 15 # celsius
+  true_indices: [4,5]  # where imagers are located
+
+
+# --------------------------------------------------
+# -------------   Cloud & Air Field files  ---------
+# --------------------------------------------------
 CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
-AirFieldFile: './ancillary_data/AFGL_summer_mid_lat.txt' # Path to csv file which contains temperature measurements
+AirFieldFile: './ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file which contains temperature measurements
 
-# Sometimes it is more convenient to use wide fov to see the whole cloud from all the view points.
-# so the FOV is also tuned:
-IFTUNE_CAM: True
 
-imager_temperature: 15 # celsius
+# --------------------------------------------------
+# ----------------  Number of Jobs  ----------------
+# --------------------------------------------------
+n_jobs: 28
 
-# mia table parameters:
+
+# --------------------------------------------------
+# ----------------   Orbit and GSD  ----------------
+# --------------------------------------------------
+Rsat: 500  # orbit altitude, km
+GSD: 0.02  # in km, it is the ground spatial resolution.
+
+
+# --------------------------------------------------
+# -----------------   Wavelengths  -----------------
+# --------------------------------------------------
+
+
+# --------------------------------------------------
+# -------------   Sun Azimuth & Zenith  ------------
+# --------------------------------------------------
+sun_azimuth: 45  # azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
+sun_zenith: 150  # zenith: Solar beam zenith angle in range (90,180]
+
+
+# --------------------------------------------------
+# ------------   Number of Satellites  -------------
+# --------------------------------------------------
+SATS_NUMBER_SETUP: &num_sats 10  # satellites number to build the setup, for the inverse, we can use less satellites.
+SATS_NUMBER_INVERSE: *num_sats  #10, how much satellites will be used for the inverse. TODO not in use
+
+
+# --------------------------------------------------
+# ---------  numerical & scene Parameters  ---------
+# ---------  for RTE solver & solver init  ---------
+# --------------------------------------------------
+# later we must update it since it depends on the wavelegth.
+# split_accuracy of 0.1 gives nice results, For the rico cloud i didn't see that decreasing the split accuracy improves the rec.
+# so fo the rico loud Let's use split_accuracy = 0.1.
+solar_fluxes_val: 1.0
+split_accuracies_val: 0.1
+surface_albedos_val: 0.05
+
+# --------------------------------------------------
+# -------------   Radiance Threshold  ------------
+# --------------------------------------------------
+radiance_threshold: [0.023, 0.02] # Threshold is either a scalar or a list of length of measurements.
+
+
+# -------------------------------------------------
+# -------------   mia table parameters  -----------
+# -------------------------------------------------
 mie_options:
   start_reff: 4 # Starting effective radius [Micron]
   end_reff: 25.0
@@ -30,84 +108,66 @@ mie_options:
   wavelength_resolution: 0.001 # it is the delta in the wavelengths (microns) for the optical parameters avaraging inside shdom.
 
 
-# visualization params:
-viz_options:
+# -------------------------------------------------
+# -----------  Visualization parameters  ----------
+# -------------------------------------------------
+vizual_options:
   VISSETUP: False
   CENCEL_AIR: False # just for debugging, in runtime  must be false.
   scale: 500
   axisWidth: 0.02
   axisLenght: 5000
 
-n_jobs: 28
 
-Rsat: 500 # orbit altitude, km
-GSD: 0.02 # in km, it is the ground spatial resolution.
-
-wavelengths_micron: [0.672, 1.6]  #0.672 , 1.6
-
-sun_azimuth: 45 #azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
-sun_zenith: 150 #zenith: Solar beam zenith angle in range (90,180]
-
-SATS_NUMBER_SETUP: &num_sats 10 # satellites number to build the setup, for the inverse, we can use less satellites.
-SATS_NUMBER_INVERSE: *num_sats #10, how much satellites will be used for the inverse.
-
-
-# ---------numerical & scene Parameters---------------------
-# ---------for RTE solver and initializtion of the solver---
-
-# later we must update it since it depends on the wavelegth.
-# split_accuracy of 0.1 gives nice results, For the rico cloud i didn't see that decreasing the split accuracy improves the rec.
-# so fo the rico loud Let's use split_accuracy = 0.1.
-solar_fluxes_val: 1.0
-split_accuracies_val: 0.1
-surface_albedos_val: 0.05
-
-
-
-
-# -----------------------------------------------
-# ---------------- Forward parameters:-----------
-# -----------------------------------------------
+# -------------------------------------------------
+# ----------------  Forward parameters  -----------
+# -------------------------------------------------
 forward_options:
+
   SEE_IMAGES: False
 
-  # units fo W/(m^2))
-  temp: 5900  # K
+  temp: 5900  # K,  units of W/(m^2))
 
-  # ----------------------------------------------------------
-  # ---------numerical & scene Parameters---------------------
-  # ---------for RTE solver and initializtion of the solver---
-  # ----------------------------------------------------------
+  # ----------numerical & scene Parameters------------
+  # --for RTE solver and initializtion of the solver--
+  # --------------------------------------------------
 
   # note: when num_mu, num_phi are 16,32, the retrievals look better than with 8,16.
   num_mu: 16
+
   num_phi: 32
+
   max_total_mb: 100000.0
+
   rte_solver_max_iter: 100 # max number of iterations for rte solver
+
   solar_fluxes: [1, 1]  # unity flux, IT IS IMPORTANT HERE!
-  split_accuracies: [0.1, 0.1]
+
+  split_accuracies: [0.1, 0.1] # 0.1 gives nice results, For the rico cloud i didn't see that decreasing the split accuracy improves the rec.
+                               # so fo the rico loud Let's use split_accuracy = 0.1.
+
   surface_albedos: [0.05, 0.05]  # later we must update it since it depends on the wavelegth.
-  # split_accuracy of 0.1 gives nice results, For the rico cloud i didn't see that decreasing the split accuracy improves the rec.
-  # so fo the rico loud Let's use split_accuracy = 0.1.
+
   adapt_grid_factor: 5  # TODO not in use
+
   solution_accuracy: 0.0001  # TODO not in use
 
-# check these values before inverse.
-radiance_threshold: [0.023, 0.02] # Threshold is either a scalar or a list of length of measurements.
 
-
-# -----------------------------------------------
-# ---------------- inverse parameters:-----------
-# -----------------------------------------------
+# -------------------------------------------------
+# ----------------  inverse parameters  -----------
+# -------------------------------------------------
 inverse_options:
+
   SEE_SETUP: False
+
   SEE_IMAGES: False
+
   VIS_RESULTS3D: False  # show the results in 3D visualization
 
-  MICROPHYSICS: True
+  MICROPHYSICS: True # False for extinction
+
   # if micropyhsics is  true, specify where to recover lwc / reff / veff or (reff and lwc)
-  # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
-  recover_type: 'reff_and_lwc'
+  recover_type: 'reff_and_lwc' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
 
   # Initialization and Medium parameters:
   lwc: 0.01  # init lwc of the generator
@@ -121,8 +181,6 @@ inverse_options:
   # if not microphysics:
   extinction: 0.01  # init extinction of the generator
 
-
-
   scripts_path: '../scripts'
 
   # TODO not in use
@@ -133,24 +191,31 @@ inverse_options:
 
   # GT_USE
   add_rayleigh: True
-
   use_forward_mask: True
   use_forward_grid: True
   cloudct_use: True
   use_forward_albedo: True
   use_forward_phase: True
-
   if_save_gt_and_carver_masks: True
   if_save_final3d: True
 
   # optimization:
-  globalopt: False # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
-  maxiter: 1000 #1000 # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
-  maxls: 30 # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
-  disp: True # Display optimization progression.
-  gtol: 1e-16 # Stop criteria for the maximum projected gradient. # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
-  ftol: 1e-16 # Stop criteria for the relative change in loss function. # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
-  loss_type: 'l2' # Different loss functions for optimization. Currently only l2 is supported.
-
+  globalopt: False  # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
+  maxiter: 1000  # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+  maxls: 30  # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+  disp: True  # Display optimization progression.
+  gtol: 1e-16  # Stop criteria for the maximum projected gradient. # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
+  ftol: 1e-16  # Stop criteria for the relative change in loss function. # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
+  loss_type: 'l2'  # Different loss functions for optimization. Currently only l2 is supported.
   extinction_optimizer: 'optimize_extinction_lbfgs.py'
   microphysics_optimizer: 'optimize_microphysics_lbfgs.py'
+
+
+# ----------------------------------------------
+# -------------------  Others  -----------------
+# ----------------------------------------------
+
+# Sometimes it is more convenient to use wide fov to see the whole cloud from all the view points.
+# so the FOV is also tuned:
+IFTUNE_CAM: True
+
