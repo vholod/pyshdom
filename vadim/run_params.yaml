@@ -22,10 +22,11 @@ USE_SIMPLE_IMAGER: False
 # --------------------------------------------------
 # ------------   VIS Imager Parameters  ------------
 # --------------------------------------------------
+temperature: &temperature 15
 vis_options:
   USE_VIS: True  # if to use vis in the simulation # TODO not in use
   ImportConfigPath: '../notebooks/Gecko_config.json'
-  temperature: 15 # celsius
+  temperature: *temperature # celsius
   true_indices: [0,1,2,3,4,5,6,7,8,9]  # where imagers are located
 
 # --------------------------------------------------
@@ -34,7 +35,7 @@ vis_options:
 swir_options:
   USE_SWIR: True  # if to use vis in the simulation # TODO not in use
   ImportConfigPath: '../notebooks/Hypothetic_SWIR_camera_config.json'
-  temperature: 15 # celsius
+  temperature: *temperature # celsius
   true_indices: [4,5]  # where imagers are located
 
 
