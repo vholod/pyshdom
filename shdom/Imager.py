@@ -369,7 +369,7 @@ class LensSimple(object):
             self._DIAMETER = DIAMETER # mm
         else:
             self._DIAMETER = None
-        self._wave_diffraction = None # in mocro meters, it will be the 1e-3*min(2.44*self._SPECTRUM)*(self._FOCAL_LENGTH/self._DIAMETER)
+        self._wave_diffraction = None # in micro meters, it will be the 1e-3*min(2.44*self._SPECTRUM)*(self._FOCAL_LENGTH/self._DIAMETER)
 
         
        
@@ -392,9 +392,9 @@ class LensSimple(object):
         self._TRANSMISSION[self._TRANSMISSION<0] = 0 # if mistakly there are negative values. 
         self._TRANSMISSION['<Efficiency>'] = self._TRANSMISSION['<Efficiency>']/100  # effciency in range [0,1].
         self._SPECTRUM = self._TRANSMISSION['<wavelength [nm]>'].values
-        self._wave_diffraction = 1e-3*min(2.44*self._SPECTRUM)*(self._FOCAL_LENGTH/self._DIAMETER)
+        self._wave_diffraction = 1e-3*max(2.44*self._SPECTRUM)*(self._FOCAL_LENGTH/self._DIAMETER)
         # https://www.edmundoptics.com/knowledge-center/application-notes/imaging/limitations-on-resolution-and-contrast-the-airy-disk/
-        print("----> Spot size becous of the diffraction is {}[micro m]".format(float_round(self._wave_diffraction)))
+        print("----> Spot size because of the diffraction is {}[micro m]".format(float_round(self._wave_diffraction)))
     
     def assume_UNITY_TRANSMISSION(self,spectrum):
         """
@@ -408,7 +408,6 @@ class LensSimple(object):
         self._SPECTRUM = np.array(spectrum) # need to be more then 4 elements for the InterpolatedUnivariateSpline function in the future.
         df = pd.DataFrame(data={"<wavelength [nm]>":self._SPECTRUM,'<Efficiency>':alfa*np.ones_like(self._SPECTRUM)},index=None)
         self._TRANSMISSION = df
-        
         
     @property
     def spectrum(self):    
@@ -473,6 +472,7 @@ class Imager(object):
         self._temp = temp # celsius
         self._dark_noise_table = None
         self._DARK_NOISE = None
+        self._wave_diffraction = None
         
         self._pixel_footprint = None # km, will be defined by function set_Imager_altitude()
         self._camera_footprint = None # km, will be defined by function set_Imager_altitude()
@@ -541,8 +541,11 @@ class Imager(object):
                     
                 self._adjust_spectrum()# updates self._lambdas, self._Imager_EFFICIANCY and self._Imager_QE
                 self._LTOA = self.calculate_scene_solar_irradiance() # irradiance on the top of Atmosphere.
-                
+                self._wave_diffraction = 1e-3*max(2.44*self._lambdas)*(self._lens.focal_length/self._lens.diameter)
+                # https://www.edmundoptics.com/knowledge-center/application-notes/imaging/limitations-on-resolution-and-contrast-the-airy-disk/
+                print("----> Spot size because of the diffraction is {}[micro m]".format(float_round(self._wave_diffraction)))                
         else:
+            self._LTOA = None # irradiance on the top of Atmosphere.
             print("Remember to set sensor QE and lens TRANSMISSION!")
             
         self._H = None # km, will be defined by function set_Imager_altitude()
@@ -768,10 +771,20 @@ class Imager(object):
         G2 = np.trapz((self._radiance*self._Imager_EFFICIANCY*self._Imager_QE)*self._lambdas, x = self._lambdas)
         G = 1e-21*G1*G2
         
-        self._lens.diameter = 1000*((self._sensor.full_well/G)**0.5) # in mm     
+        self._lens.diameter = 1000*((self._sensor.full_well/G)**0.5) # in mm 
+        
+        #Make a test:
+        G1t = (1/(h*c))*self._exposure_time*(((np.pi)/4)/(self._lens._FOCAL_LENGTH**2))*(self._sensor.pixel_size**2)
+        G2t = np.trapz((self._radiance*self._Imager_EFFICIANCY*self._Imager_QE)*self._lambdas, x = self._lambdas)
+        Gt = 1e-21*G1t*G2t
+        
+        test_signal = ((1e-3*self._lens.diameter)**2)*Gt
+        
+        self._wave_diffraction = 1e-3*max(2.44*self._lambdas)*(self._lens.focal_length/self._lens.diameter)
         print("\nUpdate minimum lens diameter")
         print("The diameter of the lens will change in this step, Is that what do you want to do?")
         print("----> Diameter is changed to {}[mm]".format(float_round(self._lens.diameter)))
+        print("----> Spot size because of the diffraction is changed to {}[micro m]".format(float_round(self._wave_diffraction)))                       
         
         return self._lens.diameter
    
@@ -792,7 +805,7 @@ class Imager(object):
             
             if(self._SENSOR_DEFINED): # means that the sensor should be defined
                 
-                if((self._DARK_NOISE is not None) and (self._NOISE_FLOOR is not None) and (self._sensor.full_well is not None)):
+                if((self._DARK_NOISE is not None) and (self._READ_NOISE is not None) and (self._sensor.full_well is not None)):
                     
                     self._NOISE_FLOOR = self._READ_NOISE + (self._DARK_NOISE*1e-6*self._exposure_time)
                     self._DR = self._sensor.full_well/self._NOISE_FLOOR          
@@ -898,7 +911,7 @@ class Imager(object):
         return LTOA
         
         
-    def calculate_scene_radiance(self,rho=0.1,TYPE = 'simple'):
+    def calculate_scene_radiance(self,rho=0.1,absorbtion=1,TYPE = 'simple'):
         """
         calculate the hypotetic radiance that would reach the imager lens.
         1. In the simple option, it is done very simple, just black body radiation and lamberation reflection be the clouds.
@@ -909,7 +922,7 @@ class Imager(object):
         
         """
         if(TYPE is 'simple'):
-            self._radiance = (rho*self._LTOA)/np.pi # it is of units W/(m^2 st nm)
+            self._radiance = absorbtion*(rho*self._LTOA)/np.pi # it is of units W/(m^2 st nm)
         
         elif(TYPE is 'SHDOM'):
             # TODO
@@ -987,7 +1000,8 @@ class Imager(object):
            
            The update here similar to self._adjust_spectrum() but much simpler.
         """
-        self._adjust_spectrum()      
+        self._adjust_spectrum()   
+        self._LTOA = self.calculate_scene_solar_irradiance() # irradiance on the top of Atmosphere.
         
     
     def update_sensor_size_with_number_of_pixels(self,nx,ny):
@@ -1130,7 +1144,7 @@ class Imager(object):
             # Let self._camera_footprint be the footprint of the camera at nadir view in x axis. The field of view of the camera in radians is,
             self._FOV = 2*np.arctan(self._camera_footprint/2*self._H)
             
-            if((self._DARK_NOISE is not None) and (self._NOISE_FLOOR is not None)):
+            if((self._DARK_NOISE is not None) and (self._READ_NOISE is not None)):
                 self._NOISE_FLOOR = self._READ_NOISE + (self._DARK_NOISE*1e-6*self._max_exposure_time)
                 self._DR = self._sensor.full_well/self._NOISE_FLOOR          
             
@@ -1192,6 +1206,9 @@ class Imager(object):
             self._centeral_wavelength_in_microns = float_round(core.get_center_wavelen(self._scene_spectrum_in_microns[0],self._scene_spectrum_in_microns[1]))
              
         self._LTOA = self.calculate_scene_solar_irradiance() # irradiance on the top of Atmosphere.
+        if(self._LENS_DEFINED):# means we have here defined lens
+            self._wave_diffraction = 1e-3*max(2.44*self._lambdas)*(self._lens.focal_length/self._lens.diameter)
+    
     
     def set_system_efficiency(self,val):
         """
@@ -1228,6 +1245,15 @@ class Imager(object):
         assert len(scene_spectrum) == 2 , "The spectrum is a list of [stera,end] in nm"
         self._scene_spectrum = scene_spectrum
     
+    @property 
+    def orbital_speed(self):
+        return self._orbital_speed
+    
+    @orbital_speed.setter
+    def orbital_speed(self,val):
+        self._orbital_speed = val # [km/sec]
+        
+        
     @property 
     def max_noise_floor(self):
         return self._NOISE_FLOOR        
@@ -1436,7 +1462,7 @@ class Imager(object):
         _DICT_['SPECTRAL_IRRADIANCE_TOA'] = self._LTOA.tolist() if self._LTOA is not None else None # in W/(m^2 st nm)
         _DICT_['LENS_DIAMETER'] = self._lens.diameter if self._lens is not None else None# in mm 
         _DICT_['LENS_FOCAL_LENGTH'] = self._lens.focal_length if self._lens is not None else None# in mm 
-        T = self._Imager_EFFICIANCY/self._ETA if (self._Imager_EFFICIANCY and self._ETA) is not None else None
+        T = self._Imager_EFFICIANCY/self._ETA if self._ETA is not None else None
         _DICT_['SYSTEM_EFFICIENCY'] = self._ETA if self._ETA is not None else None
         if(np.isscalar(T)):
             _DICT_['LENS_TRANSMISSION'] = T
@@ -1465,7 +1491,7 @@ class Imager(object):
         
             if(self._radiance is not None):
                 
-                G1 = (1/(h*c))*self._max_exposure_time*(((np.pi)/4)/(self._lens._FOCAL_LENGTH**2))*(self._sensor.pixel_size**2)
+                G1 = (1/(h*c))*self._exposure_time*(((np.pi)/4)/(self._lens._FOCAL_LENGTH**2))*(self._sensor.pixel_size**2)
                 G2 = np.trapz((self._radiance*self._Imager_EFFICIANCY*self._Imager_QE)*self._lambdas, x = self._lambdas)
                 G = 1e-21*G1*G2
                 
@@ -1545,7 +1571,184 @@ def main():
     
     plt.show()
     
+def test_raptors_like_imager():
+    #SWIR = {'PIXEL_SIZE':10,'FULLWELL':450e3,'CHeight': 1280 , 'CWidth': 1024 ,
+            #'SENSOR_ID':3, 'READOUT_NOISE':160, 'DARK_CURRENT_NOISE':19e3,'TEMP':15,
+            #'BitDepth':14,'TYPE':'SWIR'}
+        
+    
+    SWIR = {'PIXEL_SIZE':10,'FULLWELL':247e2,'CHeight': 1280 , 'CWidth': 1024 ,
+            'SENSOR_ID':3, 'READOUT_NOISE':160, 'DARK_CURRENT_NOISE':19e3,'TEMP':15,
+            'BitDepth':14,'TYPE':'SWIR'}
+    
+    # Define sensor:
+    sensor = shdom.SensorFPA(PIXEL_SIZE = SWIR['PIXEL_SIZE'],FULLWELL = SWIR['FULLWELL'], 
+                             CHeight = SWIR['CHeight'], CWidth = SWIR['CWidth'],
+                             SENSOR_ID = SWIR['SENSOR_ID'],  READOUT_NOISE = SWIR['READOUT_NOISE'], 
+                             DARK_CURRENT_NOISE = SWIR['DARK_CURRENT_NOISE'],TEMP = SWIR['TEMP'], BitDepth = SWIR['BitDepth']
+                             ,TYPE=SWIR['TYPE'])
+    
+    
+    SENSOR_QE_CSV_FILE = '../notebooks/allide_swir.csv'
+    SENSOR_DARK_NOISE_CSV_FILE = '../notebooks/SWIR_DARK_NOISE.csv'
+    
+    sensor.Load_QE_table(SENSOR_QE_CSV_FILE)
+    sensor.Load_DARK_NOISE_table(SENSOR_DARK_NOISE_CSV_FILE)
+    
+    # ---------------------------------------------------------------------------------
+    
+    # create imager:
+    scene_spectrum=[1628, 1658]
+    
+    imager = shdom.Imager(sensor=sensor,scene_spectrum=scene_spectrum)
+    imager.assume_lens_UNITY_TRANSMISSION()
+    imager.update()
+    imager.show_efficiencies()    
+    
+    # set geometry:
+    H = 500 # km
+    
+    imager.set_Imager_altitude(H=H)
+    imager.orbital_speed = 7.728 # force speed from internet
+    sun_zenith = 155
+    # set required pixel footprint:
+    Required_pixel_footprint = 0.02 # km
+    # what should be the focal length of the lens? set the required pixel footprint, then see the printed Focal lennth it requaires.
+    imager.set_pixel_footprint(Required_pixel_footprint)
+    imager.change_temperature(15)
+    # set required radiance that should reach the lens, what should be the diameter of the lens
+    # such that the pixel will reache its full well:
+    imager.update_solar_angle(sun_zenith)
+    tao_swir = -np.log(0.96)*(np.abs(1/np.cos(np.deg2rad(180-sun_zenith))) + np.abs(1/np.cos(np.deg2rad(46))))
+    transmission_swir = np.exp(-tao_swir)
+    
+    imager.calculate_scene_radiance(rho=0.15,absorbtion=transmission_swir)
+    
+    imager.update_minimum_lens_diameter()
+    imager.ExportConfig(file_name = '50meter_Hypothetic_SWIR_camera_config.json')
+    
+    imager.calculate_scene_radiance(TYPE='SHDOM')
+    imager.show_scene_irradiance()
+    plt.show()
+    
 
+def test_gecko_like_imager():
+    
+    scene_spectrum=[620,670]
+    
+    GECKO = {'PIXEL_SIZE':5.5,'FULLWELL':13.5e3,'CHeight': 2048, 'CWidth': 2048 ,
+                  'SENSOR_ID':0, 'READOUT_NOISE':13, 'DARK_CURRENT_NOISE':125, 'TEMP':25 , 'BitDepth':10}
+    
+    
+    # Define sensor:
+    sensor = shdom.SensorFPA(PIXEL_SIZE = GECKO['PIXEL_SIZE'],FULLWELL = GECKO['FULLWELL'], CHeight = GECKO['CHeight'], CWidth = GECKO['CWidth'],
+        SENSOR_ID = GECKO['SENSOR_ID'],  READOUT_NOISE = GECKO['READOUT_NOISE'], 
+        DARK_CURRENT_NOISE = GECKO['DARK_CURRENT_NOISE'], TEMP = GECKO['TEMP'], BitDepth = GECKO['BitDepth'])
+    
+    
+    SENSOR_DARK_NOISE_CSV_FILE = '../notebooks/GECKO_DARK_NOISE.csv'
+    sensor.Load_DARK_NOISE_table(SENSOR_DARK_NOISE_CSV_FILE)
+    
+    # ---------------------------------------------------------------------------------
+    
+    # create imager:
+    
+    imager = shdom.Imager(sensor=sensor,scene_spectrum=scene_spectrum)
+    imager.assume_sensor_QE(45)
+    imager.assume_lens_UNITY_TRANSMISSION()
+    imager.update()
+    
+    # set geometry:
+    H = 500 # km
+    
+    imager.set_Imager_altitude(H=H)
+    imager.orbital_speed = 7.61 # force speed from internet
+    sun_zenith = 155
+    # set required pixel footprint:
+    Required_pixel_footprint = 0.05 # km
+    # what should be the focal length of the lens? set the required pixel footprint, then see the printed Focal lennth it requaires.
+    imager.set_pixel_footprint(Required_pixel_footprint)
+    imager.change_temperature(15)
+    # set required radiance that should reach the lens, what should be the diameter of the lens
+    # such that the pixel will reache its full well:
+    imager.update_solar_angle(sun_zenith)
+    tao_vis = -np.log(0.88)*(np.abs(1/np.cos(np.deg2rad(180-sun_zenith))) + np.abs(1/np.cos(np.deg2rad(46))))
+    transmission_vis = np.exp(-tao_vis)
+    
+    imager.calculate_scene_radiance(rho=0.3,absorbtion=transmission_vis)
+    
+    imager.update_minimum_lens_diameter()
+    
+    imager.calculate_scene_radiance(TYPE='SHDOM')
+    imager.show_scene_irradiance()
+    plt.show()
+    
+
+    
+def old_test_gecko_like_imager():
+    
+    scene_spectrum=[620,670]
+    
+    GECKO = {'PIXEL_SIZE':5.5,'FULLWELL':13.5e3,'CHeight': 2048, 'CWidth': 2048 ,
+                  'SENSOR_ID':0, 'READOUT_NOISE':13, 'DARK_CURRENT_NOISE':125, 'TEMP':25 , 'BitDepth':10}
+    
+    
+    # Define sensor:
+    sensor = shdom.SensorFPA(PIXEL_SIZE = GECKO['PIXEL_SIZE'],FULLWELL = GECKO['FULLWELL'], CHeight = GECKO['CHeight'], CWidth = GECKO['CWidth'],
+        SENSOR_ID = GECKO['SENSOR_ID'],  READOUT_NOISE = GECKO['READOUT_NOISE'], 
+        DARK_CURRENT_NOISE = GECKO['DARK_CURRENT_NOISE'], TEMP = GECKO['TEMP'], BitDepth = GECKO['BitDepth'])
+    
+    
+    SENSOR_DARK_NOISE_CSV_FILE = '../notebooks/GECKO_DARK_NOISE.csv'
+    sensor.Load_DARK_NOISE_table(SENSOR_DARK_NOISE_CSV_FILE)
+    
+    
+    #  The Standard Gecko is a 70mm F4 refractive lens, with typical transmission in the range of 97% (excluding the losses due to spectral filters and the Sensor cover glass)
+    # Define lens:    
+    lens = shdom.LensSimple(FOCAL_LENGTH = 70.0 , DIAMETER = 17.5 , LENS_ID = '1') 
+    
+    # create imager:
+    
+    imager = shdom.Imager(sensor=sensor,lens=lens,scene_spectrum=scene_spectrum)
+    imager.assume_sensor_QE(45)
+    imager.assume_lens_UNITY_TRANSMISSION()
+    imager.update()
+    
+    
+    # set geometry:
+    H = 500 # km
+    
+    imager.set_Imager_altitude(H=H)
+    imager.orbital_speed = 7.612 # force speed from internet
+    sun_zenith = 155
+    # set required pixel footprint:
+    Required_pixel_footprint = 0.05 # km
+    # what should be the focal length of the lens? set the required pixel footprint, then see the printed Focal lennth it requaires.
+    imager.set_pixel_footprint(Required_pixel_footprint)
+    imager.change_temperature(15)
+    # set required radiance that should reach the lens, what should be the diameter of the lens
+    # such that the pixel will reache its full well:
+    imager.update_solar_angle(sun_zenith)
+    tao_vis = -np.log(0.88)*(np.abs(1/np.cos(np.deg2rad(180-sun_zenith))) + np.abs(1/np.cos(np.deg2rad(46))))
+    tao_swir = -np.log(0.96)*(np.abs(1/np.cos(np.deg2rad(180-sun_zenith))) + np.abs(1/np.cos(np.deg2rad(46))))
+    transmission_vis = np.exp(-tao_vis)
+    transmission_swir = np.exp(-tao_swir)
+    
+    imager.calculate_scene_radiance(rho=0.3,absorbtion=transmission_swir)
+    
+    #imager.set_Imager_altitude(H=H)
+    ## calclate footprints:
+    #pixel_footprint, camera_footprint = imager.get_footprints_at_nadir()
+    #max_esposure_time = imager.max_exposure_time
+    #pixel_footprint = shdom.float_round(pixel_footprint)
+    #camera_footprint = shdom.float_round(camera_footprint)
+    #max_esposure_time = shdom.float_round(max_esposure_time)
+    #print("At nadir:\n Pixel footprint is {}[km]\n Camera footprint is {}[km]\n Max esposure time {}[micro sec]\n"
+          #.format(pixel_footprint, camera_footprint, max_esposure_time))    
+    
+    #imager.calculate_scene_radiance(TYPE='SHDOM')
+    imager.show_scene_irradiance()
+    plt.show()
 
 def test_tmperature():
     
@@ -1605,4 +1808,5 @@ def Creat_Simple_imager():
 
 
 if __name__ == '__main__':
-    Creat_Simple_imager()
+    test_raptors_like_imager()
+    #test_gecko_like_imager()
