@@ -8,11 +8,13 @@ from shdom.CloudCT_Utils import *
 
 USESWIR = False
 
-def main():
+
+def main(sun_zenith):
     logger = create_and_configer_logger(log_name='run_tracker.log')
 
     run_params = load_run_params(params_path="run_params.yaml")
-
+    run_params['sun_zenith'] = sun_zenith
+    logger.debug(f"cloud retrieval for sun_zenith {sun_zenith}")
     """
         Here load the imagers, the imagers dictates the spectral bands of the rte solver and rendering.
         Since the spectrum in this script referes to narrow bands, 
@@ -253,7 +255,7 @@ def main():
 
         # See the simulated images:
         if forward_options['SEE_IMAGES']:
-            CloudCT_measurements.show_measurments()
+            CloudCT_measurements.show_measurments(title_content=run_params['sun_zenith'])
             plt.show()
 
         # ---------SAVE EVERYTHING FOR THIS SETUP -------
@@ -672,4 +674,5 @@ def load_run_params(params_path):
 
 
 if __name__ == '__main__':
-    main()
+    for sun_zenith in range(91,181,1):
+        main(sun_zenith)
