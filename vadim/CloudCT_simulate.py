@@ -6,6 +6,7 @@ import yaml
 from shdom import CloudCT_setup
 from shdom.CloudCT_Utils import *
 
+USESWIR = False
 
 def main():
     logger = create_and_configer_logger(log_name='run_tracker.log')
@@ -30,21 +31,29 @@ def main():
         MieTablesPath=MieTablesPath,
         simple_type='vis')
 
-    swir_imager, swir_wavelength_range, swir_pixel_footprint, swir_imager_config = setup_imager(
-        imager_options=run_params['swir_options'],
-        run_params=run_params,
-        MieTablesPath=MieTablesPath,
-        simple_type='swir')
+    if USESWIR:
+        swir_imager, swir_wavelength_range, swir_pixel_footprint, swir_imager_config = setup_imager(
+            imager_options=run_params['swir_options'],
+            run_params=run_params,
+            MieTablesPath=MieTablesPath,
+            simple_type='swir')
 
     SATS_NUMBER_SETUP = run_params['SATS_NUMBER_SETUP']
 
     # where to save the forward outputs:
-    forward_dir = f'./experiments/VIS_SWIR_NARROW_BANDS_VIS_{int(1e3 * vis_wavelength_range[0])}-' \
-                  f'{int(1e3 * vis_wavelength_range[1])}nm_active_sats_{SATS_NUMBER_SETUP}_' \
-                  f'GSD_{int(1e3 * vis_pixel_footprint)}m_and' \
-                  f'_SWIR_{int(1e3 * swir_wavelength_range[0])}-{int(1e3 * swir_wavelength_range[1])}' \
-                  f'nm_active_sats_{SATS_NUMBER_SETUP}_GSD_{int(1e3 * swir_pixel_footprint)}m' \
-                  f'_LES_cloud_field'
+    if USESWIR:
+        forward_dir = f'./experiments/VIS_SWIR_NARROW_BANDS_VIS_{int(1e3 * vis_wavelength_range[0])}-' \
+                      f'{int(1e3 * vis_wavelength_range[1])}nm_active_sats_{SATS_NUMBER_SETUP}_' \
+                      f'GSD_{int(1e3 * vis_pixel_footprint)}m_and' \
+                      f'_SWIR_{int(1e3 * swir_wavelength_range[0])}-{int(1e3 * swir_wavelength_range[1])}' \
+                      f'nm_active_sats_{SATS_NUMBER_SETUP}_GSD_{int(1e3 * swir_pixel_footprint)}m' \
+                      f'_LES_cloud_field_rico'
+    else:
+        forward_dir = f'./experiments/VIS_SWIR_NARROW_BANDS_VIS_{int(1e3 * vis_wavelength_range[0])}-' \
+                      f'{int(1e3 * vis_wavelength_range[1])}nm_active_sats_{SATS_NUMBER_SETUP}_' \
+                      f'GSD_{int(1e3 * vis_pixel_footprint)}m' \
+                      f'_LES_cloud_field_rico'
+
 
     # inverse_dir, where to save everything that is related to invers model:
     inverse_dir = forward_dir  # TODO not in use
@@ -61,8 +70,11 @@ def main():
     wavelength_averaging = False if run_params['USE_SIMPLE_IMAGER'] else True
 
     # central wavelengths
-    wavelengths_micron = [vis_imager.centeral_wavelength_in_microns, swir_imager.centeral_wavelength_in_microns]
-    # wavelengths_micron will hold the vis swir wavelengths. It will be convinient to use in some loops
+    if USESWIR:
+        wavelengths_micron = [vis_imager.centeral_wavelength_in_microns, swir_imager.centeral_wavelength_in_microns]
+        # wavelengths_micron will hold the vis swir wavelengths. It will be convinient to use in some loops
+    else:
+        wavelengths_micron = [vis_imager.centeral_wavelength_in_microns]
 
     atmosphere = CloudCT_setup.Prepare_Medium(CloudFieldFile=run_params['CloudFieldFile'],
                                               AirFieldFile=AirFieldFile,
@@ -92,8 +104,10 @@ def main():
     # USED FOV, RESOLUTION and SAT_LOOKATS:
     # cny x cnx is the camera resolution in pixels
     fov = 2 * np.rad2deg(np.arctan(0.5 * L / (run_params['Rsat'])))
+
     vis_cnx = vis_cny = int(np.floor(L / vis_pixel_footprint))
-    swir_cnx = swir_cny = int(np.floor(L / swir_pixel_footprint))
+    if USESWIR:
+        swir_cnx = swir_cny = int(np.floor(L / swir_pixel_footprint))
 
     CENTER_OF_MEDIUM_BOTTOM = [0.5 * nx * dx, 0.5 * ny * dy, 0]
 
@@ -104,12 +118,14 @@ def main():
         L *= 1.5
         fov = 2 * np.rad2deg(np.arctan(0.5 * L / (run_params['Rsat'])))
         vis_cnx = vis_cny = int(np.floor(L / vis_pixel_footprint))
-        swir_cnx = swir_cny = int(np.floor(L / swir_pixel_footprint))
+        if USESWIR:
+            swir_cnx = swir_cny = int(np.floor(L / swir_pixel_footprint))
 
     # Update the resolution of each Imager with respect to new pixels number [nx,ny].
     # In addition we update Imager's FOV.
     vis_imager.update_sensor_size_with_number_of_pixels(vis_cnx, vis_cny)
-    swir_imager.update_sensor_size_with_number_of_pixels(swir_cnx, swir_cny)
+    if USESWIR:
+        swir_imager.update_sensor_size_with_number_of_pixels(swir_cnx, swir_cny)
 
     # not for all the mediums the CENTER_OF_MEDIUM_BOTTOM is a good place to lookat.
     # tuning is applied by the variable LOOKAT.
@@ -122,7 +138,8 @@ def main():
 
     logger.debug("CAMERA intrinsics summary")
     logger.debug(f"vis: fov = {fov}[deg], cnx = {vis_cnx}[pixels],cny ={vis_cny}[pixels]")
-    logger.debug(f"swir: fov = {fov}[deg], cnx = {vis_cnx}[pixels],cny ={vis_cny}[pixels]")
+    if USESWIR:
+        logger.debug(f"swir: fov = {fov}[deg], cnx = {swir_cnx}[pixels],cny ={swir_cny}[pixels]")
 
     logger.debug("Medium summary")
     logger.debug(f"nx = {nx}, ny = {ny},nz ={nz}")
@@ -156,13 +173,13 @@ def main():
                                                     Imager_config=vis_imager_config,
                                                     imager=vis_imager,
                                                     VISSETUP=vizual_options['VISSETUP'])
-
-        swir_CloudCT_VIEWS, _ = CloudCT_setup.Create(SATS_NUMBER=SATS_NUMBER_SETUP,
-                                                     ORBIT_ALTITUDE=run_params['Rsat'],
-                                                     SAT_LOOKATS=SAT_LOOKATS,
-                                                     Imager_config=swir_imager_config,
-                                                     imager=swir_imager,
-                                                     VISSETUP=vizual_options['VISSETUP'])
+        if USESWIR:
+            swir_CloudCT_VIEWS, _ = CloudCT_setup.Create(SATS_NUMBER=SATS_NUMBER_SETUP,
+                                                         ORBIT_ALTITUDE=run_params['Rsat'],
+                                                         SAT_LOOKATS=SAT_LOOKATS,
+                                                         Imager_config=swir_imager_config,
+                                                         imager=swir_imager,
+                                                         VISSETUP=vizual_options['VISSETUP'])
 
         # Generate a solver array for a multi-spectral solution.
         # it is great that we can use the parallel solution of all solvers.
@@ -178,6 +195,7 @@ def main():
                                                                           forward_options['split_accuracies'],
                                                                           forward_options['solar_fluxes'],
                                                                           forward_options['surface_albedos']):
+
             numerical_params = shdom.NumericalParameters(num_mu_bins=forward_options['num_mu'],
                                                          num_phi_bins=forward_options['num_phi'],
                                                          split_accuracy=split_accuracy,
@@ -206,7 +224,10 @@ def main():
         """
 
         # the order of the bands is important here.
-        CloudCT_measurements = CloudCT_setup.SpaceMultiView_Measurements([vis_CloudCT_VIEWS, swir_CloudCT_VIEWS])
+        if USESWIR:
+            CloudCT_measurements = CloudCT_setup.SpaceMultiView_Measurements([vis_CloudCT_VIEWS, swir_CloudCT_VIEWS])
+        else:
+            CloudCT_measurements = CloudCT_setup.SpaceMultiView_Measurements([vis_CloudCT_VIEWS])
 
         if not run_params['USE_SIMPLE_IMAGER']:
             # If we do not use simple imager we probably use imager such that noise can be applied:
@@ -270,6 +291,7 @@ def main():
         write_to_run_tracker(forward_dir=forward_dir, msg=[time.strftime("%d-%b-%Y-%H:%M:%S"), log_name, cmd])
 
         logger.debug(f'Starting Inverse: {cmd}')
+        logger.debug(f'tensorboard command: tensorboard --logdir {forward_dir} --bind_all')
 
         _ = subprocess.call(cmd, shell=True)
 
