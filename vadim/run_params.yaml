@@ -36,7 +36,8 @@ swir_options:
   USE_SWIR: True  # if to use vis in the simulation # TODO not in use
   ImportConfigPath: '../notebooks/Hypothetic_SWIR_camera_config.json'
   temperature: *temperature # celsius
-  true_indices: []  # where imagers are located, if true_indices: [], no swir imager will be simulated
+  true_indices: []  # where imagers are located, if true_indices: [], no swir imager will be simulated 
+
 
 
 # --------------------------------------------------

@@ -90,7 +90,7 @@ Be carfule, the wavelengths in Imager methods are in nm. Pyshdom the wavelength 
 THe imagers aslo dictate the ground spatial resolution (GSD).
 """
 
-USE_SIMPLE_IMAGER = True # if it's true, the imager is simple and not loaded from the imagers data set.
+USE_SIMPLE_IMAGER = False # if it's true, the imager is simple and not loaded from the imagers data set.
 if(not USE_SIMPLE_IMAGER):
     
     # load Imager at VIS:

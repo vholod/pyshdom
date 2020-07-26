@@ -86,6 +86,8 @@ class SpaceMultiView_Measurements(object):
         """ 
         if isinstance(rte_solvers, shdom.RteSolverArray):
             solvers_unique_wavelengths_list = rte_solvers.wavelength
+            if np.isscalar(solvers_unique_wavelengths_list):
+                solvers_unique_wavelengths_list = [solvers_unique_wavelengths_list]            
         else:
             rte_solvers = [rte_solvers]
             solvers_unique_wavelengths_list = [rte_solvers[0].wavelength]
