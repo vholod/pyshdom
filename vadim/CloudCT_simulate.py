@@ -1,4 +1,5 @@
 import csv
+import gc
 import logging
 import matplotlib.pyplot as plt
 import yaml
@@ -6,15 +7,17 @@ import yaml
 from shdom import CloudCT_setup
 from shdom.CloudCT_Utils import *
 
-USESWIR = False
 
-
-def main(sun_zenith):
+def main(vis_indices, swir_indices):
     logger = create_and_configer_logger(log_name='run_tracker.log')
-
+    logger.debug("--------------- New Simulation ---------------")
     run_params = load_run_params(params_path="run_params.yaml")
-    run_params['sun_zenith'] = sun_zenith
-    logger.debug(f"cloud retrieval for sun_zenith {sun_zenith}")
+    run_params['swir_options']['true_indices'] = swir_indices
+    run_params['vis_options']['true_indices'] = vis_indices
+    logger.debug(f"New Run with vis indices {vis_indices} and swir indicse {swir_indices}")
+
+    USESWIR = True if run_params['swir_options']['true_indices'] else False
+
     """
         Here load the imagers, the imagers dictates the spectral bands of the rte solver and rendering.
         Since the spectrum in this script referes to narrow bands, 
@@ -55,7 +58,6 @@ def main(sun_zenith):
                       f'{int(1e3 * vis_wavelength_range[1])}nm_active_sats_{SATS_NUMBER_SETUP}_' \
                       f'GSD_{int(1e3 * vis_pixel_footprint)}m' \
                       f'_LES_cloud_field_rico'
-
 
     # inverse_dir, where to save everything that is related to invers model:
     inverse_dir = forward_dir  # TODO not in use
@@ -197,7 +199,6 @@ def main(sun_zenith):
                                                                           forward_options['split_accuracies'],
                                                                           forward_options['solar_fluxes'],
                                                                           forward_options['surface_albedos']):
-
             numerical_params = shdom.NumericalParameters(num_mu_bins=forward_options['num_mu'],
                                                          num_phi_bins=forward_options['num_phi'],
                                                          split_accuracy=split_accuracy,
@@ -263,7 +264,7 @@ def main(sun_zenith):
         shdom.save_CloudCT_measurments_and_forward_model(directory=forward_dir, medium=medium, solver=rte_solvers,
                                                          measurements=CloudCT_measurements)
 
-        logger.debug('DONE forward simulation')
+        logger.debug("Forward phase complete")
 
     # ---------SOLVE INVERSE ------------------------
     if run_params['DOINVERSE']:
@@ -302,7 +303,8 @@ def main(sun_zenith):
             # TODO wavelength_micron=wavelengths_micron[0] is just placeholder for?
             visualize_results(forward_dir=forward_dir, log_name=log_name, wavelength_micron=wavelengths_micron[0])
 
-        logger.debug("done inverse")
+        logger.debug("Inverse phase complete")
+    logger.debug("--------------- End of Simulation ---------------")
 
 
 def write_to_run_tracker(forward_dir, msg):
@@ -674,5 +676,16 @@ def load_run_params(params_path):
 
 
 if __name__ == '__main__':
-    for sun_zenith in range(91,181,1):
-        main(sun_zenith)
+    vis_index = [
+                 [0, 1, 2, 3, 4, 8, 9],
+                 [0, 1, 2, 3, 4, 9],
+                 [0, 1, 2, 3, 4]]
+    swir_index = [
+                  [5, 6, 7],
+                  [5, 6, 7, 8],
+                  [5, 6, 7, 8, 9]]
+
+    for vis, swir in zip(vis_index, swir_index):
+        main(vis, swir)
+        gc.collect()
+
