@@ -1161,9 +1161,9 @@ class MediumEstimator(shdom.Medium):
             The rendered (synthetic) images.
         """
         if isinstance(projection.npix, list):
-            total_pix = np.sum(projection.npix)
+            total_rays = np.sum(projection.nrays)
         else:
-            total_pix = projection.npix
+            total_rays = projection.nrays
 
         gradient, loss, images = core.gradient_l2(
             weights=self._stokes_weights[:rte_solver._nstokes],
@@ -1251,7 +1251,7 @@ class MediumEstimator(shdom.Medium):
             camz=projection.z,
             cammu=projection.mu,
             camphi=projection.phi,
-            npix=total_pix,
+            npix=total_rays,
             srctype=rte_solver._srctype,
             sfctype=rte_solver._sfctype,
             units=rte_solver._units,
@@ -1318,8 +1318,11 @@ class MediumEstimator(shdom.Medium):
                     sensor=shdom.RadianceSensor()
                     num_channels = CloudCT_projection.num_channels
                     pixels = []
-                    for image in acquired_images:
-                        pixels.append(image.reshape((-1, num_channels), order='F'))  
+                    for (image,samples_per_pixel) in zip(acquired_images,CloudCT_projection.samples_per_pixel):
+                        # duplicate pixels:
+                        #old_pixels = image.reshape((-1, num_channels), order='F')
+                        row_pixels = np.repeat(image.reshape((-1, num_channels), order='F'), samples_per_pixel)[:,np.newaxis]
+                        pixels.append(row_pixels)  
                         
                     pixels = np.concatenate(pixels, axis=-2)
                 else:
@@ -1328,7 +1331,8 @@ class MediumEstimator(shdom.Medium):
                 # ------ I AM HERE IN THE REIMPLEMENTATION -----
                 # TODO- consider to use num_channels>1 per one imager.
                 # Sequential or parallel processing using multithreading (threadsafe Fortran)
-                #n_jobs = 1
+                
+                n_jobs = 10
                 if n_jobs > 1:           
                     output = Parallel(n_jobs=n_jobs, backend="threading", verbose=0)(
                         delayed(self.core_grad, check_pickle=False)(

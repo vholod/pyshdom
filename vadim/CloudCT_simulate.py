@@ -34,7 +34,7 @@ def main():
         imager_options=run_params['swir_options'],
         run_params=run_params,
         MieTablesPath=MieTablesPath,
-        simple_type='swir')
+        simple_type='vis') # write simple_type='vis' if you want all vis cameras. DONT FORGATE TO CHANGE IT TO swir
 
     SATS_NUMBER_SETUP = run_params['SATS_NUMBER_SETUP']
 
@@ -62,7 +62,9 @@ def main():
 
     # central wavelengths
     wavelengths_micron = [vis_imager.centeral_wavelength_in_microns, swir_imager.centeral_wavelength_in_microns]
-    # wavelengths_micron will hold the vis swir wavelengths. It will be convinient to use in some loops
+    # wavelengths_micron will hold the vis swir wavelengths. It will be convinient to use in some loops.
+    # if there are identicale wavelengths in the list, the unique operation will convert the list to be unique:
+    wavelengths_micron = np.unique([wavelengths_micron])
 
     atmosphere = CloudCT_setup.Prepare_Medium(CloudFieldFile=run_params['CloudFieldFile'],
                                               AirFieldFile=AirFieldFile,

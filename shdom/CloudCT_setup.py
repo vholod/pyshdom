@@ -54,7 +54,7 @@ class SpaceMultiView_Measurements(object):
         # TODO - consider stocks sensor in the future.
         
         
-    def simulate_measurements(self,rte_solvers = None,n_jobs = 1, IF_APPLY_NOISE = False, IF_SCALE_IDEALLY=False, IF_REDUCE_EXPOSURE=False):
+    def simulate_measurements(self,rte_solvers = None,n_jobs = 1, IF_APPLY_NOISE = False, IF_SCALE_IDEALLY=False, IF_REDUCE_EXPOSURE=False, samples_per_pixel = 1):
         """
         This method renders the images and update the measurements.
         It aslo gets the rte_solvers object. The rte_solvers can be just a rte_solver if the imagers have the same central wavelenght.
@@ -207,7 +207,7 @@ class SpaceMultiView_Measurements(object):
                         image[image<=radiance_thresholds[projection_index]] = 0
                         
                         ax.set_axis_off()
-                        im = ax.imshow(image,cmap='gray')#,vmin=0, vmax=MAXI)
+                        im = ax.imshow(image,cmap='gray',vmin=0, vmax=MAXI)
                         ax.set_title("{}".format(name))
                     
                     # super title:    
@@ -286,7 +286,7 @@ class SpaceMultiView(shdom.MultiViewProjection):
     Inherent from pyshdom MultiViewProjection. We will use the Perspective projection.
     It encapsulates the geometry of the setup and the imager which is used in the same setup. Only one imager can be used here. Thus SpaceMultiView object, should be defined per imager.
     """
-    def __init__(self, imager = None,Imager_config=None):
+    def __init__(self, imager = None,Imager_config=None, samples_per_pixel = 1):
         super().__init__()
         assert imager is not None, "You must provied the imager object!" 
         self._sat_positions = None # it will be set by set_satellites() and it is np.array.
@@ -297,7 +297,8 @@ class SpaceMultiView(shdom.MultiViewProjection):
         self._imager = imager
         self._num_channels = 1 # number of channels per the self._imager 
         # TODO- consider to use num_channels>1 per one imager.
-        self._Imager_config = Imager_config       
+        self._Imager_config = Imager_config    
+        self._samples_per_pixel = samples_per_pixel
         
         # TODO - to inplement later:
         """
@@ -325,8 +326,8 @@ class SpaceMultiView(shdom.MultiViewProjection):
         
         # we intentialy, work with projections lists and one Imager
         up_list = np.array(len(self._sat_positions)*[0,1,0]).reshape(-1,3) # default up vector per camera.
-        for pos,lookat,up,name,Flag in zip(self._sat_positions,\
-                                  self._lookat_list,up_list,names,self._Imager_config):
+        for pos,lookat,up,samples_per_pixel,name,Flag in zip(self._sat_positions,\
+                                  self._lookat_list,up_list,self._samples_per_pixel,names,self._Imager_config):
             
             # Flag is true if the Imager in an index is defined.
             # Only in that case its projection will be in the set.
@@ -335,7 +336,7 @@ class SpaceMultiView(shdom.MultiViewProjection):
                 x,y,z = pos
                 fov = np.rad2deg(self._imager.FOV) 
                 nx, ny = self._imager.get_sensor_resolution()
-                loop_projection = shdom.PerspectiveProjection(fov, nx, ny, x, y, z)
+                loop_projection = shdom.PerspectiveProjection(fov, nx, ny, x, y, z,samples_per_pixel)
                 loop_projection.look_at_transform(lookat, up)
                 self.add_projection(loop_projection,name)
                 """
@@ -355,7 +356,14 @@ class SpaceMultiView(shdom.MultiViewProjection):
         """
         self._sat_positions = sat_positions
         self._lookat_list = sat_lookats
-        
+        self._samples_per_pixel = np.tile(self._samples_per_pixel,len(self._lookat_list))
+        # scale the samples_per_pixel with the distance of the satellite from lookat:
+        distances = [np.linalg.norm(i-j) for (i,j) in zip(self._sat_positions,self._lookat_list)]
+        close_distance = min(distances)
+        scaling = distances/close_distance
+        self._samples_per_pixel = np.array([int(i*j) for (i,j) in zip(scaling,self._samples_per_pixel)])
+
+
         if self._Imager_config is None:
             print('The Imager of {} will be createds for every satellite.'.format(self._imager.short_description()))
             self._Imager_config = len(self._sat_positions)*[True]        
@@ -471,7 +479,7 @@ def StringOfPearls(SATS_NUMBER = 10,orbit_altitude = 500):
     return sat_positions.T, near_nadir_view_index
 
 
-def Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500 ,SAT_LOOKATS=None, Imager_config = None, imager=None, VISSETUP = False):
+def Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500 ,SAT_LOOKATS=None, Imager_config = None, imager=None, samples_per_pixel = 1, VISSETUP = False):
     
     """
     Create the Multiview setup on orbit direct them with lookat vector and set the Imagers at thier locations + orientations.
@@ -486,7 +494,8 @@ def Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500 ,SAT_LOOKATS=None, Imager_confi
        Imager_config - A list of bools with SATS_NUMBER elements. If Imager_config[Index] = True, the imager is in the location of satellite number Index.
        If Imager_config[Index] = False, there is no Imager at the location of satellite number Index.
        The default is None, means all satellites have the Imager.
-       
+       samples_per_pixel - How much rays to simulate per one pixel.
+         - TODO - use samples_per_pixel per view point e.g. closer views have less samples_per_pixel than farther views
     output:
        MV - SpaceMultiView object. In the bottom line, it is a list of projection with the Imager inside.
     
@@ -511,7 +520,7 @@ def Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500 ,SAT_LOOKATS=None, Imager_confi
     # Work on the Imagers configaration:
     # the list of Imagers is in the SpaceMultiView class:
 
-    MV = SpaceMultiView(imager,Imager_config) # it is the geomerty for spesific imager
+    MV = SpaceMultiView(imager,Imager_config,samples_per_pixel) # it is the geomerty for spesific imager
     MV.set_satellites_position_and_lookat(sat_positions,sat_lookats) # here we set only the positions and where the satellites are lookin at.   
     MV.update_views()
     
@@ -689,35 +698,32 @@ def old_connect_to_rte_solvers(self,rte_solvers):
 
 def main():
     
-    sat_positions, near_nadir_view_index = StringOfPearls()
+    sat_positions, near_nadir_view_index = StringOfPearls(SATS_NUMBER = 10, orbit_altitude = 500)
     # --------- start the multiview setup:---------------
-    # set lookat list:
-    sat_lookats = np.zeros([len(sat_positions),3])
-    # set camera's field of view:
-    FOV = 0.1 # deg
-    cnx,cny = (64,64)
+    i_index = 9
     
-    # assume band:
-    setup_wavelengths_list = len(sat_positions)*[[0.66]]
+    X_path = sat_positions[:,0]
+    Z_path = sat_positions[:,2]
+    offNadirAngles = np.rad2deg(np.arctan(X_path/Z_path)) # from the ground.
+    print(offNadirAngles)
+    print(X_path[i_index])
+    print(X_path)
+    print(Z_path)
+    DPHI = np.deg2rad(3.3)
     
     
-    MV = SpaceMultiView() 
-    MV.set_satellites(sat_positions,sat_lookats,setup_wavelengths_list)
-    MV.set_commonCameraIntrinsics(FOV,cnx,cny) 
-    MV.update_views()
-    
-    # visualization params:
-    scale = 500
-    axisWidth = 0.02
-    axisLenght = 5000    
-    VISSETUP = True
-    if(VISSETUP):
-        MV.show_setup(scale=scale ,axisWidth=axisWidth ,axisLenght=axisLenght,FullCone = True)
-        figh = mlab.gcf()
-        mlab.orientation_axes(figure=figh)
+    ## visualization params:
+    #scale = 500
+    #axisWidth = 0.02
+    #axisLenght = 5000    
+    #VISSETUP = True
+    #if(VISSETUP):
+        #MV.show_setup(scale=scale ,axisWidth=axisWidth ,axisLenght=axisLenght,FullCone = True)
+        #figh = mlab.gcf()
+        #mlab.orientation_axes(figure=figh)
         
-    if(VISSETUP):    
-        mlab.show()
+    #if(VISSETUP):    
+        #mlab.show()
         
         
         

@@ -392,7 +392,7 @@ class MicrophysicalScatterer(Scatterer):
         Notes
         -----
         CSV format is as follows:
-
+        # The first Z level is the bottom surface and the last is the top surface. 
         # comment line (description)
         nx ny nz
         dz dy dz     z_levels[0]     z_levels[1] ...  z_levels[nz-1]

@@ -55,7 +55,11 @@ The maximum exposur time derivied only from the pixel footprint and orbital spee
 
 
 TOADD...
+Notes:
+1. If the lens is undefined, use set_pixel_footprint(val) after set_Imager_altitude(H) to requaire 
+certaine footprint, then, calcalate which folac length and diameter of the lens you need.
 
+2.
 """
 
 def Generate_dark_noise_table(temperature=[-10,50],SAVE_RESOLT_AS = 'dark_noise.csv'):
@@ -477,6 +481,10 @@ class Imager(object):
         self._pixel_footprint = None # km, will be defined by function set_Imager_altitude()
         self._camera_footprint = None # km, will be defined by function set_Imager_altitude()
         self._NOISE_FLOOR = None
+        self._diffraction_Dtheta = None
+        self._diffraction_scalar = 1.22
+        self._lens_diameter_diffration = 0 # becouse it will be used in max(,) test to extract the minimum diameter.
+        
         
         if(self._SENSOR_DEFINED):# means we have here defined sensor
             self._DR = self._sensor.DynamicRange #dynamic range.
@@ -537,13 +545,16 @@ class Imager(object):
             if self._sensor.QE is not None:        
                 # if we here, the spectrums of sensor and maybe lens are defined and so are the QE and transmission.
                 # the spectrum of the lens may still be empty, but its transmission is default of 1.
-                assert(self._SENSOR_DEFINED), "Dad use of this class!, At this point at least the sensor should be defined."
                     
                 self._adjust_spectrum()# updates self._lambdas, self._Imager_EFFICIANCY and self._Imager_QE
                 self._LTOA = self.calculate_scene_solar_irradiance() # irradiance on the top of Atmosphere.
-                self._wave_diffraction = 1e-3*max(2.44*self._lambdas)*(self._lens.focal_length/self._lens.diameter)
+                self._wave_diffraction = 1e-3*max(2*self._diffraction_scalar*self._lambdas)*(self._lens.focal_length/self._lens.diameter)
                 # https://www.edmundoptics.com/knowledge-center/application-notes/imaging/limitations-on-resolution-and-contrast-the-airy-disk/
-                print("----> Spot size because of the diffraction is {}[micro m]".format(float_round(self._wave_diffraction)))                
+                print("----> Spot size because of the diffraction is {}[micro m]".format(float_round(self._wave_diffraction)))   
+                self._pixel_size_diffration = self._wave_diffraction
+                if(self._pixel_size_diffration > self._sensor.sensor_size):
+                    print("Diffreaction limit is met, be carful with the calculations!")
+                    
         else:
             self._LTOA = None # irradiance on the top of Atmosphere.
             print("Remember to set sensor QE and lens TRANSMISSION!")
@@ -767,18 +778,34 @@ class Imager(object):
         Use this method if you constrained evrey thing and you want to calculate the minimum lens diameter
         such that the pixel will reache its full well under given exposure time:
         """
+        
+        # Chack with the diffraction consept:
+        Dtheta = self._pixel_footprint/self._H
+        if(np.isscalar(self._lambdas)):
+            self._lens_diameter_diffration = 1e-6*(self._diffraction_scalar*self._lambdas)/Dtheta # in mm
+            self._pixel_size_diffration = 1e-3*(2*self._diffraction_scalar*self._lambdas)*(self._lens.focal_length/self._lens_diameter_diffration)# in mirco m                    
+        else:
+            self._lens_diameter_diffration = 1e-6*max(self._diffraction_scalar*self._lambdas)/Dtheta # in mm
+            self._pixel_size_diffration = 1e-3*max(2*self._diffraction_scalar*self._lambdas)*(self._lens.focal_length/self._lens_diameter_diffration)# in mirco m
+            
+        if(self._pixel_size_diffration > self._sensor.pixel_size):
+            print("Diffreaction limit is met, The spot size is {} [micro m]".format(float_round(self._pixel_size_diffration)))
+                    
         G1 = (1/(h*c))*self._exposure_time*(((np.pi)/4)/(self._lens._FOCAL_LENGTH**2))*(self._sensor.pixel_size**2)
         G2 = np.trapz((self._radiance*self._Imager_EFFICIANCY*self._Imager_QE)*self._lambdas, x = self._lambdas)
         G = 1e-21*G1*G2
         
         self._lens.diameter = 1000*((self._sensor.full_well/G)**0.5) # in mm 
         
-        #Make a test:
-        G1t = (1/(h*c))*self._exposure_time*(((np.pi)/4)/(self._lens._FOCAL_LENGTH**2))*(self._sensor.pixel_size**2)
-        G2t = np.trapz((self._radiance*self._Imager_EFFICIANCY*self._Imager_QE)*self._lambdas, x = self._lambdas)
-        Gt = 1e-21*G1t*G2t
+        # maybe the diffraction limits the diameter, so:
+        self._lens.diameter = max(self._lens.diameter,self._lens_diameter_diffration)
         
-        test_signal = ((1e-3*self._lens.diameter)**2)*Gt
+        #Make a test:
+        #G1t = (1/(h*c))*self._exposure_time*(((np.pi)/4)/(self._lens._FOCAL_LENGTH**2))*(self._sensor.pixel_size**2)
+        #G2t = np.trapz((self._radiance*self._Imager_EFFICIANCY*self._Imager_QE)*self._lambdas, x = self._lambdas)
+        #Gt = 1e-21*G1t*G2t
+        
+        #test_signal = ((1e-3*self._lens.diameter)**2)*Gt
         
         self._wave_diffraction = 1e-3*max(2.44*self._lambdas)*(self._lens.focal_length/self._lens.diameter)
         print("\nUpdate minimum lens diameter")
@@ -911,7 +938,7 @@ class Imager(object):
         return LTOA
         
         
-    def calculate_scene_radiance(self,rho=0.1,absorbtion=1,TYPE = 'simple'):
+    def calculate_scene_radiance(self,rho=0.1,transmittion=1,TYPE = 'simple'):
         """
         calculate the hypotetic radiance that would reach the imager lens.
         1. In the simple option, it is done very simple, just black body radiation and lamberation reflection be the clouds.
@@ -922,7 +949,7 @@ class Imager(object):
         
         """
         if(TYPE is 'simple'):
-            self._radiance = absorbtion*(rho*self._LTOA)/np.pi # it is of units W/(m^2 st nm)
+            self._radiance = transmittion*(rho*self._LTOA)/np.pi # it is of units W/(m^2 st nm)
         
         elif(TYPE is 'SHDOM'):
             # TODO
@@ -1082,6 +1109,7 @@ class Imager(object):
         self._H = H # km
         self._orbital_speed = 1e-3*SatSpeed(orbit=self._H) # units of [m/sec] converted to [km/sec]
         print("----> Speed in {}[km] orbit is {}[km/sec]".format(self._H,float_round(self._orbital_speed)))
+        
         if(self._LENS_DEFINED): # means the lens should be defined
             
             if self._lens._FOCAL_LENGTH is not None:
@@ -1123,14 +1151,37 @@ class Imager(object):
         """
         Set the footprint of a pixel at nadir. This method calculates/updates the 
         focal length and expusur bound.
+        If the diffraction limit is met, What (TODO)?
+        
         """
         assert self._H is not None, "You must set the atltitude of the imager before you can set the footprint of a pixel."
         
         self._pixel_footprint = val
         
+        
         if(self._LENS_DEFINED): # means the lens should be defined
             
             self._lens._FOCAL_LENGTH = 1e-3*(self._H*self._sensor.pixel_size)/self._pixel_footprint # mm
+            # chack diffraction limit:
+            
+            if(self._lambdas is not None):
+                Dtheta = self._pixel_footprint/self._H
+                if(np.isscalar(self._lambdas)):
+                    self._lens_diameter_diffration = 1e-6*(self._diffraction_scalar*self._lambdas)/Dtheta # in mm
+                    self._pixel_size_diffration = 1e-3*(2*self._diffraction_scalar*self._lambdas)*(self._lens.focal_length/self._lens_diameter_diffration)# in mirco m                    
+                else:
+                    self._lens_diameter_diffration = 1e-6*max(self._diffraction_scalar*self._lambdas)/Dtheta # in mm
+                    self._pixel_size_diffration = 1e-3*max(2*self._diffraction_scalar*self._lambdas)*(self._lens.focal_length/self._lens_diameter_diffration)# in mirco m
+                if(self._pixel_size_diffration > self._sensor.pixel_size):
+                    print("Diffreaction limit is met, The spot size is {} [micro m]".format(float_round(self._pixel_size_diffration)))
+                    
+                    
+            
+            else:
+                
+                print("Skip adjusting the focal length by using diffraction limit since the spectrum is missing\n.")
+                
+                
             self._camera_footprint = 1e-3*(self._H*self._sensor.sensor_size)/self._lens._FOCAL_LENGTH #km
             # here self._camera_footprint is a np.array with 2 elements, relative to [H,W]. Which element to take?
             # currently I take the minimal volue:
@@ -1156,6 +1207,7 @@ class Imager(object):
                 #self._SNR = (self._sensor.full_well)**0.5 old version
                 print("The focal length will change in this step, This what do you want to do?")
                 print("----> Focal length is set to {}[mm]".format(float_round(self._lens.focal_length)))
+                print("To be outside the diffreaction limit, the lens diameter should be larger than {} mm".format(float_round(self._lens_diameter_diffration)) )               
                 print("----> Exposure bound is set to {}[micro sec]".format(float_round(self._max_exposure_time)))
                 print("----> Dynamic range (at full well) bound is set to {} or {}[db]".format(float_round(self._DR),float_round(20*np.log10(self._DR))))
                 print("----> Noise floor bound is set to {}[electrons]".format(float_round(self._NOISE_FLOOR)))
@@ -1175,6 +1227,7 @@ class Imager(object):
     def calculate_footprints(self):
         """
         Calculats footprints in km:
+        HEre the footprint is calculated from the pixel size.
         """
         self._pixel_footprint = 1e-3*(self._H*self._sensor.pixel_size)/self._lens._FOCAL_LENGTH #km
         self._camera_footprint = 1e-3*(self._H*self._sensor.sensor_size)/self._lens._FOCAL_LENGTH #km
@@ -1187,7 +1240,7 @@ class Imager(object):
         """
         set the spectrum and update the solar irradiance in that spectrum.
         """
-        assert len(scene_spectrum) == 2 , "The spectrum is a list of [stera,end] in microns."
+        assert len(scene_spectrum) == 2 , "The spectrum is a list of [stert,end] in microns."
         
         self._scene_spectrum = [1e3*s for s in scene_spectrum]
         self._scene_spectrum_in_microns = scene_spectrum
@@ -1207,7 +1260,10 @@ class Imager(object):
              
         self._LTOA = self.calculate_scene_solar_irradiance() # irradiance on the top of Atmosphere.
         if(self._LENS_DEFINED):# means we have here defined lens
-            self._wave_diffraction = 1e-3*max(2.44*self._lambdas)*(self._lens.focal_length/self._lens.diameter)
+            if(np.isscalar(self._lambdas)):
+                self._wave_diffraction = 1e-3*(2.44*self._lambdas)*(self._lens.focal_length/self._lens.diameter)
+            else:
+                self._wave_diffraction = 1e-3*max(2.44*self._lambdas)*(self._lens.focal_length/self._lens.diameter)
     
     
     def set_system_efficiency(self,val):
@@ -1609,7 +1665,7 @@ def test_raptors_like_imager():
     H = 500 # km
     
     imager.set_Imager_altitude(H=H)
-    imager.orbital_speed = 7.728 # force speed from internet
+    imager.orbital_speed = 7.61 # force speed from internet
     sun_zenith = 155
     # set required pixel footprint:
     Required_pixel_footprint = 0.02 # km
@@ -1622,10 +1678,9 @@ def test_raptors_like_imager():
     tao_swir = -np.log(0.96)*(np.abs(1/np.cos(np.deg2rad(180-sun_zenith))) + np.abs(1/np.cos(np.deg2rad(46))))
     transmission_swir = np.exp(-tao_swir)
     
-    imager.calculate_scene_radiance(rho=0.15,absorbtion=transmission_swir)
+    imager.calculate_scene_radiance(rho=0.15,transmittion=transmission_swir)
     
     imager.update_minimum_lens_diameter()
-    imager.ExportConfig(file_name = '50meter_Hypothetic_SWIR_camera_config.json')
     
     imager.calculate_scene_radiance(TYPE='SHDOM')
     imager.show_scene_irradiance()
@@ -1662,7 +1717,7 @@ def test_gecko_like_imager():
     H = 500 # km
     
     imager.set_Imager_altitude(H=H)
-    imager.orbital_speed = 7.61 # force speed from internet
+    imager.orbital_speed = 7.728 # force speed from internet
     sun_zenith = 155
     # set required pixel footprint:
     Required_pixel_footprint = 0.05 # km
@@ -1675,7 +1730,7 @@ def test_gecko_like_imager():
     tao_vis = -np.log(0.88)*(np.abs(1/np.cos(np.deg2rad(180-sun_zenith))) + np.abs(1/np.cos(np.deg2rad(46))))
     transmission_vis = np.exp(-tao_vis)
     
-    imager.calculate_scene_radiance(rho=0.3,absorbtion=transmission_vis)
+    imager.calculate_scene_radiance(rho=0.3,transmittion=transmission_vis)
     
     imager.update_minimum_lens_diameter()
     
@@ -1808,5 +1863,5 @@ def Creat_Simple_imager():
 
 
 if __name__ == '__main__':
-    test_raptors_like_imager()
-    #test_gecko_like_imager()
+    #test_raptors_like_imager()
+    test_gecko_like_imager()

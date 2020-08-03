@@ -31,9 +31,10 @@ class Sensor(object):
         """
 
         if isinstance(projection.npix, list):
-            total_pix = np.sum(projection.npix)
+            totat_rays = np.sum(projection.nrays)
         else:
-            total_pix = projection.npix 
+            totat_rays = projection.nrays 
+                
             
         output = core.render(
             nstphase=rte_solver._nstphase,
@@ -48,7 +49,7 @@ class Sensor(object):
             camz=projection.z,
             cammu=projection.mu,
             camphi=projection.phi,
-            npix=total_pix,             
+            npix=totat_rays,             
             nx=rte_solver._nx,
             ny=rte_solver._ny,
             nz=rte_solver._nz,
@@ -161,6 +162,8 @@ class RadianceSensor(Sensor):
             rte_solver.precompute_phase()
 
         # Parallel rendering using multithreading (threadsafe Fortran)
+        
+        # --------------------------------
         if n_jobs > 1:
             radiance = Parallel(n_jobs=n_jobs, backend="threading", verbose=verbose)(
                 delayed(super(RadianceSensor, self).render, check_pickle=False)(
@@ -172,7 +175,7 @@ class RadianceSensor(Sensor):
         else:
             radiance = [super(RadianceSensor, self).render(rte_solver, projection) for rte_solver in rte_solvers]
 
-        radiance = np.concatenate(radiance) 
+        radiance = np.concatenate(radiance) # here radiance is a very long 1D vector
         images = self.make_images(radiance, projection, num_channels)
         return images
 
@@ -201,24 +204,57 @@ class RadianceSensor(Sensor):
             radiance = np.array(np.split(radiance, num_channels)).T
 
         if multiview:
-            split_indices = np.cumsum(projection.npix[:-1])
+            total_rays = [npix*spp for npix, spp in zip(projection.npix, projection.samples_per_pixel)]            
+            split_indices = np.cumsum(total_rays[:-1])
             radiance = np.split(radiance, split_indices)
+            # here radiance is a list with #projections elements.
 
             if multichannel:
-                radiance = [
-                    image.reshape(resolution + [num_channels], order='F')
-                    for image, resolution in zip(radiance, projection.resolution)
-                ]
+                #radiance = [
+                    #image.reshape(resolution + [num_channels], order='F')
+                    #for image, resolution in zip(radiance, projection.resolution)
+                #]
+                # above is the older version without subpixel sampling.
+                radiances = []
+                for image, resolution, samples_per_pixel in zip(radiance, projection.resolution, projection.samples_per_pixel):
+                    r = image.reshape((int(np.prod(resolution)),samples_per_pixel,num_channels)).sum(axis=1)/samples_per_pixel # sum over the sample
+                    r = r.reshape(resolution + [num_channels], order='F')
+                    
+                    radiances.append(r)
+                
+                radiance = radiances
+                
+                
             else:
-                radiance = [
-                    image.reshape(resolution, order='F')
-                    for image, resolution in zip(radiance, projection.resolution) 
-                ]                  
+                #radiance = [
+                    #image.reshape(resolution, order='F')
+                    #for image, resolution in zip(radiance, projection.resolution) 
+                #] 
+                radiances = []
+                for image, resolution, samples_per_pixel in zip(radiance, projection.resolution, projection.samples_per_pixel):
+                    r = image.reshape((int(np.prod(resolution)),samples_per_pixel)).sum(axis=1)/samples_per_pixel # sum over the samples per pixel and normalize by #samples.
+                    r = r.reshape(resolution, order='F')
+                    
+                    radiances.append(r)
+                
+                radiance = radiances                
         else:
+            samples_per_pixel = projection.samples_per_pixel
             new_shape = projection.resolution
-            if multichannel:
-                new_shape.append(num_channels)       
-            radiance = radiance.reshape(new_shape, order='F')
+            
+            if(samples_per_pixel == 1):# original case.
+                if multichannel:
+                    new_shape.append(num_channels)       
+                radiance = radiance.reshape(new_shape, order='F')
+            else: # subpixel samplein upgrade.
+                
+                if multichannel:
+                    radiance = radiance.reshape((int(np.prod(new_shape)),samples_per_pixel,num_channels)).sum(axis=1)/samples_per_pixel # sum over the samples per pixel and normalize by #samples.                
+                    new_shape.append(num_channels)                    
+                else:
+                    radiance = radiance.reshape((int(np.prod(new_shape)),samples_per_pixel)).sum(axis=1)/samples_per_pixel # sum over the samples per pixel and normalize by #samples.
+                    
+                radiance = radiance.reshape(new_shape, order='F')
                 
         return radiance         
     
@@ -425,18 +461,20 @@ class Projection(object):
     -----
     All input arrays are raveled and should be of the same size.
     """
-    def __init__(self, x=None, y=None, z=None, mu=None, phi=None, resolution=None):
+    def __init__(self, x=None, y=None, z=None, mu=None, phi=None, resolution=None,samples_per_pixel=1):
         self._x = x
         self._y = y
         self._z = z
         self._mu = mu
         self._phi = phi
         self._npix = None
+        self._nrays = None
         # vadim added the consept of samples_per_pixel in the sensor.py.
-        self._samples_per_pixel = 1 # rays per pixel that will be backprojected to space.
+        self._samples_per_pixel = samples_per_pixel # rays per pixel that will be backprojected to space.
         if type(x)==type(y)==type(z)==type(mu)==type(phi)==np.ndarray:
             assert x.size==y.size==z.size==mu.size==phi.size, 'All input arrays must be of equal size'
-            self._npix = x.size
+            self._npix = int(x.size/self._samples_per_pixel)
+            self._nrays = x.size
         self._resolution = resolution
         
     def __getitem__(self, val):
@@ -471,7 +509,8 @@ class Projection(object):
         y_split = np.array_split(self.y, n_parts) 
         z_split = np.array_split(self.z, n_parts) 
         mu_split = np.array_split(self.mu, n_parts) 
-        phi_split = np.array_split(self.phi, n_parts)        
+        phi_split = np.array_split(self.phi, n_parts)
+
         projections = [
             Projection(x, y, z, mu, phi) for 
             x, y, z, mu, phi in zip(x_split, y_split, z_split, mu_split, phi_split)
@@ -509,6 +548,10 @@ class Projection(object):
     @property 
     def npix(self):
         return self._npix    
+    
+    @property 
+    def nrays(self):
+        return self._nrays 
     
     @property
     def samples_per_pixel(self):
@@ -650,6 +693,7 @@ class PerspectiveProjection(HomographyProjection):
         self._resolution = [nx, ny]
         self._samples_per_pixel = samples 
         self._npix = nx*ny
+        self._nrays = self._npix*self._samples_per_pixel # rays per pixel * pixels
         self._position = np.array([x, y, z], dtype=np.float32)
         self._fov = fov
         self._focal = 1.0 / np.tan(np.deg2rad(fov) / 2.0)
@@ -1210,6 +1254,7 @@ class MultiViewProjection(Projection):
     def __init__(self, projection_list=None):
         super().__init__()
         self._num_projections = 0
+        self._samples_per_pixel = 1
         self._projection_list = []
         self._names = []
         if projection_list:
@@ -1237,6 +1282,7 @@ class MultiViewProjection(Projection):
             for attr in attributes:
                 self.__setattr__('_' + attr, projection.__getattribute__(attr))
             self._npix = [projection.npix]
+            self._nrays = [projection._nrays]
             self._samples_per_pixel = [projection.samples_per_pixel]
             self._resolution = [projection.resolution]
             self._names = [name]
@@ -1245,6 +1291,8 @@ class MultiViewProjection(Projection):
                 self.__setattr__('_' + attr, np.concatenate((self.__getattribute__(attr), 
                                                              projection.__getattribute__(attr))))
             self._npix.append(projection.npix)
+            self._nrays.append(projection._nrays)     
+            
             self._samples_per_pixel.append(projection.samples_per_pixel)
             self._names.append(name)  
             self._resolution.append(projection.resolution)
