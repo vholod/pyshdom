@@ -10,7 +10,7 @@
 # -------------   Simulation flags  ----------------
 # --------------------------------------------------
 DOFORWARD: True
-DOINVERSE: True
+DOINVERSE: False
 
 # --------------------------------------------------
 # --------------   Use Simple Imager?  --------------
@@ -26,7 +26,7 @@ temperature: &temperature 15
 vis_options:
   ImportConfigPath: '../notebooks/Gecko_config.json'
   temperature: *temperature # celsius
-  true_indices: [0,1,2,3,4,6,7,8,9]  # where imagers are located
+  true_indices: [0,1,2,3,4,5,6,7,8,9]  # where imagers are located
 
 # --------------------------------------------------
 # ------------   SWIR Imager Parameters  ------------
@@ -34,7 +34,7 @@ vis_options:
 swir_options:
   ImportConfigPath: '../notebooks/Hypothetic_SWIR_camera_config_50m_nadir_resolution.json'
   temperature: *temperature # celsius
-  true_indices: [5]  # where imagers are located, if true_indices: [], no swir imager will be simulated
+  true_indices: [0,1,2,3,4,5,6,7,8,9]  # where imagers are located, if true_indices: [], no swir imager will be simulated
 
 
 

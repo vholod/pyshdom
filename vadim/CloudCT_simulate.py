@@ -4,19 +4,18 @@ import logging
 import matplotlib.pyplot as plt
 import yaml
 
-from shdom import CloudCT_setup
+from shdom import CloudCT_setup, plank
 from shdom.CloudCT_Utils import *
 
 
-def main(vis_indices, swir_indices):
+def main(sun_zenith):
     logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
-    run_params = load_run_params(params_path="run_params.yaml")
-    run_params['swir_options']['true_indices'] = swir_indices
-    run_params['vis_options']['true_indices'] = vis_indices
-    logger.debug(f"New Run with vis indices {vis_indices} and swir indicse {swir_indices}")
 
-    USESWIR = True if run_params['swir_options']['true_indices'] else False
+    run_params = load_run_params(params_path="run_params.yaml")
+    run_params['sun_zenith'] = sun_zenith
+    logger.debug(f"New Run with sun zenith {run_params['sun_zenith']} (overrides yaml)")
+
 
     """
         Here load the imagers, the imagers dictates the spectral bands of the rte solver and rendering.
@@ -36,6 +35,7 @@ def main(vis_indices, swir_indices):
         MieTablesPath=MieTablesPath,
         simple_type='vis')
 
+    USESWIR = True if run_params['swir_options']['true_indices'] else False
     if USESWIR:
         swir_imager, swir_wavelength_range, swir_pixel_footprint, swir_imager_config = setup_imager(
             imager_options=run_params['swir_options'],
@@ -83,7 +83,7 @@ def main(vis_indices, swir_indices):
     atmosphere = CloudCT_setup.Prepare_Medium(CloudFieldFile=run_params['CloudFieldFile'],
                                               AirFieldFile=AirFieldFile,
                                               MieTablesPath=MieTablesPath,
-                                              wavelengths_micron=wavelengths_micron,
+                                        wavelengths_micron=wavelengths_micron,
                                               wavelength_averaging=wavelength_averaging)
 
     droplets = atmosphere.get_scatterer('cloud')
@@ -251,6 +251,21 @@ def main(vis_indices, swir_indices):
                                                    IF_SCALE_IDEALLY=scale_ideally,
                                                    IF_APPLY_NOISE=apply_noise)
 
+        # Calculate irradiance of the spesific wavelength:
+        # use plank function:
+        Cosain = np.cos(np.deg2rad((180 - run_params['sun_zenith'])))
+        temp = 5900  # K
+
+        L_TOA_vis = 6.8e-5 * 1e-9 * plank(1e-6 * np.array(CloudCT_measurements._imagers_unique_wavelengths_list[0]), temp)  # units fo W/(m^2)
+        solar_flux_vis = L_TOA_vis * Cosain
+
+        L_TOA_swir = 6.8e-5 * 1e-9 * plank(1e-6 * np.array(CloudCT_measurements._imagers_unique_wavelengths_list[1]), temp)  # units fo W/(m^2)
+        solar_flux_swir = L_TOA_swir * Cosain
+        # scale the radiance
+
+        vis_max_radiance_list = [image.max()*solar_flux_vis for image in CloudCT_measurements._Radiances_per_imager[0]]
+        swir_max_radiance_list = [image.max()*solar_flux_swir for image in CloudCT_measurements._Radiances_per_imager[1]]
+
         # The simulate_measurements() simulate images in gray levels.
         # Now we need to save that images and be able to load that images in the inverse pipline/
 
@@ -265,6 +280,7 @@ def main(vis_indices, swir_indices):
                                                          measurements=CloudCT_measurements)
 
         logger.debug("Forward phase complete")
+
 
     # ---------SOLVE INVERSE ------------------------
     if run_params['DOINVERSE']:
@@ -304,7 +320,10 @@ def main(vis_indices, swir_indices):
             visualize_results(forward_dir=forward_dir, log_name=log_name, wavelength_micron=wavelengths_micron[0])
 
         logger.debug("Inverse phase complete")
+
     logger.debug("--------------- End of Simulation ---------------")
+
+    return vis_max_radiance_list, swir_max_radiance_list
 
 
 def write_to_run_tracker(forward_dir, msg):
@@ -676,16 +695,14 @@ def load_run_params(params_path):
 
 
 if __name__ == '__main__':
-    vis_index = [
-                 [0, 1, 2, 3, 4, 8, 9],
-                 [0, 1, 2, 3, 4, 9],
-                 [0, 1, 2, 3, 4]]
-    swir_index = [
-                  [5, 6, 7],
-                  [5, 6, 7, 8],
-                  [5, 6, 7, 8, 9]]
+    vis_radiances = np.empty((71, 10))
+    swir_radiances = np.empty((71, 10))
+    for index, zenith in enumerate(range(110, 181)):
+        vis_radiances[index], swir_radiances[index] = main(zenith)
 
-    for vis, swir in zip(vis_index, swir_index):
-        main(vis, swir)
-        gc.collect()
+    with open('vis_radiances.npy', 'wb') as f:
+        np.save(f, vis_radiances)
+
+    with open('swir_radiances.npy', 'wb') as f:
+        np.save(f, swir_radiances)
 
