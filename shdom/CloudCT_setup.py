@@ -218,7 +218,7 @@ class SpaceMultiView_Measurements(object):
                     cbar = ax.cax.colorbar(im)
                     cbar = grid.cbar_axes[0].colorbar(im)
                     fig.suptitle(title, size=16,y=0.95)
-                    plt.savefig(f'sun_zenith_cloud_retrievals/cloud_retrievals_sun_zenith_{title_content}.png')
+                    #plt.savefig(f'sun_zenith_cloud_retrievals/cloud_retrievals_sun_zenith_{title_content}.png')
                     plt.close()
 
     def save(self, path):
@@ -357,12 +357,16 @@ class SpaceMultiView(shdom.MultiViewProjection):
         """
         self._sat_positions = sat_positions
         self._lookat_list = sat_lookats
-        self._samples_per_pixel = np.tile(self._samples_per_pixel,len(self._lookat_list))
-        # scale the samples_per_pixel with the distance of the satellite from lookat:
-        distances = [np.linalg.norm(i-j) for (i,j) in zip(self._sat_positions,self._lookat_list)]
-        close_distance = min(distances)
-        scaling = distances/close_distance
-        self._samples_per_pixel = np.array([int(i*j) for (i,j) in zip(scaling,self._samples_per_pixel)])
+        if(self._samples_per_pixel == 1):
+            self._samples_per_pixel = np.tile(self._samples_per_pixel,len(self._lookat_list))
+        
+        else:
+            self._samples_per_pixel = np.tile(self._samples_per_pixel,len(self._lookat_list))
+            # scale the samples_per_pixel with the distance of the satellite from lookat:
+            distances = [np.linalg.norm(i-j) for (i,j) in zip(self._sat_positions,self._lookat_list)]
+            close_distance = min(distances)
+            scaling = distances/close_distance
+            self._samples_per_pixel = np.array([int(i*j) for (i,j) in zip(scaling,self._samples_per_pixel)])
 
 
         if self._Imager_config is None:
@@ -701,7 +705,6 @@ def main():
     
     sat_positions, near_nadir_view_index = StringOfPearls(SATS_NUMBER = 10, orbit_altitude = 500)
     # --------- start the multiview setup:---------------
-<<<<<<< HEAD
     i_index = 9
     
     X_path = sat_positions[:,0]
@@ -726,7 +729,6 @@ def main():
         
     #if(VISSETUP):    
         #mlab.show()
-=======
     # set lookat list:
     sat_lookats = np.zeros([len(sat_positions),3])
     # set camera's field of view:
@@ -754,7 +756,6 @@ def main():
         
     # if(VISSETUP):
     #     mlab.show()
->>>>>>> b394a8c4ee3b8c0e143d9cf920b424f9fd91199f
         
         
         

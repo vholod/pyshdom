@@ -1,23 +1,26 @@
 import csv
+import gc
 import logging
 import matplotlib.pyplot as plt
 import yaml
 
-from shdom import CloudCT_setup
+from shdom import CloudCT_setup, plank
 from shdom.CloudCT_Utils import *
 
-USESWIR = False
 
-
-def main(sun_zenith):
+def main():
+    
     logger = create_and_configer_logger(log_name='run_tracker.log')
+    logger.debug("--------------- New Simulation ---------------")
 
     run_params = load_run_params(params_path="run_params.yaml")
-    run_params['sun_zenith'] = sun_zenith
-    logger.debug(f"cloud retrieval for sun_zenith {sun_zenith}")
+    # run_params['sun_zenith'] = sun_zenith # if you need to set the angle from main's input
+    # logger.debug(f"New Run with sun zenith {run_params['sun_zenith']} (overrides yaml)")
+
+
     """
         Here load the imagers, the imagers dictates the spectral bands of the rte solver and rendering.
-        Since the spectrum in this script referes to narrow bands, 
+        Since the spectrum in this script referes to narrow bands,
         the nerrow bands will be treated in the following maner:
         We will use the wavelength averaging of shdom. It averages scattering properties over the wavelength band.
         Be careful, the wavelengths in Imager methods are in nm. Pyshdom the wavelength are usualy in microns.
@@ -32,6 +35,10 @@ def main(sun_zenith):
         run_params=run_params,
         MieTablesPath=MieTablesPath,
         simple_type='vis')
+
+    USESWIR = True if run_params['swir_options']['true_indices'] else False
+    # At least one VIS imager will be on.
+    # SWIR imager can be canlceled at all. If you do true_indices: [], no swir imager will be simulated (in the run_params file).
 
     if USESWIR:
         swir_imager, swir_wavelength_range, swir_pixel_footprint, swir_imager_config = setup_imager(
@@ -55,7 +62,6 @@ def main(sun_zenith):
                       f'{int(1e3 * vis_wavelength_range[1])}nm_active_sats_{SATS_NUMBER_SETUP}_' \
                       f'GSD_{int(1e3 * vis_pixel_footprint)}m' \
                       f'_LES_cloud_field_rico'
-
 
     # inverse_dir, where to save everything that is related to invers model:
     inverse_dir = forward_dir  # TODO not in use
@@ -81,7 +87,7 @@ def main(sun_zenith):
     atmosphere = CloudCT_setup.Prepare_Medium(CloudFieldFile=run_params['CloudFieldFile'],
                                               AirFieldFile=AirFieldFile,
                                               MieTablesPath=MieTablesPath,
-                                              wavelengths_micron=wavelengths_micron,
+                                        wavelengths_micron=wavelengths_micron,
                                               wavelength_averaging=wavelength_averaging)
 
     droplets = atmosphere.get_scatterer('cloud')
@@ -197,7 +203,6 @@ def main(sun_zenith):
                                                                           forward_options['split_accuracies'],
                                                                           forward_options['solar_fluxes'],
                                                                           forward_options['surface_albedos']):
-
             numerical_params = shdom.NumericalParameters(num_mu_bins=forward_options['num_mu'],
                                                          num_phi_bins=forward_options['num_phi'],
                                                          split_accuracy=split_accuracy,
@@ -250,6 +255,21 @@ def main(sun_zenith):
                                                    IF_SCALE_IDEALLY=scale_ideally,
                                                    IF_APPLY_NOISE=apply_noise)
 
+        # Calculate irradiance of the spesific wavelength:
+        # use plank function:
+        Cosain = np.cos(np.deg2rad((180 - run_params['sun_zenith'])))
+        temp = 5900  # K
+
+        L_TOA_vis = 6.8e-5 * 1e-9 * plank(1e-6 * np.array(CloudCT_measurements._imagers_unique_wavelengths_list[0]), temp)  # units fo W/(m^2)
+        solar_flux_vis = L_TOA_vis * Cosain
+
+        L_TOA_swir = 6.8e-5 * 1e-9 * plank(1e-6 * np.array(CloudCT_measurements._imagers_unique_wavelengths_list[1]), temp)  # units fo W/(m^2)
+        solar_flux_swir = L_TOA_swir * Cosain
+        # scale the radiance
+
+        vis_max_radiance_list = [image.max()*solar_flux_vis for image in CloudCT_measurements._Radiances_per_imager[0]]
+        swir_max_radiance_list = [image.max()*solar_flux_swir for image in CloudCT_measurements._Radiances_per_imager[1]]
+
         # The simulate_measurements() simulate images in gray levels.
         # Now we need to save that images and be able to load that images in the inverse pipline/
 
@@ -263,7 +283,8 @@ def main(sun_zenith):
         shdom.save_CloudCT_measurments_and_forward_model(directory=forward_dir, medium=medium, solver=rte_solvers,
                                                          measurements=CloudCT_measurements)
 
-        logger.debug('DONE forward simulation')
+        logger.debug("Forward phase complete")
+
 
     # ---------SOLVE INVERSE ------------------------
     if run_params['DOINVERSE']:
@@ -302,7 +323,11 @@ def main(sun_zenith):
             # TODO wavelength_micron=wavelengths_micron[0] is just placeholder for?
             visualize_results(forward_dir=forward_dir, log_name=log_name, wavelength_micron=wavelengths_micron[0])
 
-        logger.debug("done inverse")
+        logger.debug("Inverse phase complete")
+
+    logger.debug("--------------- End of Simulation ---------------")
+
+    return vis_max_radiance_list, swir_max_radiance_list
 
 
 def write_to_run_tracker(forward_dir, msg):
@@ -674,5 +699,4 @@ def load_run_params(params_path):
 
 
 if __name__ == '__main__':
-    for sun_zenith in range(91,181,1):
-        main(sun_zenith)
+    main()
