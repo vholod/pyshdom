@@ -1,6 +1,6 @@
 import os 
 import sys
-import mayavi.mlab as mlab
+# import mayavi.mlab as mlab
 import scipy.io as sio
 import matplotlib.pyplot as plt
 import numpy as np
@@ -147,7 +147,7 @@ class SpaceMultiView_Measurements(object):
             self._radiance_to_graylevel_scales[imager_index] = radiance_to_graylevel_scale
         
     
-    def show_measurments(self, radiance_threshold_dict = None):
+    def show_measurments(self, radiance_threshold_dict = None,title_content=''):
         """
         TODO - help
         TODO - use radiance_threshold_dict which is a dictionary: keys air the imager indexes, values are intensity tresholds per view.
@@ -214,11 +214,12 @@ class SpaceMultiView_Measurements(object):
                     
                     # Since currently the view per same imager have identicale nx and ny:
                     nx, ny =  image.shape
-                    title = "Imager type is {}, nx={} , ny={}".format(projections.imager.short_description(),nx,ny)
+                    title = f"Sun Zenith {title_content}, Imager type is {projections.imager.short_description()}, nx={nx} , ny={ny}"
                     cbar = ax.cax.colorbar(im)
                     cbar = grid.cbar_axes[0].colorbar(im)
                     fig.suptitle(title, size=16,y=0.95)
-            
+                    plt.savefig(f'sun_zenith_cloud_retrievals/cloud_retrievals_sun_zenith_{title_content}.png')
+                    plt.close()
 
     def save(self, path):
         """
@@ -393,7 +394,7 @@ class SpaceMultiView(shdom.MultiViewProjection):
             view.show_camera(scale,axisWidth,axisLenght,FullCone) 
             
             t = view.position
-            mlab.text3d(t[0]+0.2*scale, t[1], t[2]+0.2*scale, view_name, color=(1,0,0),scale=0.02*scale)        
+            # mlab.text3d(t[0]+0.2*scale, t[1], t[2]+0.2*scale, view_name, color=(1,0,0),scale=0.02*scale)
         
     def Random_choose_N(self,N):
         """
@@ -530,9 +531,9 @@ def Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500 ,SAT_LOOKATS=None, Imager_confi
     axisLenght = 5000    
     if(VISSETUP):
         MV.show_setup(scale=scale ,axisWidth=axisWidth ,axisLenght=axisLenght,FullCone = True)
-        figh = mlab.gcf()
-        mlab.orientation_axes(figure=figh)    
-        mlab.show()
+        # figh = mlab.gcf()
+        # mlab.orientation_axes(figure=figh)
+        # mlab.show()
         
         
     return MV, near_nadir_view_index
@@ -580,9 +581,9 @@ def old_Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500, CAM_FOV = 0.1, CAM_RES = (
     axisLenght = 5000    
     if(VISSETUP):
         MV.show_setup(scale=scale ,axisWidth=axisWidth ,axisLenght=axisLenght,FullCone = True)
-        figh = mlab.gcf()
-        mlab.orientation_axes(figure=figh)    
-        mlab.show()
+        # figh = # mlab.gcf()
+        # mlab.orientation_axes(figure=figh)
+        # mlab.show()
         
         
     return MV, near_nadir_view_index
@@ -700,6 +701,7 @@ def main():
     
     sat_positions, near_nadir_view_index = StringOfPearls(SATS_NUMBER = 10, orbit_altitude = 500)
     # --------- start the multiview setup:---------------
+<<<<<<< HEAD
     i_index = 9
     
     X_path = sat_positions[:,0]
@@ -724,6 +726,35 @@ def main():
         
     #if(VISSETUP):    
         #mlab.show()
+=======
+    # set lookat list:
+    sat_lookats = np.zeros([len(sat_positions),3])
+    # set camera's field of view:
+    FOV = 0.1 # deg
+    cnx,cny = (64,64)
+    
+    # assume band:
+    setup_wavelengths_list = len(sat_positions)*[[0.66]]
+    
+    
+    MV = SpaceMultiView() 
+    MV.set_satellites(sat_positions,sat_lookats,setup_wavelengths_list)
+    MV.set_commonCameraIntrinsics(FOV,cnx,cny) 
+    MV.update_views()
+    
+    # visualization params:
+    scale = 500
+    axisWidth = 0.02
+    axisLenght = 5000    
+    VISSETUP = True
+    if(VISSETUP):
+        MV.show_setup(scale=scale ,axisWidth=axisWidth ,axisLenght=axisLenght,FullCone = True)
+        # figh = mlab.gcf()
+        # mlab.orientation_axes(figure=figh)
+        
+    # if(VISSETUP):
+    #     mlab.show()
+>>>>>>> b394a8c4ee3b8c0e143d9cf920b424f9fd91199f
         
         
         

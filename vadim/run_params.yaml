@@ -39,6 +39,7 @@ swir_options:
   true_indices: []  # where imagers are located, if true_indices: [], no swir imager will be simulated 
 
 
+
 # --------------------------------------------------
 # -------------   Cloud & Air Field files  ---------
 # --------------------------------------------------
