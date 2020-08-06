@@ -15,6 +15,7 @@ import tensorboardX as tb
 import matplotlib.pyplot as plt
 import warnings
 from itertools import chain
+import scipy.io as sio
 
 class OpticalScattererDerivative(shdom.OpticalScatterer):
     """
@@ -361,9 +362,12 @@ class ScattererEstimator(object):
         """
         gradient = np.split(gradient, self.num_estimators, axis=-1)
         state_gradient = np.empty(shape=(0), dtype=np.float64)
+        debug_gradient_3d = []
         for estimator, gradient in zip(self.estimators.values(), gradient):
-            state_gradient_new, debug_gradient_3d = estimator.project_gradient(gradient, grid) # vadim added to get the gradient in the base grid to debug/visualize it later on.
+            state_gradient_new, debug_gradient_3d_new = estimator.project_gradient(gradient, grid) # vadim added to get the gradient in the base grid to debug/visualize it later on.
             state_gradient = np.concatenate((state_gradient, state_gradient_new))
+            debug_gradient_3d.append(debug_gradient_3d_new)
+            
         return state_gradient, debug_gradient_3d
         
     @property
@@ -1165,6 +1169,8 @@ class MediumEstimator(shdom.Medium):
         else:
             total_rays = projection.nrays
 
+        rays_weights = projection.weight # pixel/ray weight of contibution to gradient due to samples per pixel introdution.
+            
         gradient, loss, images = core.gradient_l2(
             weights=self._stokes_weights[:rte_solver._nstokes],
             exact_single_scatter=self._exact_single_scatter,
@@ -1249,6 +1255,7 @@ class MediumEstimator(shdom.Medium):
             camx=projection.x,
             camy=projection.y,
             camz=projection.z,
+            rayweight=rays_weights,             
             cammu=projection.mu,
             camphi=projection.phi,
             npix=total_rays,
@@ -1330,9 +1337,7 @@ class MediumEstimator(shdom.Medium):
                 
                 # ------ I AM HERE IN THE REIMPLEMENTATION -----
                 # TODO- consider to use num_channels>1 per one imager.
-                # Sequential or parallel processing using multithreading (threadsafe Fortran)
-                
-                n_jobs = 10
+                # Sequential or parallel processing using multithreading (threadsafe Fortran)                
                 if n_jobs > 1:           
                     output = Parallel(n_jobs=n_jobs, backend="threading", verbose=0)(
                         delayed(self.core_grad, check_pickle=False)(
@@ -1371,6 +1376,15 @@ class MediumEstimator(shdom.Medium):
                                             CloudCT_projection,
                                             num_channels)   
                 
+                if any(np.array(CloudCT_projection.samples_per_pixel)>1):
+                    
+                    # If any projection has samples_per_pixel > 1, the cost calculated inside GRADIENT_L2 (fortran) is wrong.
+                    # It is refined here:
+                    loss_per_imager = 0
+                    for (i_measured,i) in zip(acquired_images,images_per_imager):
+                        loss_per_imager += 0.5*np.sum(np.power((i_measured.ravel() - i.ravel()),2))
+                        
+                    
                 gradient = np.sum([gradient, gradient_per_imager], axis=0) 
                 loss += loss_per_imager
                 images += images_per_imager
@@ -1379,11 +1393,12 @@ class MediumEstimator(shdom.Medium):
                 
             # Outside the imager_index loop:
             gradient = gradient.reshape(self.grid.shape + tuple([self.num_derivatives])) # An array containing the gradient of the cost function with respect to the parameters. the shape is of the internal shdom grid upon which the gradient was computed.
-            gradient = np.split(gradient, self.num_estimators, axis=-1)
+            gradient = np.split(gradient, self.num_estimators, axis=-1)# gradient is now a list with num_estimators elements.
             state_gradient = np.empty(shape=(0), dtype=np.float64) # State gradient representation
             for estimator, gradient in zip(self.estimators.values(), gradient):
                 estimator_project_gradient, debug_gradient_3d = estimator.project_gradient(gradient, self.grid) # vadim added to get the gradient in the base grid to debug/visualize it later on. 
                 state_gradient = np.concatenate((state_gradient, estimator_project_gradient))
+                # Note that the debug_gradient_3d will be saved only for 1 estimator.                
                 
                                
             
@@ -1417,7 +1432,7 @@ class MediumEstimator(shdom.Medium):
             for estimator, gradient in zip(self.estimators.values(), gradient):
                 state_gradient = np.concatenate((state_gradient, estimator.project_gradient(gradient, self.grid)))
 
-        return state_gradient, loss, images
+        return state_gradient, loss, images, debug_gradient_3d
 
     @property
     def estimators(self):
@@ -2189,7 +2204,7 @@ class LocalOptimizer(object):
         This function also saves the current synthetic images for visualization purpose
         """
         self.set_state(state)
-        gradient, loss, images = self.medium.compute_gradient(
+        gradient, loss, images, debug_gradients = self.medium.compute_gradient(
             rte_solvers=self.rte_solver,
             measurements=self.measurements,
             n_jobs=self.n_jobs
@@ -2197,6 +2212,25 @@ class LocalOptimizer(object):
         print(state, gradient, loss)
         self._loss = loss
         self._images = images
+        # vadim save gradients for each iteration for debug:
+        SAVE_GRADIENTS_DB = True
+        if(SAVE_GRADIENTS_DB):
+            
+            gredient_save_dir = self.writer.dir + '_gradients'            
+            if not os.path.exists(gredient_save_dir):
+                os.mkdir(gredient_save_dir)
+            
+            scatterers = self.medium.estimators.keys()
+            for scatterer_name in scatterers:
+                scatterer = self.medium.get_scatterer(name=scatterer_name)
+                for index,parameter_name in enumerate(scatterer.estimators.keys()):
+                        
+                    filename = 'gradient_of_{}_at_iteration_{}.mat'.format(parameter_name,self.iteration)                    
+                    grad_save = debug_gradients[index]
+                    sio.savemat(os.path.join(gredient_save_dir,filename), {'data':grad_save})
+    	
+
+        
         return loss, gradient
             
     def callback(self, state):

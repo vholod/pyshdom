@@ -57,13 +57,15 @@ USE_SWIR = False # if to use vis in the simulation
 
 
 # numerical parameters
-n_jobs = 28
+n_jobs = 38
 
 
 
 # orbital setup parameters:
 Rsat = 500 # km
 GSD = 0.02 # in km, it is the ground spatial resolution.
+samples_per_pixel = 1 # new parameter interduced by vadim on 28/Jul/2020
+
 SATS_NUMBER_SETUP = 10 # satellites number to build the setup, for the inverse, we can use less satellites.
 # to consider - SATS_NUMBER_INVERSE = SATS_NUMBER_SETUP#10 # how much satelliets will be used for the inverse.
 
@@ -90,7 +92,7 @@ Be carfule, the wavelengths in Imager methods are in nm. Pyshdom the wavelength 
 THe imagers aslo dictate the ground spatial resolution (GSD).
 """
 
-USE_SIMPLE_IMAGER = False # if it's true, the imager is simple and not loaded from the imagers data set.
+USE_SIMPLE_IMAGER = True # if it's true, the imager is simple and not loaded from the imagers data set.
 if(not USE_SIMPLE_IMAGER):
     
     # load Imager at VIS:
@@ -323,12 +325,12 @@ if(DOFORWARD):
     vis_CloudCT_VIEWS, near_nadir_view_index = CloudCT_setup.Create(\
         SATS_NUMBER = SATS_NUMBER_SETUP, ORBIT_ALTITUDE = Rsat, \
         SAT_LOOKATS = SAT_LOOKATS, \
-        Imager_config = vis_imager_config ,imager = vis_imager, VISSETUP = VISSETUP)
+        Imager_config = vis_imager_config ,imager = vis_imager, samples_per_pixel = samples_per_pixel, VISSETUP = VISSETUP)
     
     swir_CloudCT_VIEWS, near_nadir_view_index = CloudCT_setup.Create(\
         SATS_NUMBER = SATS_NUMBER_SETUP, ORBIT_ALTITUDE = Rsat, \
         SAT_LOOKATS = SAT_LOOKATS, \
-        Imager_config = swir_imager_config ,imager = swir_imager, VISSETUP = VISSETUP)    
+        Imager_config = swir_imager_config ,imager = swir_imager, samples_per_pixel = samples_per_pixel, VISSETUP = VISSETUP)    
         
     # ----------------------------------------------------------
     # ---------numerical & scene Parameters---------------------

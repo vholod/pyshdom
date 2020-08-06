@@ -15,7 +15,7 @@ DOINVERSE: True
 # --------------------------------------------------
 # --------------   Use Simple Imager?  --------------
 # --------------------------------------------------
-USE_SIMPLE_IMAGER: False
+USE_SIMPLE_IMAGER: True
 # if it's true, the imager is simple and not loaded from the imagers data set.
 
 
@@ -33,7 +33,7 @@ vis_options:
 # ------------   VIS Imager Parameters  ------------
 # --------------------------------------------------
 swir_options:
-  USE_SWIR: True  # if to use vis in the simulation # TODO not in use
+  USE_SWIR: False  # if to use vis in the simulation # TODO not in use
   ImportConfigPath: '../notebooks/Hypothetic_SWIR_camera_config.json'
   temperature: *temperature # celsius
   true_indices: []  # where imagers are located, if true_indices: [], no swir imager will be simulated 
