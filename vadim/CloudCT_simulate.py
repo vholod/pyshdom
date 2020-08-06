@@ -33,20 +33,12 @@ def main(sun_zenith):
         MieTablesPath=MieTablesPath,
         simple_type='vis')
 
-<<<<<<< HEAD
-    swir_imager, swir_wavelength_range, swir_pixel_footprint, swir_imager_config = setup_imager(
-        imager_options=run_params['swir_options'],
-        run_params=run_params,
-        MieTablesPath=MieTablesPath,
-        simple_type='vis') # write simple_type='vis' if you want all vis cameras. DONT FORGATE TO CHANGE IT TO swir
-=======
     if USESWIR:
         swir_imager, swir_wavelength_range, swir_pixel_footprint, swir_imager_config = setup_imager(
             imager_options=run_params['swir_options'],
             run_params=run_params,
             MieTablesPath=MieTablesPath,
             simple_type='swir')
->>>>>>> b394a8c4ee3b8c0e143d9cf920b424f9fd91199f
 
     SATS_NUMBER_SETUP = run_params['SATS_NUMBER_SETUP']
 
@@ -80,18 +72,11 @@ def main(sun_zenith):
     wavelength_averaging = False if run_params['USE_SIMPLE_IMAGER'] else True
 
     # central wavelengths
-<<<<<<< HEAD
-    wavelengths_micron = [vis_imager.centeral_wavelength_in_microns, swir_imager.centeral_wavelength_in_microns]
-    # wavelengths_micron will hold the vis swir wavelengths. It will be convinient to use in some loops.
-    # if there are identicale wavelengths in the list, the unique operation will convert the list to be unique:
-    wavelengths_micron = np.unique([wavelengths_micron])
-=======
     if USESWIR:
         wavelengths_micron = [vis_imager.centeral_wavelength_in_microns, swir_imager.centeral_wavelength_in_microns]
         # wavelengths_micron will hold the vis swir wavelengths. It will be convinient to use in some loops
     else:
         wavelengths_micron = [vis_imager.centeral_wavelength_in_microns]
->>>>>>> b394a8c4ee3b8c0e143d9cf920b424f9fd91199f
 
     atmosphere = CloudCT_setup.Prepare_Medium(CloudFieldFile=run_params['CloudFieldFile'],
                                               AirFieldFile=AirFieldFile,
