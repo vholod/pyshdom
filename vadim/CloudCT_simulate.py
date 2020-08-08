@@ -7,15 +7,13 @@ import yaml
 from shdom import CloudCT_setup, plank
 from shdom.CloudCT_Utils import *
 
+CALC_RADIANCE = False
 
-def main(sun_zenith):
+def main():
     logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
     run_params = load_run_params(params_path="run_params.yaml")
-    run_params['sun_zenith'] = sun_zenith
-    logger.debug(f"New Run with sun zenith {run_params['sun_zenith']} (overrides yaml)")
-
 
     """
         Here load the imagers, the imagers dictates the spectral bands of the rte solver and rendering.
@@ -251,20 +249,21 @@ def main(sun_zenith):
                                                    IF_SCALE_IDEALLY=scale_ideally,
                                                    IF_APPLY_NOISE=apply_noise)
 
-        # Calculate irradiance of the spesific wavelength:
-        # use plank function:
-        Cosain = np.cos(np.deg2rad((180 - run_params['sun_zenith'])))
-        temp = 5900  # K
+        if CALC_RADIANCE:
+            # Calculate irradiance of the spesific wavelength:
+            # use plank function:
+            Cosain = np.cos(np.deg2rad((180 - run_params['sun_zenith'])))
+            temp = 5900  # K
 
-        L_TOA_vis = 6.8e-5 * 1e-9 * plank(1e-6 * np.array(CloudCT_measurements._imagers_unique_wavelengths_list[0]), temp)  # units fo W/(m^2)
-        solar_flux_vis = L_TOA_vis * Cosain
+            L_TOA_vis = 6.8e-5 * 1e-9 * plank(1e-6 * np.array(CloudCT_measurements._imagers_unique_wavelengths_list[0]), temp)  # units fo W/(m^2)
+            solar_flux_vis = L_TOA_vis * Cosain
 
-        L_TOA_swir = 6.8e-5 * 1e-9 * plank(1e-6 * np.array(CloudCT_measurements._imagers_unique_wavelengths_list[1]), temp)  # units fo W/(m^2)
-        solar_flux_swir = L_TOA_swir * Cosain
-        # scale the radiance
+            L_TOA_swir = 6.8e-5 * 1e-9 * plank(1e-6 * np.array(CloudCT_measurements._imagers_unique_wavelengths_list[1]), temp)  # units fo W/(m^2)
+            solar_flux_swir = L_TOA_swir * Cosain
+            # scale the radiance
 
-        vis_max_radiance_list = [image.max()*solar_flux_vis for image in CloudCT_measurements._Radiances_per_imager[0]]
-        swir_max_radiance_list = [image.max()*solar_flux_swir for image in CloudCT_measurements._Radiances_per_imager[1]]
+            vis_max_radiance_list = [image.max()*solar_flux_vis for image in CloudCT_measurements._Radiances_per_imager[0]]
+            swir_max_radiance_list = [image.max()*solar_flux_swir for image in CloudCT_measurements._Radiances_per_imager[1]]
 
         # The simulate_measurements() simulate images in gray levels.
         # Now we need to save that images and be able to load that images in the inverse pipline/
@@ -280,7 +279,6 @@ def main(sun_zenith):
                                                          measurements=CloudCT_measurements)
 
         logger.debug("Forward phase complete")
-
 
     # ---------SOLVE INVERSE ------------------------
     if run_params['DOINVERSE']:
@@ -323,7 +321,8 @@ def main(sun_zenith):
 
     logger.debug("--------------- End of Simulation ---------------")
 
-    return vis_max_radiance_list, swir_max_radiance_list
+    if CALC_RADIANCE:
+        return vis_max_radiance_list, swir_max_radiance_list
 
 
 def write_to_run_tracker(forward_dir, msg):
@@ -695,14 +694,4 @@ def load_run_params(params_path):
 
 
 if __name__ == '__main__':
-    vis_radiances = np.empty((71, 10))
-    swir_radiances = np.empty((71, 10))
-    for index, zenith in enumerate(range(110, 181)):
-        vis_radiances[index], swir_radiances[index] = main(zenith)
-
-    with open('vis_radiances.npy', 'wb') as f:
-        np.save(f, vis_radiances)
-
-    with open('swir_radiances.npy', 'wb') as f:
-        np.save(f, swir_radiances)
-
+    main()
