@@ -35,7 +35,7 @@ air_grid = shdom.Grid(z=np.linspace(0, 100, 101))
 wavelength_for_table = [1.6]
 sun_zenith = 155
 
-for wavelength_for_table in [[0.7],[0.8],[1.5],[1.55],[1.6],[1.65]]:
+for wavelength_for_table in [[0.5],[0.6] ,[0.7],[0.8],[1.5],[1.55],[1.6],[1.65]]:
     
     # Calculate irradiance of the spesific wavelength:
     # use plank function:

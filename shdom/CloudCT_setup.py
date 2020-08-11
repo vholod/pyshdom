@@ -711,10 +711,10 @@ def main():
     Z_path = sat_positions[:,2]
     offNadirAngles = np.rad2deg(np.arctan(X_path/Z_path)) # from the ground.
     print(offNadirAngles)
-    print(X_path[i_index])
-    print(X_path)
-    print(Z_path)
-    DPHI = np.deg2rad(3.3)
+    #print(X_path[i_index])
+    #print(X_path)
+    #print(Z_path)
+    #DPHI = np.deg2rad(3.3)
     
     
     ## visualization params:

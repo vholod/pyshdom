@@ -71,10 +71,10 @@ SATS_NUMBER_SETUP = 10 # satellites number to build the setup, for the inverse, 
 
 # where different imagers are located:
 vis_imager_config = SATS_NUMBER_SETUP*[True]
-#swir_imager_config = SATS_NUMBER_SETUP*[True]
-swir_imager_config = SATS_NUMBER_SETUP*[False]
-swir_imager_config[5] = True
-swir_imager_config[4] = True
+swir_imager_config = SATS_NUMBER_SETUP*[True]
+#swir_imager_config = SATS_NUMBER_SETUP*[False]
+#swir_imager_config[5] = True
+#swir_imager_config[4] = True
 
 # solar irradiance parameters:
 sun_azimuth = 45
