@@ -27,7 +27,7 @@ def main():
 
         THe imagers aslo dictate the ground spatial resolution (GSD).
     """
-    MieTablesPath = os.path.abspath("./mie_tables")
+    MieTablesPath = os.path.abspath("../mie_tables")
 
     # Setup the imagers, can be simple!
     vis_imager, vis_wavelength_range, vis_pixel_footprint, vis_imager_config = setup_imager(
@@ -51,14 +51,14 @@ def main():
 
     # where to save the forward outputs:
     if USESWIR:
-        forward_dir = f'./experiments/VIS_SWIR_NARROW_BANDS_VIS_{int(1e3 * vis_wavelength_range[0])}-' \
+        forward_dir = f'../CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_{int(1e3 * vis_wavelength_range[0])}-' \
                       f'{int(1e3 * vis_wavelength_range[1])}nm_active_sats_{SATS_NUMBER_SETUP}_' \
                       f'GSD_{int(1e3 * vis_pixel_footprint)}m_and' \
                       f'_SWIR_{int(1e3 * swir_wavelength_range[0])}-{int(1e3 * swir_wavelength_range[1])}' \
                       f'nm_active_sats_{SATS_NUMBER_SETUP}_GSD_{int(1e3 * swir_pixel_footprint)}m' \
                       f'_LES_cloud_field_rico'
     else:
-        forward_dir = f'./experiments/VIS_SWIR_NARROW_BANDS_VIS_{int(1e3 * vis_wavelength_range[0])}-' \
+        forward_dir = f'../CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_{int(1e3 * vis_wavelength_range[0])}-' \
                       f'{int(1e3 * vis_wavelength_range[1])}nm_active_sats_{SATS_NUMBER_SETUP}_' \
                       f'GSD_{int(1e3 * vis_pixel_footprint)}m' \
                       f'_LES_cloud_field_rico'

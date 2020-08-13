@@ -34,16 +34,16 @@ vis_options:
 swir_options:
   ImportConfigPath: '../notebooks/Hypothetic_SWIR_camera_config_50m_nadir_resolution.json'
   temperature: *temperature # celsius
-  true_indices: []   # where imagers are located, if true_indices: [], no swir imager will be simulated
+  true_indices: [0,1,2,3,4,5,6,7,8,9]   # where imagers are located, if true_indices: [], no swir imager will be simulated
 
 
 
 # --------------------------------------------------
 # -------------   Cloud & Air Field files  ---------
 # --------------------------------------------------
-#CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
-CloudFieldFile: '../WIZ_Clouds/cloud1261.txt'
-AirFieldFile: './ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file which contains temperature measurements
+CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
+#CloudFieldFile: '../WIZ_Clouds/cloud1261.txt'
+AirFieldFile: '../ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file which contains temperature measurements
 
 
 # --------------------------------------------------
@@ -103,7 +103,7 @@ mie_options:
   end_reff: 25.0
   num_reff: 100
   start_veff: 0.01
-  end_veff: 0.5 # return it to 0.4
+  end_veff: 0.4 # return it to 0.4
   num_veff: 117
   radius_cutoff: 65.0 # The cutoff radius for the pdf averaging [Micron]
   wavelength_resolution: 0.001 # it is the delta in the wavelengths (microns) for the optical parameters avaraging inside shdom.
@@ -125,7 +125,7 @@ vizual_options:
 # -------------------------------------------------
 forward_options:
 
-  SEE_IMAGES: True
+  SEE_IMAGES: False
 
   temp: 5900  # K,  units of W/(m^2))
 
@@ -166,7 +166,7 @@ inverse_options:
   VIS_RESULTS3D: False  # show the results in 3D visualization
 
   #MICROPHYSICS: True # False for extinction
-  MICROPHYSICS: False
+  MICROPHYSICS: True
   
   # if micropyhsics is  true, specify where to recover lwc / reff / veff or (reff and lwc)
   recover_type: 'reff_and_lwc' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
