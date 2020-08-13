@@ -1,0 +1,223 @@
+# ------------------------------------------------------------
+# ------------------------------------------------------------
+# -------------  CloudCT Simulate  ---------------------------
+# --------------  Run Paramaters  ----------------------------
+# ------------------------------------------------------------
+# ------------------------------------------------------------
+
+
+# --------------------------------------------------
+# -------------   Simulation flags  ----------------
+# --------------------------------------------------
+DOFORWARD: True
+DOINVERSE: True
+
+# --------------------------------------------------
+# --------------   Use Simple Imager?  --------------
+# --------------------------------------------------
+USE_SIMPLE_IMAGER: True
+# if it's true, the imager is simple and not loaded from the imagers data set.
+
+
+# --------------------------------------------------
+# ------------   VIS Imager Parameters  ------------
+# --------------------------------------------------
+temperature: &temperature 15
+vis_options:
+  ImportConfigPath: '../notebooks/Gecko_config.json'
+  temperature: *temperature # celsius
+  true_indices: [0,1,2,3,4,5,6,7,8,9]  # where imagers are located
+
+# --------------------------------------------------
+# ------------   SWIR Imager Parameters  ------------
+# --------------------------------------------------
+swir_options:
+  ImportConfigPath: '../notebooks/Hypothetic_SWIR_camera_config_50m_nadir_resolution.json'
+  temperature: *temperature # celsius
+  true_indices: []   # where imagers are located, if true_indices: [], no swir imager will be simulated
+
+
+
+# --------------------------------------------------
+# -------------   Cloud & Air Field files  ---------
+# --------------------------------------------------
+#CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
+CloudFieldFile: '../WIZ_Clouds/cloud1261.txt'
+AirFieldFile: './ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file which contains temperature measurements
+
+
+# --------------------------------------------------
+# ----------------  Number of Jobs  ----------------
+# --------------------------------------------------
+n_jobs: 28
+
+
+# --------------------------------------------------
+# ----------------   Orbit and GSD  ----------------
+# --------------------------------------------------
+Rsat: 500  # orbit altitude, km
+GSD: 0.02  # in km, it is the ground spatial resolution.
+
+
+# --------------------------------------------------
+# -----------------   Wavelengths  -----------------
+# --------------------------------------------------
+
+
+# --------------------------------------------------
+# -------------   Sun Azimuth & Zenith  ------------
+# --------------------------------------------------
+sun_azimuth: 45  # azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
+sun_zenith: 150  # zenith: Solar beam zenith angle in range (90,180]
+
+
+# --------------------------------------------------
+# ------------   Number of Satellites  -------------
+# --------------------------------------------------
+SATS_NUMBER_SETUP: &num_sats 10  # satellites number to build the setup, for the inverse, we can use less satellites.
+SATS_NUMBER_INVERSE: *num_sats  #10, how much satellites will be used for the inverse. TODO not in use
+
+
+# --------------------------------------------------
+# ---------  numerical & scene Parameters  ---------
+# ---------  for RTE solver & solver init  ---------
+# --------------------------------------------------
+# later we must update it since it depends on the wavelegth.
+# split_accuracy of 0.1 gives nice results, For the rico cloud i didn't see that decreasing the split accuracy improves the rec.
+# so fo the rico loud Let's use split_accuracy = 0.1.
+solar_fluxes_val: 1.0
+split_accuracies_val: 0.1
+surface_albedos_val: 0.05
+
+# --------------------------------------------------
+# -------------   Radiance Threshold  ------------
+# --------------------------------------------------
+radiance_threshold: [0.023, 0.02] # Threshold is either a scalar or a list of length of measurements.
+
+
+# -------------------------------------------------
+# -------------   mia table parameters  -----------
+# -------------------------------------------------
+mie_options:
+  start_reff: 4 # Starting effective radius [Micron]
+  end_reff: 25.0
+  num_reff: 100
+  start_veff: 0.01
+  end_veff: 0.5 # return it to 0.4
+  num_veff: 117
+  radius_cutoff: 65.0 # The cutoff radius for the pdf averaging [Micron]
+  wavelength_resolution: 0.001 # it is the delta in the wavelengths (microns) for the optical parameters avaraging inside shdom.
+
+
+# -------------------------------------------------
+# -----------  Visualization parameters  ----------
+# -------------------------------------------------
+vizual_options:
+  VISSETUP: False
+  CENCEL_AIR: False # just for debugging, in runtime  must be false.
+  scale: 500
+  axisWidth: 0.02
+  axisLenght: 5000
+
+
+# -------------------------------------------------
+# ----------------  Forward parameters  -----------
+# -------------------------------------------------
+forward_options:
+
+  SEE_IMAGES: True
+
+  temp: 5900  # K,  units of W/(m^2))
+
+  # ----------numerical & scene Parameters------------
+  # --for RTE solver and initializtion of the solver--
+  # --------------------------------------------------
+
+  # note: when num_mu, num_phi are 16,32, the retrievals look better than with 8,16.
+  num_mu: 16
+
+  num_phi: 32
+
+  max_total_mb: 100000.0
+
+  rte_solver_max_iter: 100 # max number of iterations for rte solver
+
+  solar_fluxes: [1, 1]  # unity flux, IT IS IMPORTANT HERE!
+
+  split_accuracies: [0.1, 0.1] # 0.1 gives nice results, For the rico cloud i didn't see that decreasing the split accuracy improves the rec.
+                               # so fo the rico loud Let's use split_accuracy = 0.1.
+
+  surface_albedos: [0.05, 0.05]  # later we must update it since it depends on the wavelegth.
+
+  adapt_grid_factor: 5  # TODO not in use
+
+  solution_accuracy: 0.0001  # TODO not in use
+
+
+# -------------------------------------------------
+# ----------------  inverse parameters  -----------
+# -------------------------------------------------
+inverse_options:
+
+  SEE_SETUP: False
+
+  SEE_IMAGES: False
+
+  VIS_RESULTS3D: False  # show the results in 3D visualization
+
+  #MICROPHYSICS: True # False for extinction
+  MICROPHYSICS: False
+  
+  # if micropyhsics is  true, specify where to recover lwc / reff / veff or (reff and lwc)
+  recover_type: 'reff_and_lwc' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
+
+  # Initialization and Medium parameters:
+  lwc: 0.01  # init lwc of the generator
+  reff: 12 # init reff of the generator
+  veff: 0.19 # init veff of the generator
+
+  # Scaling params when recovering reff and lwc:
+  lwc_scaling_val: 15
+  reff_scaling_val: 0.01
+
+  # if not microphysics:
+  extinction: 0.01  # init extinction of the generator
+
+  scripts_path: '../scripts'
+
+  # TODO not in use
+  stokes_weights: [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V]
+
+  # INIT
+  init: 'Homogeneous' # init_generator = 'Homogeneous' it is the CloudGenerator from shdom.generate.py
+
+  # GT_USE
+  add_rayleigh: True
+  use_forward_mask: True
+  use_forward_grid: True
+  cloudct_use: True
+  use_forward_albedo: True
+  use_forward_phase: True
+  if_save_gt_and_carver_masks: True
+  if_save_final3d: True
+
+  # optimization:
+  globalopt: False  # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
+  maxiter: 1000  # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+  maxls: 30  # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+  disp: True  # Display optimization progression.
+  gtol: 1e-16  # Stop criteria for the maximum projected gradient. # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
+  ftol: 1e-16  # Stop criteria for the relative change in loss function. # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
+  loss_type: 'l2'  # Different loss functions for optimization. Currently only l2 is supported.
+  extinction_optimizer: 'optimize_extinction_lbfgs.py'
+  microphysics_optimizer: 'optimize_microphysics_lbfgs.py'
+
+
+# ----------------------------------------------
+# -------------------  Others  -----------------
+# ----------------------------------------------
+
+# Sometimes it is more convenient to use wide fov to see the whole cloud from all the view points.
+# so the FOV is also tuned:
+IFTUNE_CAM: True
+
