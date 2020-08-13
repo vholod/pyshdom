@@ -324,9 +324,16 @@ class OptimizationScript(object):
         measurements: shdom.Measurements
             The acquired measurements
         """
-        # Load forward model and measurements
-        medium, rte_solver, measurements = shdom.load_forward_model(input_directory)
-
+        if(self.args.cloudct_use):
+            
+            # Load forward model and cloud ct measurements
+            medium, rte_solver, measurements = shdom.load_CloudCT_measurments_and_forward_model(input_directory)
+            # if(isinstance(measurments,shdom.CloudCT_setup.SpaceMultiView_Measurements)
+        else:
+            
+            # Load forward model and measurements
+            medium, rte_solver, measurements = shdom.load_forward_model(input_directory)
+        
         # Get optical medium ground-truth
         ground_truth = medium.get_scatterer(self.scatterer_name)
         if isinstance(ground_truth, shdom.MicrophysicalScatterer):

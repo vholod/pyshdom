@@ -219,8 +219,28 @@ class SpaceMultiView_Measurements(object):
                     cbar = grid.cbar_axes[0].colorbar(im)
                     fig.suptitle(title, size=16,y=0.95)
                     #plt.savefig(f'sun_zenith_cloud_retrievals/cloud_retrievals_sun_zenith_{title_content}.png')
-                    plt.close()
+                    #plt.close()
 
+                
+    def convert2regular_measurements(self):
+        """
+        Converts the CloudCT measurements to regular measurements.
+        Thats to say:
+        SpaceMultiView_Measurements -> Measurements class in shdom package.
+        """
+        #projection = shdom.MultiViewProjection()
+        sensor=shdom.RadianceSensor()# Currently, this method sopports only sensor of type shdom.RadianceSensor().
+        assert len(self._imagers_unique_wavelengths_list) == 1, "If the case is polychromatic, it must be a mistake, you should not try to convert the measurments. It works only for monochromatic!"
+        projections = self._setup_of_views_list[0]
+
+        camera = shdom.Camera(sensor, projections)
+        images = self._Radiances_per_imager[0]
+        wavelength = self._imagers_unique_wavelengths_list[0]
+        # put the images in Measurements object:
+        measurements = shdom.Measurements(camera, images=images, wavelength=wavelength)
+        return measurements
+    
+    
     def save(self, path):
         """
         Save SpaceMultiView_Measurements to file.

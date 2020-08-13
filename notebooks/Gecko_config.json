@@ -58,7 +58,7 @@
         0.45,
         0.45
     ],
-    "SENSOR_TYPE": "VIS",
+    "SENSOR_TYPE": "SIMPLE",
     "SPECTRAL_IRRADIANCE_TOA": [
         1.6452792909529461,
         1.6204134558380145,

@@ -1414,7 +1414,9 @@ class MediumEstimator(shdom.Medium):
             gradient = np.split(gradient, self.num_estimators, axis=-1)
             state_gradient = np.empty(shape=(0), dtype=np.float64)
             for estimator, gradient in zip(self.estimators.values(), gradient):
-                state_gradient = np.concatenate((state_gradient, estimator.project_gradient(gradient, self.grid)))
+                estimator_project_gradient, debug_gradient_3d = estimator.project_gradient(gradient, self.grid) # vadim added to get the gradient in the base grid to debug/visualize it later on. 
+                state_gradient = np.concatenate((state_gradient, estimator_project_gradient))
+                # Note that the debug_gradient_3d will be saved only for 1 estimator.                
 
         return state_gradient, loss, images, debug_gradient_3d
 
@@ -1785,14 +1787,29 @@ class SummaryWriter(object):
         """
         for scatterer_name, gt_scatterer in self._ground_truth.items():
             est_scatterer = self.optimizer.medium.get_scatterer(scatterer_name)
+
+            common_grid = est_scatterer.grid + gt_scatterer.grid
+            a = est_scatterer.get_mask(threshold=0.0).resample(common_grid,method='nearest')
+            b = gt_scatterer.get_mask(threshold=0.0).resample(common_grid,method='nearest')
+            common_mask = shdom.GridData(data=np.bitwise_or(a.data,b.data),grid=common_grid)
+
             for parameter_name, parameter in est_scatterer.estimators.items():
                 ground_truth = getattr(gt_scatterer, parameter_name)
-                est_param = (parameter.resample(ground_truth.grid)).data.ravel()
-                gt_param = ground_truth.data.ravel()
+
+                est_parameter_masked = copy.copy(parameter).resample(common_grid)
+                est_parameter_masked.apply_mask(common_mask)
+                est_param = est_parameter_masked.data.ravel()
+
+                gt_param_masked = copy.copy(ground_truth).resample(common_grid)
+                gt_param_masked.apply_mask(common_mask)
+                gt_param = gt_param_masked.data.ravel()
+
                 delta = (np.linalg.norm(est_param, 1) - np.linalg.norm(gt_param, 1)) / np.linalg.norm(gt_param, 1)
                 epsilon = np.linalg.norm((est_param - gt_param), 1) / np.linalg.norm(gt_param,1)
                 self.tf_writer.add_scalar(kwargs['title'][0].format(scatterer_name, parameter_name), delta, self.optimizer.iteration)
                 self.tf_writer.add_scalar(kwargs['title'][1].format(scatterer_name, parameter_name), epsilon, self.optimizer.iteration)
+
+        
         
     def domain_mean_cbfn(self, kwargs):
         """
@@ -1834,30 +1851,35 @@ class SummaryWriter(object):
         """
         for scatterer_name, gt_scatterer in self._ground_truth.items():
             est_scatterer = self.optimizer.medium.get_scatterer(scatterer_name)
+
+            common_grid = est_scatterer.grid + gt_scatterer.grid
+            a = est_scatterer.get_mask(threshold=0.0).resample(common_grid,method='nearest')
+            b = gt_scatterer.get_mask(threshold=0.0).resample(common_grid,method='nearest')
+            common_mask = shdom.GridData(data=np.bitwise_or(a.data,b.data),grid=common_grid)
+
             for parameter_name, parameter in est_scatterer.estimators.items():
                 ground_truth = getattr(gt_scatterer, parameter_name)
 
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore", category=RuntimeWarning)
-                    if parameter.type == 'Homogeneous' or parameter.type == '1D':
-                        est_param = parameter.data
-                    else:
-                        est_param = copy.copy((parameter.resample(ground_truth.grid)).data)
-                        est_param[parameter.mask.data == False] = np.nan
-                        est_param = np.nan_to_num(np.nanmean(est_param, axis=(0, 1)))
 
-                    if ground_truth.type == 'Homogeneous' or ground_truth.type == '1D':
-                        gt_param = ground_truth.data
-                    else:
-                        gt_param = copy.copy(ground_truth.data)
-                        if kwargs['mask']:
-                            gt_param[kwargs['mask'].data == False] = np.nan
-                        gt_param = np.nan_to_num(np.nanmean(gt_param, axis=(0, 1)))
+
+                    est_parameter_masked = copy.deepcopy(parameter).resample(common_grid)
+                    est_parameter_masked.apply_mask(common_mask)
+                    est_param = est_parameter_masked.data
+                    est_param[np.bitwise_not(common_mask.data)] = np.nan
+                    est_param = np.nan_to_num(np.nanmean(est_param,axis=(0,1)))
+
+                    gt_param_masked = copy.deepcopy(ground_truth).resample(common_grid)
+                    gt_param_masked.apply_mask(common_mask)
+                    gt_param = gt_param_masked.data
+                    gt_param[np.bitwise_not(common_mask.data)] = np.nan
+                    gt_param = np.nan_to_num(np.nanmean(gt_param,axis=(0,1)))
 
                 fig, ax = plt.subplots()
                 ax.set_title('{} {}'.format(scatterer_name, parameter_name), fontsize=16)
-                ax.plot(est_param, parameter.grid.z, label='Estimated')
-                ax.plot(gt_param, ground_truth.grid.z, label='True')
+                ax.plot(est_param, est_scatterer.grid.z, label='Estimated')
+                ax.plot(gt_param, est_scatterer.grid.z, label='True')
                 ax.legend()
                 ax.set_ylabel('Altitude [km]', fontsize=14)
                 self.tf_writer.add_figure(
@@ -1865,7 +1887,8 @@ class SummaryWriter(object):
                     figure=fig,
                     global_step=self.optimizer.iteration
                 )
-
+        
+        
     def scatter_plot_cbfn(self, kwargs):
         """
         Callback function for monitoring scatter plot of parameters.
@@ -1876,34 +1899,49 @@ class SummaryWriter(object):
             keyword arguments
         """
         for scatterer_name, gt_scatterer in self._ground_truth.items():
+    
             est_scatterer = self.optimizer.medium.get_scatterer(scatterer_name)
+            common_grid = est_scatterer.grid + gt_scatterer.grid
+            a = est_scatterer.get_mask(threshold=0.0).resample(common_grid,method='nearest')
+            b = gt_scatterer.get_mask(threshold=0.0).resample(common_grid,method='nearest')
+            common_mask = shdom.GridData(data=np.bitwise_or(a.data,b.data),grid=common_grid)
+    
             parameters = est_scatterer.estimators.keys() if kwargs['parameters']=='all' else kwargs['parameters']
             for parameter_name in parameters:
                 if parameter_name not in est_scatterer.estimators.keys():
                     continue
                 parameter = est_scatterer.estimators[parameter_name]
-                est_param = parameter.data.ravel()
                 ground_truth = getattr(gt_scatterer, parameter_name)
-                gt_param = ground_truth.data.ravel()
+    
+                est_parameter_masked = copy.copy(parameter).resample(common_grid)
+                est_parameter_masked.apply_mask(common_mask)
+                est_param = est_parameter_masked.data.ravel()
+    
+                gt_param_masked = copy.copy(ground_truth).resample(common_grid)
+                gt_param_masked.apply_mask(common_mask)
+                gt_param = gt_param_masked.data.ravel()
+    
                 rho = np.corrcoef(est_param, gt_param)[1, 0]
                 num_params = gt_param.size
                 rand_ind = np.unique(np.random.randint(0, num_params, int(kwargs['percent'] * num_params)))
                 max_val = max(gt_param.max(), est_param.max())
                 fig, ax = plt.subplots()
                 ax.set_title(r'{} {}: ${:1.0f}\%$ randomly sampled; $\rho={:1.2f}$'.format(scatterer_name, parameter_name, 100 * kwargs['percent'], rho),
-                             fontsize=16)
+                                 fontsize=16)
                 ax.scatter(gt_param[rand_ind], est_param[rand_ind], facecolors='none', edgecolors='b')
                 ax.set_xlim([0, 1.1*max_val])
                 ax.set_ylim([0, 1.1*max_val])
                 ax.plot(ax.get_xlim(), ax.get_ylim(), c='r', ls='--')
                 ax.set_ylabel('Estimated', fontsize=14)
                 ax.set_xlabel('True', fontsize=14)
-
+    
                 self.tf_writer.add_figure(
-                    tag=kwargs['title'].format(scatterer_name, parameter_name),
-                    figure=fig,
-                    global_step=self.optimizer.iteration
-                )
+                        tag=kwargs['title'].format(scatterer_name, parameter_name),
+                        figure=fig,
+                        global_step=self.optimizer.iteration
+                    )
+        
+        
 
     def write_image_list(self, global_step, images, titles, vmax=None):
         """
