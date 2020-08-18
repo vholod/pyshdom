@@ -1,0 +1,10 @@
+/.idea/
+/shdom/core.cpython-37m-x86_64-linux-gnu.so
+/shdom.egg-info/
+/src/core.pyf
+/src/coremodule.c
+/build/
+/dist/
+/mie_tables/
+/vadim/mie_tables/
+/vadim/experiments/

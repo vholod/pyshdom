@@ -10,12 +10,12 @@
 # -------------   Simulation flags  ----------------
 # --------------------------------------------------
 DOFORWARD: True
-DOINVERSE: False
+DOINVERSE: True
 
 # --------------------------------------------------
 # --------------   Use Simple Imager?  --------------
 # --------------------------------------------------
-USE_SIMPLE_IMAGER: False
+USE_SIMPLE_IMAGER: True
 # if it's true, the imager is simple and not loaded from the imagers data set.
 
 
@@ -41,7 +41,7 @@ swir_options:
 # --------------------------------------------------
 # -------------   Cloud & Air Field files  ---------
 # --------------------------------------------------
-CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
+CloudFieldFile: '../synthetic_cloud_fields/BOMEX/BOMEX_48600_bottom_right.txt'
 AirFieldFile: './ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file which contains temperature measurements
 
 
