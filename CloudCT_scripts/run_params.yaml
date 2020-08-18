@@ -27,6 +27,8 @@ vis_options:
   ImportConfigPath: '../notebooks/Gecko_config.json'
   temperature: *temperature # celsius
   true_indices: [0,1,2,3,4,5,6,7,8,9]  # where imagers are located
+  rays_per_pixel: 16
+  rigid_sampling: True
 
 # --------------------------------------------------
 # ------------   SWIR Imager Parameters  ------------
@@ -35,7 +37,8 @@ swir_options:
   ImportConfigPath: '../notebooks/Hypothetic_SWIR_camera_config_50m_nadir_resolution.json'
   temperature: *temperature # celsius
   true_indices: [0,1,2,3,4,5,6,7,8,9]   # where imagers are located, if true_indices: [], no swir imager will be simulated
-
+  rays_per_pixel: 16
+  rigid_sampling: True
 
 
 # --------------------------------------------------
@@ -57,7 +60,7 @@ n_jobs: 28
 # --------------------------------------------------
 Rsat: 500  # orbit altitude, km
 GSD: 0.02  # in km, it is the ground spatial resolution.
-
+#GSD: 0.005 # /4
 
 # --------------------------------------------------
 # -----------------   Wavelengths  -----------------
@@ -125,7 +128,7 @@ vizual_options:
 # -------------------------------------------------
 forward_options:
 
-  SEE_IMAGES: False
+  SEE_IMAGES: True
 
   temp: 5900  # K,  units of W/(m^2))
 

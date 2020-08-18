@@ -35,7 +35,7 @@ class SpaceMultiView_Measurements(object):
          - setup_of_views_list: TODO 
          
          """
-        assert setup_of_views_list is not None, "You must provied the lisst of setup views."
+        assert setup_of_views_list is not None, "You must provied the list of setup views."
         # delete views setup if the imager is inactive in al the views:
         self._setup_of_views_list = []
         for setup_of_views in setup_of_views_list:
@@ -53,6 +53,14 @@ class SpaceMultiView_Measurements(object):
         self._shdom_sensor = None
         # TODO - consider stocks sensor in the future.
         
+    def resample_rays_per_pixel(self):
+        """
+        As we want random sampling of rays in a pixel, we should bettet resample the rays between different rednerings.
+        This method does not change the number of ray that will be sampled per pixel.
+        """
+        for projection_list_per_imager in self._setup_of_views_list:
+            projection_list_per_imager.resample_rays_per_pixel()
+            
         
     def simulate_measurements(self,rte_solvers = None,n_jobs = 1, IF_APPLY_NOISE = False, IF_SCALE_IDEALLY=False, IF_REDUCE_EXPOSURE=False, samples_per_pixel = 1):
         """
@@ -307,7 +315,7 @@ class SpaceMultiView(shdom.MultiViewProjection):
     Inherent from pyshdom MultiViewProjection. We will use the Perspective projection.
     It encapsulates the geometry of the setup and the imager which is used in the same setup. Only one imager can be used here. Thus SpaceMultiView object, should be defined per imager.
     """
-    def __init__(self, imager = None,Imager_config=None, samples_per_pixel = 1):
+    def __init__(self, imager = None,Imager_config=None, samples_per_pixel = 1, rigid_sampling = False):
         super().__init__()
         assert imager is not None, "You must provied the imager object!" 
         self._sat_positions = None # it will be set by set_satellites() and it is np.array.
@@ -320,6 +328,7 @@ class SpaceMultiView(shdom.MultiViewProjection):
         # TODO- consider to use num_channels>1 per one imager.
         self._Imager_config = Imager_config    
         self._samples_per_pixel = samples_per_pixel
+        self._rigid_sampling = rigid_sampling
         
         # TODO - to inplement later:
         """
@@ -333,7 +342,18 @@ class SpaceMultiView(shdom.MultiViewProjection):
             self._unique_wavelengths_list = unique
             print("This setup has {} unique wavelengths".format(unique))  
         """      
-     
+    def resample_rays_per_pixel(self):
+        """
+        As we want random sampling of rays in a pixel, we should bettet resample the rays between different rednerings.
+        This method does it.
+        """
+        assert self.num_projections >0 , "You can not resamples rays per pixels since you have not defined the projections yet."
+        for view_index, (view,view_name) in enumerate(zip(self._projection_list,self._names)):
+            if(view.samples_per_pixel  > 1):
+                
+                #print('View name {} resample its ray directions.'.format(view_name))
+                self._projection_list[view_index].resample_rays_per_pixel()
+        
     def update_views(self,names = None):
         """
         This method does the following:
@@ -357,7 +377,7 @@ class SpaceMultiView(shdom.MultiViewProjection):
                 x,y,z = pos
                 fov = np.rad2deg(self._imager.FOV) 
                 nx, ny = self._imager.get_sensor_resolution()
-                loop_projection = shdom.PerspectiveProjection(fov, nx, ny, x, y, z,samples_per_pixel)
+                loop_projection = shdom.PerspectiveProjection(fov, nx, ny, x, y, z,samples_per_pixel,self._rigid_sampling)
                 loop_projection.look_at_transform(lookat, up)
                 self.add_projection(loop_projection,name)
                 """
@@ -504,7 +524,7 @@ def StringOfPearls(SATS_NUMBER = 10,orbit_altitude = 500):
     return sat_positions.T, near_nadir_view_index
 
 
-def Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500 ,SAT_LOOKATS=None, Imager_config = None, imager=None, samples_per_pixel = 1, VISSETUP = False):
+def Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500 ,SAT_LOOKATS=None, Imager_config = None, imager=None, samples_per_pixel = 1, rigid_sampling = False, VISSETUP = False):
     
     """
     Create the Multiview setup on orbit direct them with lookat vector and set the Imagers at thier locations + orientations.
@@ -545,7 +565,7 @@ def Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500 ,SAT_LOOKATS=None, Imager_confi
     # Work on the Imagers configaration:
     # the list of Imagers is in the SpaceMultiView class:
 
-    MV = SpaceMultiView(imager,Imager_config,samples_per_pixel) # it is the geomerty for spesific imager
+    MV = SpaceMultiView(imager,Imager_config,samples_per_pixel,rigid_sampling) # it is the geomerty for spesific imager
     MV.set_satellites_position_and_lookat(sat_positions,sat_lookats) # here we set only the positions and where the satellites are lookin at.   
     MV.update_views()
     

@@ -456,12 +456,14 @@ class Projection(object):
         Azimuth angle [rad] of the measurements (direction of photons)
     resolution: list
         Resolution is the number of pixels in each dimension (H,W) used to reshape arrays into images.
+    weight: np.array(np.float32)
+        pixel/ray weight of contibution e.g. gradient of rendering
         
     Notes
     -----
     All input arrays are raveled and should be of the same size.
     """
-    def __init__(self, x=None, y=None, z=None, mu=None, phi=None, resolution=None,samples_per_pixel=1):
+    def __init__(self, x=None, y=None, z=None, mu=None, phi=None, weight=None, resolution=None,samples_per_pixel=1):
         self._x = x
         self._y = y
         self._z = z
@@ -469,6 +471,7 @@ class Projection(object):
         self._phi = phi
         self._npix = None
         self._nrays = None
+        self._weight = weight
         # vadim added the consept of samples_per_pixel in the sensor.py.
         self._samples_per_pixel = samples_per_pixel # rays per pixel that will be backprojected to space.
         if type(x)==type(y)==type(z)==type(mu)==type(phi)==np.ndarray:
@@ -484,6 +487,7 @@ class Projection(object):
             z=np.array(self._z[val]), 
             mu=np.array(self._mu[val]), 
             phi=np.array(self._phi[val]),
+            weight=np.array(self._weight[val]),
         )
         return projection
     
@@ -510,10 +514,15 @@ class Projection(object):
         z_split = np.array_split(self.z, n_parts) 
         mu_split = np.array_split(self.mu, n_parts) 
         phi_split = np.array_split(self.phi, n_parts)
+        weight_split = np.array_split(self.weight, n_parts)
+        # Note that here there is no matter what is the samples_per_pixel since the split function
+        # splits the projection such that the rays in one branch may origin from different pixels with different samples per pixel.
+        # So the samples_per_pixel of the projection created bwlow is JUST ONE.
+        # In addition the npix here is also unusable. 
 
         projections = [
-            Projection(x, y, z, mu, phi) for 
-            x, y, z, mu, phi in zip(x_split, y_split, z_split, mu_split, phi_split)
+            Projection(x, y, z, mu, phi, weight) for 
+            x, y, z, mu, phi, weight in zip(x_split, y_split, z_split, mu_split, phi_split,weight_split)
         ]
         return projections
     
@@ -552,6 +561,10 @@ class Projection(object):
     @property 
     def nrays(self):
         return self._nrays 
+    
+    @property 
+    def weight(self):
+        return self._weight
     
     @property
     def samples_per_pixel(self):
@@ -684,8 +697,10 @@ class PerspectiveProjection(HomographyProjection):
         Location in global z coordinates [km] (Up)
     samples: int
         samples per pixel, e.g. rays backprojected per pixel.
+    rigid_sampling: bool
+        When it is False the sampling per pixel is random. When it True, the sampling is rigid.
     """
-    def __init__(self, fov, nx, ny, x, y, z, samples=1):
+    def __init__(self, fov, nx, ny, x, y, z, samples=1,rigid_sampling = False):
         assert samples>=1, "Sample per pixel is an integer >= 1"
         assert int(samples) == samples, "Sample per pixel is an integer >= 1"
         
@@ -708,7 +723,55 @@ class PerspectiveProjection(HomographyProjection):
         self._dy = 2*R[1]/ny # pixel length in y direction in the normalized image plane.
         self._dx = 2*R[0]/nx # pixel length in x direction in the normalized image plane.            
         x_c, y_c, z_c = np.meshgrid(np.linspace(-R[0], R[0]-self._dx, nx), np.linspace(-R[1], R[1]-self._dy, ny), 1.0)                
+
+        # Randomly replicate rays inside each pixel.
+        if(self._samples_per_pixel>1):
+            if(rigid_sampling):
+                # now random sampling but rigid:
+                self._Q = int(round(self._samples_per_pixel**0.5))
+                self._samples_per_pixel = int(self._Q**2) # update with reasonable samples per pixel to enable square uniform sampling
+                Z = np.zeros_like(x_c)
+                x_c_n = np.tile(Z[:, :, np.newaxis], [1, 1, self._samples_per_pixel]).ravel()
+                y_c_n = np.tile(Z[:, :, np.newaxis], [1, 1, self._samples_per_pixel]).ravel()
+                z_c = np.tile(z_c[:, :, np.newaxis], [1, 1, self._samples_per_pixel])
+                for ix in range(nx):
+                    for iy in range(ny):
+                        for ky in range(self._Q):
+                            for kx in range(self._Q):
+                                ind_o = np.ravel_multi_index([ix,iy], (nx,ny))# index in the original grid
+                                ind_n = np.ravel_multi_index([ix,iy,ky,kx], (nx,ny,self._Q,self._Q))# index in the new grid
+                                x_c_n[ind_n] = x_c.ravel()[ind_o] + kx*(self._dx/self._Q)
+                                y_c_n[ind_n] = y_c.ravel()[ind_o] + ky*(self._dy/self._Q)                
+                
+                #x_c = x_c_n.reshape(self._resolution +[self._samples_per_pixel], order='F')
+                #y_c = y_c_n.reshape(self._resolution +[self._samples_per_pixel], order='F')
+                x_c = x_c_n
+                y_c = y_c_n
+                
+            else:
+                x_c = np.tile(x_c[:, :, np.newaxis], [1, 1, self._samples_per_pixel])
+                y_c = np.tile(y_c[:, :, np.newaxis], [1, 1, self._samples_per_pixel])
+                z_c = np.tile(z_c[:, :, np.newaxis], [1, 1, self._samples_per_pixel])
+                x_c += np.random.rand(*x_c.shape)*self._dx
+                y_c += np.random.rand(*y_c.shape)*self._dy  
+            
+        self._homogeneous_coordinates = np.stack([x_c.ravel(), y_c.ravel(), z_c.ravel()])
+        self.update_global_coordinates()
         
+        RandColor = np.random.rand(3) # for visualization purpos
+        self._RandColor = tuple(RandColor.tolist())          
+
+    def resample_rays_per_pixel(self):
+        """
+        As we want random sampling of rays in a pixel, we should bettet resample the rays between different rednerings.
+        This method does it.
+        """        
+        
+        nx, ny = self._resolution
+        M = max(nx,ny)
+        R = np.array([nx,ny])/M # R will be used to scale the sensor meshgrid.
+        x_c, y_c, z_c = np.meshgrid(np.linspace(-R[0], R[0]-self._dx, nx), np.linspace(-R[1], R[1]-self._dy, ny), 1.0)                
+
         # Randomly replicate rays inside each pixel.
         if(self._samples_per_pixel>1):
             
@@ -718,12 +781,12 @@ class PerspectiveProjection(HomographyProjection):
             x_c += np.random.rand(*x_c.shape)*self._dx
             y_c += np.random.rand(*y_c.shape)*self._dy  
             
-        self._homogeneous_coordinates = np.stack([x_c.ravel(), y_c.ravel(), z_c.ravel()])
-        self.update_global_coordinates()
+            self._homogeneous_coordinates = np.stack([x_c.ravel(), y_c.ravel(), z_c.ravel()])
+            self.update_global_coordinates()            
+        else:
+            print('The is only one ray in a pixel in that projection. No resampling will be done.')
         
-        RandColor = np.random.rand(3) # for visualization purpos
-        self._RandColor = tuple(RandColor.tolist())          
-
+         
     def update_global_coordinates(self):
         """
         This is an internal method which is called upon when a rotation matrix is computed to update the global camera coordinates.
@@ -735,7 +798,8 @@ class PerspectiveProjection(HomographyProjection):
         self._phi = (np.arctan2(y_c, x_c) + np.pi).astype(np.float64)
         self._x = np.full(self.npix*self._samples_per_pixel, self.position[0], dtype=np.float32)
         self._y = np.full(self.npix*self._samples_per_pixel, self.position[1], dtype=np.float32)
-        self._z = np.full(self.npix*self._samples_per_pixel, self.position[2], dtype=np.float32)        
+        self._z = np.full(self.npix*self._samples_per_pixel, self.position[2], dtype=np.float32)    
+        self._weight = np.full(self.npix*self._samples_per_pixel, (1/self._samples_per_pixel), dtype=np.float32) 
 
     def look_at_transform(self, point, up):
         """
@@ -954,7 +1018,15 @@ class PerspectiveProjection(HomographyProjection):
     def samples_per_pixel(self,val):
         self._samples_per_pixel = val      
         
-    
+    @property
+    def weight(self):
+        return self._weight
+
+    @weight.setter
+    def weight(self,val):
+        self._weight = val 
+        
+        
 class PrincipalPlaneProjection(Projection):
     """
     Measurments along the principal solar plane.
@@ -1276,7 +1348,7 @@ class MultiViewProjection(Projection):
         if name is None:
             name = 'View{}'.format(self.num_projections)
 
-        attributes = ['x', 'y', 'z', 'mu', 'phi']
+        attributes = ['x', 'y', 'z', 'mu', 'phi', 'weight']
         
         if self.num_projections == 0:
             for attr in attributes:

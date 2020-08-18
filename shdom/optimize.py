@@ -1165,9 +1165,12 @@ class MediumEstimator(shdom.Medium):
             The rendered (synthetic) images.
         """
         if isinstance(projection.npix, list):
-            total_pix = np.sum(projection.npix)
+            total_rays = np.sum(projection.nrays)
         else:
-            total_pix = projection.npix
+            total_rays = projection.nrays
+    
+        rays_weights = projection.weight # pixel/ray weight of contibution to gradient due to samples per pixel introdution, interduced by vadim.
+        print("----> {}".format(np.arccos(projection.mu[0])) )
 
         gradient, loss, images = core.gradient_l2(
             weights=self._stokes_weights[:rte_solver._nstokes],
@@ -1253,9 +1256,10 @@ class MediumEstimator(shdom.Medium):
             camx=projection.x,
             camy=projection.y,
             camz=projection.z,
+            rayweight=rays_weights, 
             cammu=projection.mu,
             camphi=projection.phi,
-            npix=total_pix,
+            npix=total_rays,
             srctype=rte_solver._srctype,
             sfctype=rte_solver._sfctype,
             units=rte_solver._units,
@@ -1307,6 +1311,10 @@ class MediumEstimator(shdom.Medium):
             for imager_index, wavelength in enumerate(imagers_channels):
                 acquired_images = images_dict[imager_index]
                 CloudCT_projection = CloudCT_geometry_and_imagers[imager_index]
+                # resample rays per pixels to imitate random sampling of the rays per pixel:
+                if any(np.array(CloudCT_projection.samples_per_pixel)>1):
+                    CloudCT_projection.resample_rays_per_pixel()
+                    
                 # chack consistensy in the wavelengths:
                 assert wavelength == CloudCT_projection.imager.centeral_wavelength_in_microns,\
                        "There is not consistency between the wavelengths between the imager and the CLoudCT setup measurements."
@@ -1322,8 +1330,10 @@ class MediumEstimator(shdom.Medium):
                     sensor=shdom.RadianceSensor()
                     num_channels = CloudCT_projection.num_channels
                     pixels = []
-                    for image in acquired_images:
-                        pixels.append(image.reshape((-1, num_channels), order='F'))  
+                    for (image, samples_per_pixel) in zip(acquired_images,CloudCT_projection.samples_per_pixel):
+                        # duplicate pixels:
+                        row_pixels = np.repeat(image.reshape((-1, num_channels), order='F'), samples_per_pixel)[:,np.newaxis]
+                        pixels.append(row_pixels)
                         
                     pixels = np.concatenate(pixels, axis=-2)
                 else:
@@ -1371,6 +1381,15 @@ class MediumEstimator(shdom.Medium):
                                             CloudCT_projection,
                                             num_channels)   
                 
+                if any(np.array(CloudCT_projection.samples_per_pixel)>1):
+                                    CloudCT_projection.resample_rays_per_pixel()
+                                    # If any projection has samples_per_pixel > 1, the cost calculated inside GRADIENT_L2 (fortran) is wrong.
+                                    # It is refined here:
+                                    loss_per_imager = 0
+                                    for (i_measured,i) in zip(acquired_images,images_per_imager):
+                                        loss_per_imager += 0.5*np.sum(np.power((i_measured.ravel() - i.ravel()),2))
+                
+                                
                 gradient = np.sum([gradient, gradient_per_imager], axis=0) 
                 loss += loss_per_imager
                 images += images_per_imager
@@ -2235,7 +2254,7 @@ class LocalOptimizer(object):
         self._loss = loss
         self._images = images
         # vadim save gradients for each iteration for debug:
-        SAVE_GRADIENTS_DB = False
+        SAVE_GRADIENTS_DB = True
         if(SAVE_GRADIENTS_DB):
             gredient_save_dir = self.writer.dir + '_gradients'            
             if not os.path.exists(gredient_save_dir):
