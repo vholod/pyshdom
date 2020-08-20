@@ -157,9 +157,9 @@ def CALC_MIE_TABLES(where_to_check_path = './mie_tables',wavelength_micron=None,
                     wavelength_list_final.append(_wavelength_)
                                 
         
-        if(not (wavelength_list_final==[])):
+        if(not (wavelength_list==[])):
             
-            wavelength_string = functools.reduce(operator.add,[str(j)+" " for j in wavelength_list_final]).rstrip()
+            wavelength_string = functools.reduce(operator.add,[str(j)+" " for j in wavelength_list]).rstrip()
             wavelength_arg = ' --wavelength '+wavelength_string
             print(wavelength_arg)
             """

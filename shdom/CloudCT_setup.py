@@ -633,7 +633,7 @@ def old_Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500, CAM_FOV = 0.1, CAM_RES = (
     return MV, near_nadir_view_index
 
 def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, MieTablesPath=None, 
-                   wavelengths_micron=None,wavelength_averaging=False):
+                   wavelengths_micron=None,wavelength_averaging=False, mie_options = None):
     """
     Prepare the medium for the CloudCT simulation:
     1. Generate multi-spectral scatterers for both droplets and air molecules.
@@ -659,7 +659,13 @@ def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, MieTablesPath=None,
     assert CloudFieldFile is not None, "You must provied the cloud field for the simulation."
     droplets = shdom.MicrophysicalScatterer()
     droplets.load_from_csv(CloudFieldFile, veff=0.1)
-    
+
+    # threshold
+    droplets.reff.data[droplets.reff.data >= mie_options['start_reff']] = mie_options['start_reff']
+    droplets.reff.data[droplets.reff.data <= mie_options['end_reff']] = mie_options['end_reff']
+    droplets.veff.data[droplets.veff.data >= mie_options['start_veff']] = mie_options['start_veff']
+    droplets.veff.data[droplets.veff.data >= mie_options['end_veff']] = mie_options['end_veff']
+
     # Air part
     air = shdom.MultispectralScatterer()
     if(AirFieldFile is None):
