@@ -22,34 +22,34 @@ txt file describing the lwc and reff
 
 def main():
     # mie
-    scat_file_path = "/home/yaelsc/PycharmProjects/pyshdom_new/mie_tables/polydisperse/Water_672nm.scat"
+    scat_file_path = "/home/yaelsc/PycharmProjects/pyshdom/mie_tables/polydisperse/Water_672nm.scat"
     exists(scat_file_path, 'scat_file_path not found!')
     # Mie scattering for water droplets
     mie = shdom.MiePolydisperse()
     print("reading the scat table from: {}".format(scat_file_path))
     mie.read_table(scat_file_path)
 
-    csv_path = "/home/yaelsc/PycharmProjects/DataTransdormationToBeta/bomexDataToMat/BOMEX_256x256x100_5000CCN_50m_micro_256/SHDOM_files_25_06_20"
-    out_path = "/home/yaelsc/PycharmProjects/pyshdom_new/CloudCT_nn/Data/lwcs"
-    for csv_txt in glob.glob(os.path.join(csv_path, "*.txt")):
-        cloud_index = csv_txt.split(csv_path)[1].replace('.txt', '').replace('/cloud', '')
+    clouds_txt_path = "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/clouds"
+    clouds_mat_path = "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/lwcs"
+    for cloud_txt_path in glob.glob(os.path.join(clouds_txt_path, "*.txt")):
+        cloud_index = cloud_txt_path.split(clouds_txt_path)[1].replace('.txt', '').replace('/cloud', '')
         print(f'processing cloud {cloud_index}')
-        out_mat = os.path.join(out_path, f'cloud{cloud_index}.mat')
-        exists(csv_txt, 'csv_txt not found!')
-        if os.path.exists(out_mat):
+        cloud_mat_path = os.path.join(clouds_mat_path, f'cloud{cloud_index}.mat')
+        exists(cloud_txt_path, 'csv_txt not found!')
+        if os.path.exists(cloud_mat_path):
             print(f'cloud {cloud_index} already exists! skipping')
             continue
 
         # Generate a Microphysical medium
         droplets = shdom.MicrophysicalScatterer()
-        droplets.load_from_csv(csv_txt, veff=0.1)
+        droplets.load_from_csv(cloud_txt_path, veff=0.1)
 
         # threshold
         run_params = load_run_params(params_path="run_params_cloud_ct_nn_test.yaml")
         mie_options = run_params['mie_options']
-        droplets.reff.data[droplets.reff.data >= mie_options['start_reff']] = mie_options['start_reff']
-        droplets.reff.data[droplets.reff.data <= mie_options['end_reff']] = mie_options['end_reff']
-        droplets.veff.data[droplets.veff.data >= mie_options['start_veff']] = mie_options['start_veff']
+        droplets.reff.data[droplets.reff.data <= mie_options['start_reff']] = mie_options['start_reff']
+        droplets.reff.data[droplets.reff.data >= mie_options['end_reff']] = mie_options['end_reff']
+        droplets.veff.data[droplets.veff.data <= mie_options['start_veff']] = mie_options['start_veff']
         droplets.veff.data[droplets.veff.data >= mie_options['end_veff']] = mie_options['end_veff']
 
         droplets.add_mie(mie)
@@ -59,8 +59,8 @@ def main():
         extinction_data = extinction.data  # 1/km
 
         # save extintcion as mat file:
-        sio.savemat(out_mat, dict(beta=extinction_data, lwc=droplets.lwc.data, reff=droplets.reff.data, veff=droplets.veff.data))
-        print("saving the .mat file to: {}".format(out_mat))
+        sio.savemat(cloud_mat_path, dict(beta=extinction_data, lwc=droplets.lwc.data, reff=droplets.reff.data, veff=droplets.veff.data))
+        print("saving the .mat file to: {}".format(cloud_mat_path))
         print('finished')
 
         """

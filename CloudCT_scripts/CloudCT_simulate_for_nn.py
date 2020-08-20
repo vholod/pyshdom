@@ -744,7 +744,8 @@ if __name__ == '__main__':
     satellites_images_path = "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/satellites_images/satellites_images_*.mat"
     satellites_images_indices = [i.split('satellites_images/satellites_images_')[1].split('.mat')[0] for i in
                                  glob.glob(satellites_images_path)]
-    num_workers = 10
+
+    num_workers = 20
     cloud_indices_chunks = np.array_split(
         np.setdiff1d(
             [i.split('clouds/cloud')[1].split('.txt')[0] for i in glob.glob(clouds_path)],

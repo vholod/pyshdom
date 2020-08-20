@@ -661,11 +661,10 @@ def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, MieTablesPath=None,
     droplets.load_from_csv(CloudFieldFile, veff=0.1)
 
     # threshold
-    droplets.reff.data[droplets.reff.data >= mie_options['start_reff']] = mie_options['start_reff']
-    droplets.reff.data[droplets.reff.data <= mie_options['end_reff']] = mie_options['end_reff']
-    droplets.veff.data[droplets.veff.data >= mie_options['start_veff']] = mie_options['start_veff']
+    droplets.reff.data[droplets.reff.data <= mie_options['start_reff']] = mie_options['start_reff']
+    droplets.reff.data[droplets.reff.data >= mie_options['end_reff']] = mie_options['end_reff']
+    droplets.veff.data[droplets.veff.data <= mie_options['start_veff']] = mie_options['start_veff']
     droplets.veff.data[droplets.veff.data >= mie_options['end_veff']] = mie_options['end_veff']
-
     # Air part
     air = shdom.MultispectralScatterer()
     if(AirFieldFile is None):
