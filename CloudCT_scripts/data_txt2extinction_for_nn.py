@@ -33,8 +33,12 @@ def main():
     out_path = "/home/yaelsc/PycharmProjects/pyshdom_new/CloudCT_nn/Data/lwcs"
     for csv_txt in glob.glob(os.path.join(csv_path, "*.txt")):
         cloud_index = csv_txt.split(csv_path)[1].replace('.txt', '').replace('/cloud', '')
+        print(f'processing cloud {cloud_index}')
         out_mat = os.path.join(out_path, f'cloud{cloud_index}.mat')
         exists(csv_txt, 'csv_txt not found!')
+        if os.path.exists(out_mat):
+            print(f'cloud {cloud_index} already exists! skipping')
+            continue
 
         # Generate a Microphysical medium
         droplets = shdom.MicrophysicalScatterer()

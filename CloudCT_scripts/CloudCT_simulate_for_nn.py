@@ -1,3 +1,4 @@
+import concurrent.futures
 import csv
 import logging
 from shutil import copyfile
@@ -7,7 +8,7 @@ import yaml
 
 from shdom import CloudCT_setup, plank
 from shdom.CloudCT_Utils import *
-import concurrent.futures
+
 
 def main(cloud_indices):
     logger = create_and_configer_logger(log_name='run_tracker.log')
@@ -354,7 +355,7 @@ def main(cloud_indices):
 
             logger.debug("Inverse phase complete")
 
-        logger.debug(f"--------------- End for cloud {cloud_index} , {time.time()-start_time} sec---------------")
+        logger.debug(f"--------------- End for cloud {cloud_index} , {time.time() - start_time} sec---------------")
 
     return vis_max_radiance_list, swir_max_radiance_list
 
@@ -740,7 +741,13 @@ def load_run_params(params_path):
 
 if __name__ == '__main__':
     clouds_path = "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/clouds/cloud*.txt"
+    satellites_images_path = "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/satellites_images/satellites_images_*.mat"
+    satellites_images_indices = [i.split('satellites_images/satellites_images_')[1].split('.mat')[0] for i in
+                                 glob.glob(satellites_images_path)]
     num_workers = 10
-    cloud_indices_chunks = np.array_split([i.split('clouds/cloud')[1].split('.txt')[0] for i in glob.glob(clouds_path)],num_workers)
+    cloud_indices_chunks = np.array_split(
+        np.setdiff1d(
+            [i.split('clouds/cloud')[1].split('.txt')[0] for i in glob.glob(clouds_path)],
+            satellites_images_indices), num_workers)
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
         future_to_url = {executor.submit(main, cloud_indices_chunks[i]) for i in np.arange(num_workers)}
