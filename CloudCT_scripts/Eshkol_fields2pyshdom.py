@@ -1,20 +1,27 @@
-import os
-import sys
 import mayavi.mlab as mlab
 import scipy.io as sio
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import shdom
-from shdom import CloudCT_setup, float_round
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import subprocess
-from mpl_toolkits.axes_grid1 import AxesGrid
-import time
-import glob
+from shdom import float_round
+import matplotlib.pyplot as plt
+import mayavi.mlab as mlab
+import numpy as np
+import scipy.io as sio
+
+import shdom
+from shdom import float_round
+
+try:
+    from roipoly import RoiPoly
+    # I take it from: https://github.com/jdoepfert/roipoly.py
+    # Based on a code snippet originally posted by Daniel Kornhauser
+    # (http://matplotlib.1069221.n5.nabble.com/How-to-draw-a-region-of-interest-td4972.html).
+except:
+    raise  # so do pip install roipoly
 
 
-# from CloudCT_Utils import *
+data_path = '/home/shubi/PycharmProjects/pyshdom/data/BOMEX_512x512x170_500CCN_20m_micro_256_0000048600_ONLY_RE_VE_LWC.mat'  # '../WIZ_Clouds/BOMEX_256x256x100_5000CCN_50m_micro_256_0000007740_ONLY_RE_VE_LWC_NC.mat'
 
 
 # -----functions------------------------------------:
@@ -61,11 +68,13 @@ ygrid = np.linspace(y_min, y_max, ny)
 # -------------------------------------------
 
 # load 3d data:
-data_path = '/home/shubi/PycharmProjects/pyshdom/data/BOMEX_512x512x170_500CCN_20m_micro_256_0000048600_ONLY_RE_VE_LWC.mat'  # '../WIZ_Clouds/BOMEX_256x256x100_5000CCN_50m_micro_256_0000007740_ONLY_RE_VE_LWC_NC.mat'
 data3d = sio.loadmat(data_path)
 lwc = data3d['lwc']
 reff = data3d['reff']
 veff = data3d['veff']
+x, y, z = data3d['x'], data3d['y'], data3d['y']
+
+
 # assert float_round(dx) == float_round(data3d['dx'][0][0]), 'dab data discription!'
 # assert float_round(dy) == float_round(data3d['dy'][0][0]), 'dab data discription!'
 # assert float_round(dz) == float_round(data3d['dz'][0][0]), 'dab data discription!'
@@ -124,13 +133,6 @@ The new mediume will be padded with zeros on its outer boundaries.
 """
 
 fig = plt.figure(figsize=(20, 20))
-try:
-    from roipoly import RoiPoly
-    # I take it from: https://github.com/jdoepfert/roipoly.py
-    # Based on a code snippet originally posted by Daniel Kornhauser
-    # (http://matplotlib.1069221.n5.nabble.com/How-to-draw-a-region-of-interest-td4972.html).
-except:
-    raise  # so do pip install roipoly
 
 plt.imshow(High_map, vmin=0, vmax=np.amax(High_map))
 plt.title('Full High map')
