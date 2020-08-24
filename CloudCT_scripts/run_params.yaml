@@ -41,7 +41,7 @@ swir_options:
 # --------------------------------------------------
 # -------------   Cloud & Air Field files  ---------
 # --------------------------------------------------
-CloudFieldFile: '../synthetic_cloud_fields/BOMEX/BOMEX_48600_bottom_right.txt'
+CloudFieldFile: '../synthetic_cloud_fields/BOMEX/BOMEX_21600_26x30x33_1.txt'
 #CloudFieldFile: '../WIZ_Clouds/cloud1261.txt'
 AirFieldFile: '../ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file which contains temperature measurements
 

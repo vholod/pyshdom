@@ -48,7 +48,7 @@ def main():
             simple_type='swir')
 
     SATS_NUMBER_SETUP = run_params['SATS_NUMBER_SETUP']
-
+    cloud_name = run_params['CloudFieldFile'].split('/')[-1]
     # where to save the forward outputs:
     if USESWIR:
         forward_dir = f'../CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_{int(1e3 * vis_wavelength_range[0])}-' \
@@ -56,16 +56,16 @@ def main():
                       f'GSD_{int(1e3 * vis_pixel_footprint)}m_and' \
                       f'_SWIR_{int(1e3 * swir_wavelength_range[0])}-{int(1e3 * swir_wavelength_range[1])}' \
                       f'nm_active_sats_{SATS_NUMBER_SETUP}_GSD_{int(1e3 * swir_pixel_footprint)}m' \
-                      f'_LES_cloud_field_rico'
+                      f"_LES_cloud_field_{cloud_name.split('_')[0]}"
     else:
         forward_dir = f'../CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_{int(1e3 * vis_wavelength_range[0])}-' \
                       f'{int(1e3 * vis_wavelength_range[1])}nm_active_sats_{SATS_NUMBER_SETUP}_' \
                       f'GSD_{int(1e3 * vis_pixel_footprint)}m' \
-                      f'_LES_cloud_field_rico'
+                      f"_LES_cloud_field_{cloud_name.split('_')[0]}"
 
     # inverse_dir, where to save everything that is related to invers model:
     inverse_dir = forward_dir  # TODO not in use
-    log_name_base = f'active_sats_{SATS_NUMBER_SETUP}_easiest_rico32x37x26'
+    log_name_base = f"active_sats_{SATS_NUMBER_SETUP}_{cloud_name}"
     # Write intermediate TensorBoardX results into log_name.
     # The provided string is added as a comment to the specific run.
 
