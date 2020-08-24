@@ -20,14 +20,13 @@ try:
 except:
     raise  # so do pip install roipoly
 
-
-data_path = '/home/shubi/PycharmProjects/pyshdom/data/BOMEX_512x512x170_500CCN_20m_micro_256_0000048600_ONLY_RE_VE_LWC.mat'  # '../WIZ_Clouds/BOMEX_256x256x100_5000CCN_50m_micro_256_0000007740_ONLY_RE_VE_LWC_NC.mat'
+data_path = '../data/BOMEX_512x512x170_500CCN_20m_micro_256_0000021600_ONLY_RE_VE_LWC.mat'  # '../WIZ_Clouds/BOMEX_256x256x100_5000CCN_50m_micro_256_0000007740_ONLY_RE_VE_LWC_NC.mat'
 
 
 # -----functions------------------------------------:
 def calc_high_map(volumefield, zgrid):
     """
-    Extracts top of the clouds. 
+    Extracts top of the clouds.
 
     """
     nx, ny, nz = volumefield.shape
@@ -38,42 +37,30 @@ def calc_high_map(volumefield, zgrid):
     return high_map
 
 
-# Python program showing  
-# a use of input() to ask the user to set the name of the cloud field 
+# ask the user to set the name of the cloud field
 file_name = input("Enter file name of the new cloud field: ")
 file_name = file_name + '.txt'
 
-# eshkols fields parameters:
-nx = 512
-ny = 512
-nz = 170
-# I always do the padding. I Pad with zeros on the sides.
-# So:
-nx = nx + 2
-ny = ny + 2
-
-dx, dy, dz = (1e-3 * 50, 1e-3 * 50, 1e-3 * 40)  # in km
-# for debug use: dx,dy,dz=(1,1,1) # in km
-# the above parameters should be known in advence.
-z_min = 0
-z_max = dz * (nz - 1)
-x_min = 0
-x_max = dx * (nx - 1)
-y_min = 0
-y_max = dy * (ny - 1)
-
-zgrid = np.linspace(z_min, z_max, nz)
-xgrid = np.linspace(x_min, x_max, nx)
-ygrid = np.linspace(y_min, y_max, ny)
-# -------------------------------------------
-
 # load 3d data:
+print(f'load {data_path}')
 data3d = sio.loadmat(data_path)
 lwc = data3d['lwc']
 reff = data3d['reff']
 veff = data3d['veff']
-x, y, z = data3d['x'], data3d['y'], data3d['y']
-
+# get relevant params
+xgrid, ygrid, zgrid = np.round(data3d['x'].flatten() * 1e-3, 3), np.round(data3d['y'].flatten() * 1e-3, 3), np.round(
+    data3d['z'].flatten() * 1e-3, 3)
+nx, ny, nz = len(xgrid), len(ygrid), len(zgrid)
+print(f"nx:{nx}, ny:{ny}, nz:{nz}")
+x_min, y_min, z_min = xgrid.min(), ygrid.min(), zgrid.min()
+x_max, y_max, z_max = xgrid.max(), ygrid.max(), zgrid.max()
+print("x_min, y_min, z_min, x_max, y_max, z_max:", x_min, y_min, z_min, x_max, y_max, z_max)
+# Compute dx, dy
+dx = np.unique(np.round(np.diff(xgrid),3))
+dy = np.unique(np.round(np.diff(ygrid),3))
+print(f'dx:{dx},dy:{dy}')
+assert (len(dx) == 1) and (len(dy) == 1), 'dx or dy are not uniform'
+dx, dy = dx[0], dy[0]
 
 # assert float_round(dx) == float_round(data3d['dx'][0][0]), 'dab data discription!'
 # assert float_round(dy) == float_round(data3d['dy'][0][0]), 'dab data discription!'
@@ -190,7 +177,7 @@ new_field = new_field[:, :, min_z_index:max_z_index]
 # So:
 
 min_z_coordinates = float_round(zgrid[min_z_index])
-max_z_coordinates = float_round(zgrid[max_z_index] - dz)
+max_z_coordinates = float_round(zgrid[max_z_index-1]) # TODO makesure equivalent to -dz (40*1e-3) instead of -1 index
 
 # The +- ds is becouse of the padding
 min_x_coordinates = float_round(min_x_coordinates - dx)
