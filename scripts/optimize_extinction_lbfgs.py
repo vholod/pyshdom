@@ -3,6 +3,8 @@ import numpy as np
 import argparse
 import shdom
 import scipy.io as sio
+import logging
+
 
 class OptimizationScript(object):
     """
@@ -406,40 +408,73 @@ class OptimizationScript(object):
         else:
             result = local_optimizer.minimize()
 
-        print('\n------------------ Optimization Finished ------------------\n')
-        print('Number global iterations: {}'.format(num_global_iter))
-        print('Success: {}'.format(result.success))
-        print('Message: {}'.format(result.message))
-        print('Final loss: {}'.format(result.fun))
-        print('Number iterations: {}'.format(result.nit))
+        logging.getLogger('matplotlib').setLevel(logging.ERROR)
+
+        logger = create_and_configer_logger(log_name='../CloudCT_scripts/run_tracker.log')
+        logger.debug('------------------ Optimization Finished ------------------')
+        logger.debug(f'Number global iterations: {num_global_iter}')
+        logger.debug(f'Success: {result.success}')
+        logger.debug(f'Message: {result.message}')
+        logger.debug(f'Final loss: {result.fun}')
+        logger.debug(f'Number iterations: {result.nit}')
 
         # Save optimizer state
         save_dir = local_optimizer.writer.dir if self.args.log is not None else self.args.input_dir
         local_optimizer.save_state(os.path.join(save_dir, 'final_state.ckpt'))
 
         # vadim added to save final 3D reconstructions:
-        if(self.args.save_final3d):  
+        if(self.args.save_final3d):
             ground_truth = self.get_ground_truth()
             #if not isinstance(ground_truth, shdom.MicrophysicalScatterer):
-                ## If we here, it means that the optimization was called on extinction and not for microphysics.
-                #GT_parameter = ground_truth.extinction.data = ground_truth.extinction.data
-                
+            ## If we here, it means that the optimization was called on extinction and not for microphysics.
+            #GT_parameter = ground_truth.extinction.data = ground_truth.extinction.data
+
             rec_scatterer = local_optimizer.medium.get_scatterer(name=self.scatterer_name)
             # local_optimizer.medium is shdom.optimize.MediumEstimator object.
             for parameter_name, parameter in rec_scatterer.estimators.items():
-                rec_param = parameter.data 
+                rec_param = parameter.data
                 try:
                     dx = parameter.grid.dx
                     dy = parameter.grid.dy
                 except AttributeError:
                     dx = -1
                     dy = -1
-                    
+
                 nz = parameter.grid.nz
                 dz = (parameter.grid.zmax - parameter.grid.zmin)/nz
                 GT_parameter = ground_truth.__getattribute__(parameter_name).data
                 sio.savemat(os.path.join(save_dir,'FINAL_3D_{}.mat'.format(parameter_name)), {'GT':GT_parameter,parameter_name:rec_param,'dx':dx,'dy':dy,'dz':dz})
             
+
+# add by shubi to log final optimization parameters
+def create_and_configer_logger(log_name):
+    """
+    TODO
+    Args:
+        log_name ():
+
+    Returns:
+
+    """
+    # set up logging to file
+    logging.basicConfig(
+        filename=log_name,
+        level=logging.DEBUG,
+        format='[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s'
+    )
+
+    # set up logging to console
+    console = logging.StreamHandler()
+    console.setLevel(logging.DEBUG)
+    # set a format which is simpler for console use
+    formatter = logging.Formatter('[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s')
+    console.setFormatter(formatter)
+    # add the handler to the root logger
+    logging.getLogger('').addHandler(console)
+
+    logger = logging.getLogger(__name__)
+    return logger
+
 
 if __name__ == "__main__":
     script = OptimizationScript(scatterer_name='cloud')
