@@ -317,7 +317,7 @@ def main():
         write_to_run_tracker(forward_dir=forward_dir, msg=[time.strftime("%d-%b-%Y-%H:%M:%S"), log_name, cmd])
 
         logger.debug(f'Starting Inverse: {cmd}')
-        log2load = os.path.join(forward_dir,'logs',log_name+'USER_CHOOSE_TIME')
+        log2load = os.path.join(forward_dir, 'logs')
         logger.debug(f'tensorboard command: tensorboard --logdir {log2load} --bind_all')
 
         _ = subprocess.call(cmd, shell=True)
@@ -681,7 +681,7 @@ def create_and_configer_logger(log_name):
     console = logging.StreamHandler()
     console.setLevel(logging.DEBUG)
     # set a format which is simpler for console use
-    formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
+    formatter = logging.Formatter('[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s')
     console.setFormatter(formatter)
     # add the handler to the root logger
     logging.getLogger('').addHandler(console)
