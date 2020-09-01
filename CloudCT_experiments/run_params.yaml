@@ -42,7 +42,8 @@ swir_options:
 # -------------   Cloud & Air Field files  ---------
 # --------------------------------------------------
 
-CloudFieldFile: '/wdata/clouds_from_weizmann/BOMEX_512X512X170_500CCN_20m/cropped/BOMEX_21720_30x36x18_o2.txt'
+#CloudFieldFile: '/wdata/clouds_from_weizmann/BOMEX_512X512X170_500CCN_20m/cropped/BOMEX_21720_30x36x18_o2.txt'
+CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
 AirFieldFile: '../ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file which contains temperature measurements
 
 
@@ -99,11 +100,11 @@ radiance_threshold: [0.023, 0.02] # Threshold is either a scalar or a list of le
 # -------------   mia table parameters  -----------
 # -------------------------------------------------
 mie_options:
-  start_reff: 2.0 # Starting effective radius [Micron]
+  start_reff: 4.0 # Starting effective radius [Micron]
   end_reff: 25.0
   num_reff: 100
   start_veff: 0.01
-  end_veff: 0.5 # return it to 0.4
+  end_veff: 0.4 # return it to 0.4
   num_veff: 117
   radius_cutoff: 65.0 # The cutoff radius for the pdf averaging [Micron]
   wavelength_resolution: 0.001 # it is the delta in the wavelengths (microns) for the optical parameters avaraging inside shdom.
