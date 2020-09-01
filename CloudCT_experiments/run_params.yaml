@@ -41,8 +41,8 @@ swir_options:
 # --------------------------------------------------
 # -------------   Cloud & Air Field files  ---------
 # --------------------------------------------------
-CloudFieldFile: '../synthetic_cloud_fields/BOMEX/BOMEX_21600_26x30x33_1.txt'
-#CloudFieldFile: '../WIZ_Clouds/cloud1261.txt'
+
+CloudFieldFile: '/wdata/clouds_from_weizmann/BOMEX_512X512X170_500CCN_20m/cropped/BOMEX_21720_30x36x18_o2.txt'
 AirFieldFile: '../ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file which contains temperature measurements
 
 
@@ -173,7 +173,7 @@ inverse_options:
 
   # Initialization and Medium parameters:
   lwc: 0.01  # init lwc of the generator
-  reff: 12 # init reff of the generator
+  reff: 6 # init reff of the generator
   veff: 0.19 # init veff of the generator
 
   # Scaling params when recovering reff and lwc:

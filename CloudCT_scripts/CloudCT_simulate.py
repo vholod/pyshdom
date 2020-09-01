@@ -10,13 +10,10 @@ from shdom.CloudCT_Utils import *
 
 def main():
     
-    logger = create_and_configer_logger(log_name='run_tracker.log')
+    logger = create_and_configer_logger(log_name='../CloudCT_experiments/run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
-    run_params = load_run_params(params_path="run_params.yaml")
-    # run_params['sun_zenith'] = sun_zenith # if you need to set the angle from main's input
-    # logger.debug(f"New Run with sun zenith {run_params['sun_zenith']} (overrides yaml)")
-
+    run_params = load_run_params(params_path="../CloudCT_experiments/run_params.yaml")
 
     """
         Here load the imagers, the imagers dictates the spectral bands of the rte solver and rendering.
