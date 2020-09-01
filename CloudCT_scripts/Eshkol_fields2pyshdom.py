@@ -8,19 +8,67 @@ import matplotlib.pyplot as plt
 import mayavi.mlab as mlab
 import numpy as np
 import scipy.io as sio
-
+import os
 import shdom
 from shdom import float_round
+import logging
 
 try:
     from roipoly import RoiPoly
     # I take it from: https://github.com/jdoepfert/roipoly.py
     # Based on a code snippet originally posted by Daniel Kornhauser
     # (http://matplotlib.1069221.n5.nabble.com/How-to-draw-a-region-of-interest-td4972.html).
-except:
-    raise  # so do pip install roipoly
+except ModuleNotFoundError as e:
+    print(e)  # so do pip install roipoly
 
-data_path = '../data/BOMEX_512x512x170_500CCN_20m_micro_256_0000021600_ONLY_RE_VE_LWC.mat'  # '../WIZ_Clouds/BOMEX_256x256x100_5000CCN_50m_micro_256_0000007740_ONLY_RE_VE_LWC_NC.mat'
+# ask the user to set the name of the cloud field
+while True:
+    try:
+        is_bomex_or_cass = input("Enter B for BOMEX or C for CASS Clouds Fields: ")
+        if is_bomex_or_cass in 'BC':
+            break
+        print("Invalid cloud field entered.")
+    except Exception as e:
+        print(e)
+
+cloud_id = input("Enter last 5 digits of cloud id:")
+
+base_path = '/wdata/clouds_from_weizmann/CASS_50m_256x256x139_600CCN' if is_bomex_or_cass == 'C' else '/wdata/clouds_from_weizmann/BOMEX_512X512X170_500CCN_20m'
+cloud_name = f'CASS_256x256x139_50m_600CNN_micro_256_00000{cloud_id}_ONLY_RE_VE_LWC.mat' if is_bomex_or_cass == 'C' else f'BOMEX_512x512x170_500CCN_20m_micro_256_00000{cloud_id}_ONLY_RE_VE_LWC.mat'
+
+data_path = os.path.join(base_path, 'processed', cloud_name)
+
+
+def create_and_configer_logger(log_name):
+    """
+    TODO
+    Args:
+        log_name ():
+
+    Returns:
+
+    """
+    # set up logging to file
+    logging.basicConfig(
+        filename=log_name,
+        level=logging.INFO,
+        format='[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s'
+    )
+
+    # set up logging to console
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    # set a format which is simpler for console use
+    formatter = logging.Formatter('[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s')
+    console.setFormatter(formatter)
+    # add the handler to the root logger
+    logging.getLogger('').addHandler(console)
+
+    logger = logging.getLogger(__name__)
+    return logger
+
+
+logger = create_and_configer_logger('WIZ_Fields_to_mat_log.log')
 
 
 # -----functions------------------------------------:
@@ -37,12 +85,9 @@ def calc_high_map(volumefield, zgrid):
     return high_map
 
 
-# ask the user to set the name of the cloud field
-file_name = input("Enter file name of the new cloud field: ")
-file_name = file_name + '.txt'
-
 # load 3d data:
-print(f'load {data_path}')
+logger.info('------------- New Crop ---------------')
+logger.info(f'load {data_path}')
 data3d = sio.loadmat(data_path)
 lwc = data3d['lwc']
 reff = data3d['reff']
@@ -51,14 +96,14 @@ veff = data3d['veff']
 xgrid, ygrid, zgrid = np.round(data3d['x'].flatten() * 1e-3, 3), np.round(data3d['y'].flatten() * 1e-3, 3), np.round(
     data3d['z'].flatten() * 1e-3, 3)
 nx, ny, nz = len(xgrid), len(ygrid), len(zgrid)
-print(f"nx:{nx}, ny:{ny}, nz:{nz}")
+logger.info(f"nx:{nx}, ny:{ny}, nz:{nz}")
 x_min, y_min, z_min = xgrid.min(), ygrid.min(), zgrid.min()
 x_max, y_max, z_max = xgrid.max(), ygrid.max(), zgrid.max()
-print("x_min, y_min, z_min, x_max, y_max, z_max:", x_min, y_min, z_min, x_max, y_max, z_max)
+logger.info(f"x_min, y_min, z_min, x_max, y_max, z_max:{x_min}, {y_min}, {z_min}, {x_max}, {y_max}, {z_max}")
 # Compute dx, dy
-dx = np.unique(np.round(np.diff(xgrid),3))
-dy = np.unique(np.round(np.diff(ygrid),3))
-print(f'dx:{dx},dy:{dy}')
+dx = np.unique(np.round(np.diff(xgrid), 3))
+dy = np.unique(np.round(np.diff(ygrid), 3))
+logger.info(f'dx:{dx},dy:{dy}')
 assert (len(dx) == 1) and (len(dy) == 1), 'dx or dy are not uniform'
 dx, dy = dx[0], dy[0]
 
@@ -144,11 +189,11 @@ min_y_index = min(Ypoints)
 max_x_index = max(Xpoints)
 max_y_index = max(Ypoints)
 
-print("when cut from high map")
-print("The min_x_index is {}\n".format(min_x_index))
-print("The min_y_index is {}\n".format(min_y_index))
-print("The max_x_index is {}\n".format(max_x_index))
-print("The max_y_index is {}\n".format(max_y_index))
+logger.info("when cut from high map")
+logger.info("The min_x_index is {}".format(min_x_index))
+logger.info("The min_y_index is {}".format(min_y_index))
+logger.info("The max_x_index is {}".format(max_x_index))
+logger.info("The max_y_index is {}".format(max_y_index))
 
 # I always have the problem with the rounding (e.g. 0.2400000000014 or 0.2399999999), so I use Utils.float_round
 min_x_coordinates = float_round(xgrid[min_x_index])
@@ -177,7 +222,7 @@ new_field = new_field[:, :, min_z_index:max_z_index]
 # So:
 
 min_z_coordinates = float_round(zgrid[min_z_index])
-max_z_coordinates = float_round(zgrid[max_z_index-1]) # TODO makesure equivalent to -dz (40*1e-3) instead of -1 index
+max_z_coordinates = float_round(zgrid[max_z_index - 1])
 
 # The +- ds is becouse of the padding
 min_x_coordinates = float_round(min_x_coordinates - dx)
@@ -194,11 +239,11 @@ new_nx = max_x_index - min_x_index + 2
 new_ny = max_y_index - min_y_index + 2
 new_nz = max_z_index - min_z_index
 
-print("After the cut from high map")
-print("The min_x_coordinates is {}\n".format(min_x_coordinates))
-print("The min_y_coordinates is {}\n".format(min_y_coordinates))
-print("The max_x_coordinates is {}\n".format(max_x_coordinates))
-print("The max_y_coordinates is {}\n".format(max_y_coordinates))
+logger.info("After the cut from high map")
+logger.info("The min_x_coordinates is {}".format(min_x_coordinates))
+logger.info("The min_y_coordinates is {}".format(min_y_coordinates))
+logger.info("The max_x_coordinates is {}".format(max_x_coordinates))
+logger.info("The max_y_coordinates is {}".format(max_y_coordinates))
 
 # -------------------------------------------------------------
 # set every thing new:
@@ -234,7 +279,10 @@ new_medium.show_scatterer(name='clouds')
 mlab.title('new volume')
 
 # save the txt file:
-new_droplets.save_to_csv(file_name, comment_line='a part of the data of Eshkol april 2020')
+new_cloud_name = f"{cloud_name.split('_')[0]}_{cloud_id}_{new_nx}x{new_ny}x{new_nz}_{''.join([str(elem) for elem in np.random.randint(low=0, high=9, size=4)])}"
+file_name = os.path.join(base_path, 'cropped', new_cloud_name)
+new_droplets.save_to_csv(file_name, comment_line='a part of the data of Eshkol August 2020')
+logger.info(f'saving to {file_name}')
 # Test the creation of new txt file:
 test_droplets = shdom.MicrophysicalScatterer()
 test_droplets.load_from_csv(file_name)
@@ -248,4 +296,4 @@ mlab.title('test volume')
 
 mlab.show()
 
-print('done')
+logger.info('done')
