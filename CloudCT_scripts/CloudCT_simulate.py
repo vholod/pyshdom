@@ -227,7 +227,7 @@ def main():
 
         # ---------RTE SOLVE ----------------------------
         rte_solvers.solve(maxiter=forward_options['rte_solver_max_iter'])
-
+        #rte_solvers.solve(maxiter=1)
         # -----------------------------------------------
         # ---------RENDER IMAGES FOR CLOUDCT SETUP ------
         # -----------------------------------------------
