@@ -1,6 +1,7 @@
 import concurrent.futures
 import csv
 import logging
+import shutil
 from shutil import copyfile
 
 import matplotlib.pyplot as plt
@@ -311,50 +312,57 @@ def main(cloud_indices):
 
         # ---------SOLVE INVERSE ------------------------
         if run_params['DOINVERSE']:
-            inverse_options = run_params['inverse_options']
+            try:
+                inverse_options = run_params['inverse_options']
 
-            # See the simulated images:
-            if inverse_options['SEE_IMAGES']:
-                # load the cloudct measurments to see the rendered images:
-                medium, solver, CloudCT_measurements = shdom.load_CloudCT_measurments_and_forward_model(forward_dir)
-                # A CloudCT Measurements object bundles together imaging geometry and sensor measurements for later optimization
-                CloudCT_measurements.show_measurments()
-                plt.show()
+                # See the simulated images:
+                if inverse_options['SEE_IMAGES']:
+                    # load the cloudct measurments to see the rendered images:
+                    medium, solver, CloudCT_measurements = shdom.load_CloudCT_measurments_and_forward_model(forward_dir)
+                    # A CloudCT Measurements object bundles together imaging geometry and sensor measurements for later optimization
+                    CloudCT_measurements.show_measurments()
+                    plt.show()
 
-            # ---------what to optimize----------------------------
-            run_type = inverse_options['recover_type'] if inverse_options['MICROPHYSICS'] else 'extinction'
+                # ---------what to optimize----------------------------
+                run_type = inverse_options['recover_type'] if inverse_options['MICROPHYSICS'] else 'extinction'
 
-            log_name = run_type + "_only_" + log_name_base
+                log_name = run_type + "_only_" + log_name_base
 
-            cmd = create_inverse_command(run_params=run_params, inverse_options=inverse_options,
-                                         vizual_options=vizual_options,
-                                         forward_dir=forward_dir, AirFieldFile=AirFieldFile,
-                                         run_type=run_type, log_name=log_name)
+                cmd = create_inverse_command(run_params=run_params, inverse_options=inverse_options,
+                                             vizual_options=vizual_options,
+                                             forward_dir=forward_dir, AirFieldFile=AirFieldFile,
+                                             run_type=run_type, log_name=log_name)
 
-            dump_run_params(run_params=run_params, dump_dir=forward_dir)
+                dump_run_params(run_params=run_params, dump_dir=forward_dir)
 
-            write_to_run_tracker(forward_dir=forward_dir, msg=[time.strftime("%d-%b-%Y-%H:%M:%S"), log_name, cmd])
+                write_to_run_tracker(forward_dir=forward_dir, msg=[time.strftime("%d-%b-%Y-%H:%M:%S"), log_name, cmd])
 
-            logger.debug(f'Starting Inverse: {cmd}')
-            log2load = os.path.join(forward_dir, 'logs', log_name + 'USER_CHOOSE_TIME')
-            logger.debug(f'tensorboard command: tensorboard --logdir {log2load} --bind_all')
+                logger.debug(f'Starting Inverse: {cmd}')
+                log2load = os.path.join(forward_dir, 'logs', log_name + 'USER_CHOOSE_TIME')
+                logger.debug(f'tensorboard command: tensorboard --logdir {log2load} --bind_all')
 
-            _ = subprocess.call(cmd, shell=True)
+                inverse_start_time = time.time()
 
-            # Time to show the results in 3D visualization:
-            if inverse_options['VIS_RESULTS3D']:
-                # TODO wavelength_micron=wavelengths_micron[0] is just placeholder for?
-                Final_results_3Dfiles = visualize_results(forward_dir=forward_dir, log_name=log_name,
-                                                          wavelength_micron=wavelengths_micron[0])
+                _ = subprocess.call(cmd, shell=True)
 
-            # save lwc and reff for neural network
-            copyfile(Final_results_3Dfiles[0], os.path.join(run_params['neural_network']['lwcs_path'],
-                                                            Final_results_3Dfiles[0].split('/')[-1]))
-            copyfile(Final_results_3Dfiles[1], os.path.join(run_params['neural_network']['reffs_path'],
-                                                            Final_results_3Dfiles[1].split('/')[-1]))
+                # Time to show the results in 3D visualization:
+                if inverse_options['VIS_RESULTS3D']:
+                    # TODO wavelength_micron=wavelengths_micron[0] is just placeholder for?
+                    Final_results_3Dfiles = visualize_results(forward_dir=forward_dir, log_name=log_name,
+                                                              wavelength_micron=wavelengths_micron[0])
 
-            logger.debug("Inverse phase complete")
+                # save lwc and reff for neural network
+                copyfile(Final_results_3Dfiles[0], os.path.join(run_params['neural_network']['lwcs_path'],
+                                                                f'lwc{cloud_index}'))
+                result = {'time': time.time()-inverse_start_time}
+                filename = os.path.join(run_params['neural_network']['times_path'],
+                                        f'cloud{cloud_index}.mat')
+                sio.savemat(filename, result)
 
+                logger.debug("Inverse phase complete")
+            except:
+                print(f'cloud {cloud_index} FAILED, YAEL log')
+        shutil.rmtree(f"/home/yaelsc/PycharmProjects/pyshdom/CloudCT_experiments/cloud{cloud_index}")
         logger.debug(f"--------------- End for cloud {cloud_index} , {time.time() - start_time} sec---------------")
 
     return vis_max_radiance_list, swir_max_radiance_list
@@ -745,10 +753,19 @@ if __name__ == '__main__':
     satellites_images_indices = [i.split('satellites_images/satellites_images_')[1].split('.mat')[0] for i in
                                  glob.glob(satellites_images_path)]
 
-    num_workers = 20
-    cloud_indices_chunks = np.array_split(
-        np.setdiff1d(
-            [i.split('clouds/cloud')[1].split('.txt')[0] for i in glob.glob(clouds_path)],
-            satellites_images_indices), num_workers)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-        future_to_url = {executor.submit(main, cloud_indices_chunks[i]) for i in np.arange(num_workers)}
+    # satellites_images_indices_old = sio.loadmat('/home/yaelsc/PycharmProjects/pyshdom/CloudCT_scripts/satellites_images_indices')
+    # satellites_images_indices_old=satellites_images_indices_old['satellites_images_indices']
+    # for i in np.arange(len(satellites_images_indices_old)):
+    #     satellites_images_indices_old[i]=satellites_images_indices_old[i].replace(' ','')
+
+    # satellites_images_indices = np.unique(np.concatenate((np.asarray(satellites_images_indices), satellites_images_indices_old)))
+
+    # num_workers = 20
+    # cloud_indices_chunks = np.array_split(
+    #     np.setdiff1d(
+    #         [i.split('clouds/cloud')[1].split('.txt')[0] for i in glob.glob(clouds_path)],
+    #         satellites_images_indices), num_workers)
+    # print([cloud_indices_chunks])
+    # with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+    #     future_to_url = {executor.submit(main, cloud_indices_chunks[i]) for i in np.arange(num_workers)}
+    main(['6001','6002','6003','6004'])
