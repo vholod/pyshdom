@@ -313,6 +313,7 @@ def main(cloud_indices):
         # ---------SOLVE INVERSE ------------------------
         if run_params['DOINVERSE']:
             try:
+                inverse_start_time = time.time()
                 inverse_options = run_params['inverse_options']
 
                 # See the simulated images:
@@ -753,19 +754,10 @@ if __name__ == '__main__':
     satellites_images_indices = [i.split('satellites_images/satellites_images_')[1].split('.mat')[0] for i in
                                  glob.glob(satellites_images_path)]
 
-    # satellites_images_indices_old = sio.loadmat('/home/yaelsc/PycharmProjects/pyshdom/CloudCT_scripts/satellites_images_indices')
-    # satellites_images_indices_old=satellites_images_indices_old['satellites_images_indices']
-    # for i in np.arange(len(satellites_images_indices_old)):
-    #     satellites_images_indices_old[i]=satellites_images_indices_old[i].replace(' ','')
-
-    # satellites_images_indices = np.unique(np.concatenate((np.asarray(satellites_images_indices), satellites_images_indices_old)))
-
-    # num_workers = 20
-    # cloud_indices_chunks = np.array_split(
-    #     np.setdiff1d(
-    #         [i.split('clouds/cloud')[1].split('.txt')[0] for i in glob.glob(clouds_path)],
-    #         satellites_images_indices), num_workers)
-    # print([cloud_indices_chunks])
-    # with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-    #     future_to_url = {executor.submit(main, cloud_indices_chunks[i]) for i in np.arange(num_workers)}
-    main(['6001','6002','6003','6004'])
+    num_workers = 20
+    cloud_indices_chunks = np.array_split(
+        np.setdiff1d(
+            [i.split('clouds/cloud')[1].split('.txt')[0] for i in glob.glob(clouds_path)],
+            satellites_images_indices), num_workers)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+        future_to_url = {executor.submit(main, cloud_indices_chunks[i]) for i in np.arange(num_workers)}
