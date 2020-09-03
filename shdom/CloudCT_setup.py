@@ -62,7 +62,7 @@ class SpaceMultiView_Measurements(object):
             projection_list_per_imager.resample_rays_per_pixel()
             
         
-    def simulate_measurements(self,rte_solvers = None,n_jobs = 1, IF_APPLY_NOISE = False, IF_SCALE_IDEALLY=False, IF_REDUCE_EXPOSURE=False, samples_per_pixel = 1):
+    def simulate_measurements(self,rte_solvers = None,n_jobs = 1, IF_APPLY_NOISE = False, IF_SCALE_IDEALLY=False, IF_REDUCE_EXPOSURE=False ):
         """
         This method renders the images and update the measurements.
         It aslo gets the rte_solvers object. The rte_solvers can be just a rte_solver if the imagers have the same central wavelenght.
@@ -327,7 +327,7 @@ class SpaceMultiView(shdom.MultiViewProjection):
         self._num_channels = 1 # number of channels per the self._imager 
         # TODO- consider to use num_channels>1 per one imager.
         self._Imager_config = Imager_config    
-        self._samples_per_pixel = samples_per_pixel
+        self._rays_per_pixel = samples_per_pixel
         self._rigid_sampling = rigid_sampling
         
         # TODO - to inplement later:
@@ -349,10 +349,15 @@ class SpaceMultiView(shdom.MultiViewProjection):
         """
         assert self.num_projections >0 , "You can not resamples rays per pixels since you have not defined the projections yet."
         for view_index, (view,view_name) in enumerate(zip(self._projection_list,self._names)):
-            if(view.samples_per_pixel  > 1):
+            if((view.samples_per_pixel  > 1) and not self._rigid_sampling):
                 
                 #print('View name {} resample its ray directions.'.format(view_name))
-                self._projection_list[view_index].resample_rays_per_pixel()
+                #will not work: self._projection_list[view_index].resample_rays_per_pixel()
+                #super().__init__()
+                self._num_projections = 0
+                self._projection_list = []
+                self._names = []                
+                self.update_views()
         
     def update_views(self,names = None):
         """
@@ -368,7 +373,7 @@ class SpaceMultiView(shdom.MultiViewProjection):
         # we intentialy, work with projections lists and one Imager
         up_list = np.array(len(self._sat_positions)*[0,1,0]).reshape(-1,3) # default up vector per camera.
         for pos,lookat,up,samples_per_pixel,name,Flag in zip(self._sat_positions,\
-                                  self._lookat_list,up_list,self._samples_per_pixel,names,self._Imager_config):
+                                  self._lookat_list,up_list,self._rays_per_pixel,names,self._Imager_config):
             
             # Flag is true if the Imager in an index is defined.
             # Only in that case its projection will be in the set.
@@ -397,16 +402,22 @@ class SpaceMultiView(shdom.MultiViewProjection):
         """
         self._sat_positions = sat_positions
         self._lookat_list = sat_lookats
-        if(self._samples_per_pixel == 1):
-            self._samples_per_pixel = np.tile(self._samples_per_pixel,len(self._lookat_list))
+        if(self._rays_per_pixel == 1):
+            self._rays_per_pixel = np.tile(self._rays_per_pixel,len(self._lookat_list))
         
         else:
-            self._samples_per_pixel = np.tile(self._samples_per_pixel,len(self._lookat_list))
+            self._rays_per_pixel = np.tile(self._rays_per_pixel,len(self._lookat_list))
+            """
+            I don't use different samples_per_pixel values among the views.
+            It is not adapted in the inverse part.
+            But It is well adapted in the forward part.
+            TODO - adapt it in the inverse part.
+            """
             # scale the samples_per_pixel with the distance of the satellite from lookat:
-            distances = [np.linalg.norm(i-j) for (i,j) in zip(self._sat_positions,self._lookat_list)]
-            close_distance = min(distances)
-            scaling = distances/close_distance
-            self._samples_per_pixel = np.array([int(i*j) for (i,j) in zip(scaling,self._samples_per_pixel)])
+            #distances = [np.linalg.norm(i-j) for (i,j) in zip(self._sat_positions,self._lookat_list)]
+            #close_distance = min(distances)
+            #scaling = distances/close_distance
+            #self._rays_per_pixel = np.array([int(i*j) for (i,j) in zip(scaling,self._rays_per_pixel)])
 
 
         if self._Imager_config is None:

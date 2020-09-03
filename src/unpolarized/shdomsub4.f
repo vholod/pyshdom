@@ -298,14 +298,14 @@ Cf2py intent(in) :: DPATH, DPTR, WEIGHTS
      .           WAVENO, WAVELEN, UNITS, XGRID, YGRID, ZGRID, GRIDPOS,
      .           GRIDPTR, NEIGHPTR, TREEPTR, CELLFLAGS, EXTINCT,
      .           ALBEDO, LEGEN, IPHASE, DIRFLUX, FLUXES, SHPTR,
-     .           SOURCE, CAMX, CAMY, CAMZ, RAYWEIGHT, CAMMU, CAMPHI,
-     .           NPIX, GRADOUT, COST,  MEASUREMENTS, RSHPTR, VISOUT,
+     .           SOURCE, CAMX, CAMY, CAMZ, CAMMU, CAMPHI, NPIX,
+     .           GRADOUT, COST,  MEASUREMENTS, RSHPTR, VISOUT,
      .           NPART, TOTAL_EXT,RADIANCE, NUMDER, PARTDER, DEXT,
      .           DALB, DIPHASE, DLEG, NSCATANGLE, YLMSUN, PHASETAB,
      .           NSTPHASE, DPHASETAB, DNUMPHASE, SOLARFLUX, NPX, NPY,
      .           NPZ, DELX, DELY, XSTART, YSTART, ZLEVELS, EXTDIRP,
      .           UNIFORMZLEV, DPATH, DPTR, EXACT_SINGLE_SCATTER,
-     .           WEIGHTS)
+     .           RAYS_PER_PIXEL, RAY_WEIGHTS, WEIGHTS)
 Cf2py threadsafe
       IMPLICIT NONE
       LOGICAL EXACT_SINGLE_SCATTER
@@ -351,16 +351,20 @@ Cf2py intent(in) :: SFCGRIDPARMS, BCRAD
 Cf2py intent(in) :: EXTINCT, ALBEDO, TOTAL_EXT, LEGEN
       REAL    DIRFLUX(*), FLUXES(2,*), SOURCE(*), RADIANCE(*)
 Cf2py intent(in) :: DIRFLUX, FLUXES, SOURCE, RADIANCE
-      REAL    CAMX(*), CAMY(*), CAMZ(*), RAYWEIGHT(*)
+      REAL    CAMX(*), CAMY(*), CAMZ(*)
       DOUBLE PRECISION CAMMU(*), CAMPHI(*)
-Cf2py intent(in) ::  CAMX, CAMY, CAMZ, RAYWEIGHT, CAMMU, CAMPHI
+Cf2py intent(in) ::  CAMX, CAMY, CAMZ, CAMMU, CAMPHI
+      INTEGER RAYS_PER_PIXEL(*)
+Cf2py intent(in) RAYS_PER_PIXEL	
+      DOUBLE PRECISION RAY_WEIGHTS(*)	
+Cf2py intent(in) RAY_WEIGHTS
       INTEGER  NPIX
 Cf2py intent(in) :: NPIX
       REAL   MEASUREMENTS(*), DLEG(0:NLEG,DNUMPHASE)
       REAL   DEXT(NBPTS,NUMDER), DALB(NBPTS,NUMDER)
       INTEGER DIPHASE(NBPTS,NUMDER)
 Cf2py intent(in) :: MEASUREMENTS, DEXT ,DALB, DIPHASE, DLEG
-      REAL VISOUT(NPIX), PIXEL_ERROR
+      REAL VISOUT(NPIX)
       DOUBLE PRECISION  GRADOUT(NBPTS,NUMDER), COST
 Cf2py intent(out) :: GRADOUT, COST, VISOUT
       CHARACTER SRCTYPE*1, SFCTYPE*2, UNITS*1
@@ -376,9 +380,14 @@ Cf2py intent(in) :: NSCATANGLE, YLMSUN, PHASETAB, DPHASETAB, NSTPHASE
 Cf2py intent(in) :: DPATH, DPTR, WEIGHTS
 
       INTEGER I, J, L, K
+      INTEGER IPIX, IRAY, I2
       INTEGER N, M, ME, MS, ND
-      DOUBLE PRECISION  RAYGRAD(NBPTS,NUMDER)
-      DOUBLE PRECISION  MURAY, PHIRAY, MU2, PHI2
+      DOUBLE PRECISION PIXEL_ERROR
+      DOUBLE PRECISION SYNTHETIC_MEASUREMENT
+      DOUBLE PRECISION RAY_VISOUT
+      DOUBLE PRECISION RAYGRAD_PIXEL(NBPTS,NUMDER)
+      DOUBLE PRECISION RAYGRAD(NBPTS,NUMDER)
+      DOUBLE PRECISION MURAY, PHIRAY, MU2, PHI2
       DOUBLE PRECISION X0, Y0, Z0, COSSCAT
       DOUBLE PRECISION U, R, PI
       REAL, ALLOCATABLE :: YLMDIR(:)
@@ -419,78 +428,95 @@ C          Compute the upwelling bottom radiances using the downwelling fluxes.
       PI = ACOS(-1.0D0)
 C         Loop over pixels in image
       COST = 0.0D0
-      DO N = 1, NPIX
-        X0 = CAMX(N)
-        Y0 = CAMY(N)
-        Z0 = CAMZ(N)
-        MU2 = CAMMU(N)
-        PHI2 = CAMPHI(N)
-        MURAY = -MU2
-        PHIRAY = PHI2 - PI
+      IRAY = 0
+      DO IPIX = 1, NPIX
+        RAYGRAD_PIXEL = 0.0D0
+        SYNTHETIC_MEASUREMENT = 0.0D0
+        DO I2=1 ,RAYS_PER_PIXEL(IPIX)
+          IRAY = IRAY + 1
+C          IRAY = IPIX
+C          RAY_WEIGHTS = 1.0/RAYS_PER_PIXEL
+          X0 = CAMX(IRAY)
+          Y0 = CAMY(IRAY)
+          Z0 = CAMZ(IRAY)
+          MU2 = CAMMU(IRAY)
+          PHI2 = CAMPHI(IRAY)
+          MURAY = -MU2
+          PHIRAY = PHI2 - PI
+C          WRITE(*,*) IRAY, X0
+C          WRITE(*,*) RAYS_PER_PIXEL, RAY_WEIGHTS
 C             Extrapolate ray to domain top if above
-        IF (Z0 .GT. ZGRID(NZ)) THEN
-          IF (MURAY .GE. 0.0) THEN
-            VISOUT(N) = 0.0
-            GOTO 900
+          IF (Z0 .GT. ZGRID(NZ)) THEN
+            IF (MURAY .GE. 0.0) THEN
+              VISOUT(:) = 0.0
+              GOTO 900
+            ENDIF
+            R = (ZGRID(NZ) - Z0)/MURAY
+            X0 = X0 + R*SQRT(1-MURAY**2)*COS(PHIRAY)
+            Y0 = Y0 + R*SQRT(1-MURAY**2)*SIN(PHIRAY)
+            Z0 = ZGRID(NZ)
+          ELSE IF (Z0 .LT. ZGRID(1)) THEN
+            WRITE (6,*) 'VISUALIZE_RADIANCE: Level below domain'
+            STOP
           ENDIF
-          R = (ZGRID(NZ) - Z0)/MURAY
-          X0 = X0 + R*SQRT(1-MURAY**2)*COS(PHIRAY)
-          Y0 = Y0 + R*SQRT(1-MURAY**2)*SIN(PHIRAY)
-          Z0 = ZGRID(NZ)
-        ELSE IF (Z0 .LT. ZGRID(1)) THEN
-          WRITE (6,*) 'VISUALIZE_RADIANCE: Level below domain'
-          STOP
-        ENDIF
 
-        CALL YLMALL (SNGL(MU2), SNGL(PHI2), ML, MM, NCS, YLMDIR)
+          CALL YLMALL (SNGL(MU2), SNGL(PHI2), ML, MM, NCS, YLMDIR)
 
-        IF (SRCTYPE .NE. 'T') THEN
-          COSSCAT = SOLARMU*MU2 + SQRT((1.0-SOLARMU**2)*(1.0-MU2**2))
-     .                  *COS(SOLARAZ-PHI2)
-          U = (NSCATANGLE-1)*(ACOS(COSSCAT)/PI) + 1
-          J = MIN(NSCATANGLE-1,INT(U))
-          U = U - J
-          DO I = 1, NUMPHASE
-            SINGSCAT(I) = (1-U)*PHASETAB(I,J) + U*PHASETAB(I,J+1)
-          ENDDO
-          DO I = 1, DNUMPHASE
-            DSINGSCAT(I) = (1-U)*DPHASETAB(I,J)+U*DPHASETAB(I,J+1)
-          ENDDO
-
-          IF (NUMPHASE .GT. 0) THEN
-            CALL LEGENDRE_ALL (COSSCAT, NLEG, SUNDIRLEG)
-            DO L = 0, NLEG
-              SUNDIRLEG(L) = SUNDIRLEG(L)*(2*L+1)/(4*PI)
+          IF (SRCTYPE .NE. 'T') THEN
+            COSSCAT = SOLARMU*MU2 + SQRT((1.0-SOLARMU**2)*(1.0-MU2**2))
+     .                    *COS(SOLARAZ-PHI2)
+            U = (NSCATANGLE-1)*(ACOS(COSSCAT)/PI) + 1
+            J = MIN(NSCATANGLE-1,INT(U))
+            U = U - J
+            DO I = 1, NUMPHASE
+              SINGSCAT(I) = (1-U)*PHASETAB(I,J) + U*PHASETAB(I,J+1)
             ENDDO
+            DO I = 1, DNUMPHASE
+              DSINGSCAT(I) = (1-U)*DPHASETAB(I,J)+U*DPHASETAB(I,J+1)
+            ENDDO
+
+            IF (NUMPHASE .GT. 0) THEN
+              CALL LEGENDRE_ALL (COSSCAT, NLEG, SUNDIRLEG)
+              DO L = 0, NLEG
+               SUNDIRLEG(L) = SUNDIRLEG(L)*(2*L+1)/(4*PI)
+              ENDDO
+            ENDIF
           ENDIF
-        ENDIF
 
-        RAYGRAD = 0.0D0; VISOUT(N) = 0.0D0;
-        CALL GRAD_INTEGRATE_1RAY (BCFLAG, IPFLAG,
-     .             NX, NY, NZ, NPTS, NCELLS,
-     .             GRIDPTR, NEIGHPTR, TREEPTR, CELLFLAGS,
-     .             XGRID, YGRID, ZGRID, GRIDPOS,
-     .             ML, MM, NCS, NLM, NLEG, NUMPHASE,
-     .             NMU, NPHI0MAX, NPHI0, MU, PHI, WTDO,
-     .             DELTAM, SRCTYPE, WAVELEN, SOLARMU,SOLARAZ,
-     .             EXTINCT, ALBEDO, LEGEN,
-     .             IPHASE, DIRFLUX, SHPTR,
-     .             SOURCE, YLMDIR, YLMSUN, SUNDIRLEG, SINGSCAT,
-     .             MAXNBC, NTOPPTS, NBOTPTS, BCPTR, BCRAD,
-     .             SFCTYPE, NSFCPAR, SFCGRIDPARMS,NPART,
-     .             MURAY, PHIRAY, MU2, PHI2, X0, Y0, Z0,
-     .             VISOUT(N), RAYGRAD, RSHPTR, TOTAL_EXT,
-     .             RADIANCE, LOFJ, PARTDER, NUMDER, DSINGSCAT,
-     .             DEXT, DALB, DIPHASE, DLEG, NBPTS, DNUMPHASE,
-     .             SOLARFLUX, NPX, NPY, NPZ, DELX, DELY, XSTART,
-     .             YSTART, ZLEVELS, EXTDIRP, UNIFORMZLEV,
-     .             DPATH, DPTR, EXACT_SINGLE_SCATTER)
-900     CONTINUE
+          RAYGRAD = 0.0D0
+          RAY_VISOUT = 0.0D0
 
-        PIXEL_ERROR = VISOUT(N) - MEASUREMENTS(N)
-        GRADOUT = GRADOUT + PIXEL_ERROR*RAYGRAD*RAYWEIGHT(N)
-        COST = COST + (0.5*PIXEL_ERROR**2)
-C        if the RAYWEIGHT is not 1, the COST is wrong and will be refined ouside (python)
+          CALL GRAD_INTEGRATE_1RAY (BCFLAG, IPFLAG,
+     .               NX, NY, NZ, NPTS, NCELLS,
+     .               GRIDPTR, NEIGHPTR, TREEPTR, CELLFLAGS,
+     .               XGRID, YGRID, ZGRID, GRIDPOS,
+     .               ML, MM, NCS, NLM, NLEG, NUMPHASE,
+     .               NMU, NPHI0MAX, NPHI0, MU, PHI, WTDO,
+     .               DELTAM, SRCTYPE, WAVELEN, SOLARMU,SOLARAZ,
+     .               EXTINCT, ALBEDO, LEGEN,
+     .               IPHASE, DIRFLUX, SHPTR,
+     .               SOURCE, YLMDIR, YLMSUN, SUNDIRLEG, SINGSCAT,
+     .               MAXNBC, NTOPPTS, NBOTPTS, BCPTR, BCRAD,
+     .               SFCTYPE, NSFCPAR, SFCGRIDPARMS,NPART,
+     .               MURAY, PHIRAY, MU2, PHI2, X0, Y0, Z0,
+     .               RAY_VISOUT, RAYGRAD, RSHPTR, TOTAL_EXT,
+     .               RADIANCE, LOFJ, PARTDER, NUMDER, DSINGSCAT,
+     .               DEXT, DALB, DIPHASE, DLEG, NBPTS, DNUMPHASE,
+     .               SOLARFLUX, NPX, NPY, NPZ, DELX, DELY, XSTART,
+     .               YSTART, ZLEVELS, EXTDIRP, UNIFORMZLEV,
+     .               DPATH, DPTR, EXACT_SINGLE_SCATTER)
+900       CONTINUE
+
+          SYNTHETIC_MEASUREMENT = SYNTHETIC_MEASUREMENT + RAY_VISOUT
+     .                  *RAY_WEIGHTS(IRAY)
+          RAYGRAD_PIXEL = RAYGRAD_PIXEL + RAYGRAD*RAY_WEIGHTS(IRAY)
+        ENDDO
+C        WRITE(*,*) IPIX, MEASUREMENTS(IPIX)
+C        WRITE(*,*) RAY_VISOUT, SYNTHETIC_MEASUREMENT
+        PIXEL_ERROR = SYNTHETIC_MEASUREMENT - MEASUREMENTS(IPIX)
+        GRADOUT = GRADOUT + PIXEL_ERROR*RAYGRAD_PIXEL
+        COST = COST + 0.5*PIXEL_ERROR**2
+        VISOUT(IPIX) = SYNTHETIC_MEASUREMENT
 C        WRITE(*,*) N, VISOUT(N), MEASUREMENTS(N), COST
       ENDDO
       DEALLOCATE(YLMDIR, LOFJ, SUNDIRLEG, SINGSCAT, DSINGSCAT)
@@ -550,7 +576,8 @@ C     outgoing radiance (RAD) at the point X0,Y0,Z0.
       REAL    YLMDIR(NLM), YLMSUN(NLM), SINGSCAT(NUMPHASE)
       DOUBLE PRECISION SUNDIRLEG(0:NLEG)
       DOUBLE PRECISION MURAY, PHIRAY, MU2, PHI2
-      REAL    RADOUT, SRCSINGSCAT(8)
+      DOUBLE PRECISION RADOUT
+      REAL    SRCSINGSCAT(8)
       REAL    SINGSCAT0(8), SINGSCAT1(8)
       DOUBLE PRECISION X0, Y0, Z0
       CHARACTER SRCTYPE*1, SFCTYPE*2
