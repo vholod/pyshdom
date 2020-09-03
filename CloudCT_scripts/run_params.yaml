@@ -28,7 +28,7 @@ vis_options:
   temperature: *temperature # celsius
   true_indices: [0,1,2,3,4,5,6,7,8,9]  # where imagers are located
   rays_per_pixel: 16
-  rigid_sampling: True
+  rigid_sampling: False # True
 
 # --------------------------------------------------
 # ------------   SWIR Imager Parameters  ------------
@@ -38,7 +38,7 @@ swir_options:
   temperature: *temperature # celsius
   true_indices: [0,1,2,3,4,5,6,7,8,9]   # where imagers are located, if true_indices: [], no swir imager will be simulated
   rays_per_pixel: 16
-  rigid_sampling: True
+  rigid_sampling: False # True
 
 
 # --------------------------------------------------
@@ -52,16 +52,16 @@ AirFieldFile: '../ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file wh
 # --------------------------------------------------
 # ----------------  Number of Jobs  ----------------
 # --------------------------------------------------
-n_jobs: 28
+n_jobs: 30
 
 
 # --------------------------------------------------
 # ----------------   Orbit and GSD  ----------------
 # --------------------------------------------------
 Rsat: 500  # orbit altitude, km
-GSD: 0.02  # in km, it is the ground spatial resolution.
+#GSD: 0.02  # in km, it is the ground spatial resolution.
 #GSD: 0.005 # /4
-
+GSD: 0.02
 # --------------------------------------------------
 # -----------------   Wavelengths  -----------------
 # --------------------------------------------------

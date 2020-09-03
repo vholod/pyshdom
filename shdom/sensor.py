@@ -7,6 +7,7 @@ import dill as pickle
 from joblib import Parallel, delayed
 import shdom 
 from shdom import core
+import math
 
 norm = lambda x: x / np.linalg.norm(x, axis=0)
     
@@ -179,6 +180,53 @@ class RadianceSensor(Sensor):
         images = self.make_images(radiance, projection, num_channels)
         return images
 
+
+    def inverse_make_images(self, radiance, projection, num_channels):
+        """
+        Split radiances into Multiview, Multi-channel images (channel last)
+
+        Parameters
+        ----------
+        radiance: np.array(dtype=np.float32)
+            A 1D array of radiances
+        projection: shdom.Projection
+            The projection geometry
+        num_channels: int
+            The number of channels
+
+        Returns
+        -------
+        radiance: np.array(dtype=np.float32)
+            An array of radiances with the shape (H,W,C) or (H,W) for a single channel.
+        """
+        multiview = isinstance(projection, shdom.MultiViewProjection)
+        multichannel = num_channels > 1
+
+        if multichannel:
+            radiance = np.array(np.split(radiance, num_channels)).T
+
+        if multiview:
+            split_indices = np.cumsum(projection.npix[:-1])
+            radiance = np.split(radiance, split_indices)
+
+            if multichannel:
+                radiance = [
+                    image.reshape(resolution + [num_channels], order='F')
+                    for image, resolution in zip(radiance, projection.resolution)
+                ]
+            else:
+                radiance = [
+                    image.reshape(resolution, order='F')
+                    for image, resolution in zip(radiance, projection.resolution)
+                ]
+        else:
+            new_shape = projection.resolution
+            if multichannel:
+                new_shape.append(num_channels)
+            radiance = radiance.reshape(new_shape, order='F')
+
+        return radiance
+    
     def make_images(self, radiance, projection, num_channels):
         """
         Split radiances into Multiview, Multi-channel images (channel last)
@@ -463,7 +511,7 @@ class Projection(object):
     -----
     All input arrays are raveled and should be of the same size.
     """
-    def __init__(self, x=None, y=None, z=None, mu=None, phi=None, weight=None, resolution=None,samples_per_pixel=1):
+    def __init__(self, x=None, y=None, z=None, mu=None, phi=None, weight=None, samples_per_pixel=1, resolution=None):
         self._x = x
         self._y = y
         self._z = z
@@ -509,20 +557,86 @@ class Projection(object):
         -----
         An even split doesnt always exist, in which case some parts will have slightly more pixels.
         """
-        x_split = np.array_split(self.x, n_parts) 
-        y_split = np.array_split(self.y, n_parts) 
-        z_split = np.array_split(self.z, n_parts) 
-        mu_split = np.array_split(self.mu, n_parts) 
-        phi_split = np.array_split(self.phi, n_parts)
-        weight_split = np.array_split(self.weight, n_parts)
-        # Note that here there is no matter what is the samples_per_pixel since the split function
-        # splits the projection such that the rays in one branch may origin from different pixels with different samples per pixel.
-        # So the samples_per_pixel of the projection created bwlow is JUST ONE.
-        # In addition the npix here is also unusable. 
+        
+        if isinstance(self.npix, list):
+            total_rays = np.sum(self.nrays)
+            total_pixs = np.sum(self.npix)
+        else:
+            total_rays = self.nrays 
+            total_pixs = self.npix
+            
+        N_total = total_rays # total samples whitch I need to split into n_parts
+        N_views = self.num_projections
+        
+        
+        # splited_views expresed array that was splited by the number of views.
+        # each element has nrays array.
+        splited_views_x = np.split(self.x, np.cumsum(self.nrays[:-1]))
+        splited_views_y = np.split(self.y, np.cumsum(self.nrays[:-1]))
+        splited_views_z = np.split(self.z, np.cumsum(self.nrays[:-1]))
+        splited_views_mu = np.split(self.mu, np.cumsum(self.nrays[:-1]))
+        splited_views_phi = np.split(self.phi, np.cumsum(self.nrays[:-1]))
+        splited_views_weight = np.split(self.weight, np.cumsum(self.nrays[:-1]))
+        
+        coarse_split = self.nrays
+        smaller_split = []
+        rays_split = []
+        NP_DEBUG = int(n_parts/N_views) # TODO ? should be self.npix[n]?
+        for n in range(N_views):
+            
+            N = int(coarse_split[n]/NP_DEBUG)
+            NF = np.array(coarse_split[n] - (NP_DEBUG - 1)*N)
+            R = np.tile(N, NP_DEBUG - 1)
+            R = np.hstack((R,NF))
+            rays_split.append(np.tile(self.samples_per_pixel[n], NP_DEBUG))
+            smaller_split.append(R)
+            
+        smaller_split = np.concatenate(smaller_split)
+        rays_split = np.concatenate(rays_split)
+       
+        if(any(np.array(self.samples_per_pixel)>1)):
+            if(n_parts == N_views):
+                
+                x_split = splited_views_x
+                y_split = splited_views_y
+                z_split = splited_views_z
+                phi_split = splited_views_phi
+                mu_split = splited_views_mu
+                weight_split = splited_views_weight
+                rays_per_pixel = self.samples_per_pixel
+                
+            elif(n_parts > N_views):
+                
+                x_split = np.split(self.x, np.cumsum(smaller_split[:-1]))
+                y_split = np.split(self.y, np.cumsum(smaller_split[:-1]))
+                z_split = np.split(self.z, np.cumsum(smaller_split[:-1]))
+                phi_split = np.split(self.phi, np.cumsum(smaller_split[:-1]))
+                mu_split = np.split(self.mu, np.cumsum(smaller_split[:-1]))
+                weight_split = np.split(self.weight, np.cumsum(smaller_split[:-1]))
+                rays_per_pixel = rays_split.tolist()
+                
+            else:
+                raise Exception("n_parts can not be less than the view number if there are N>1 rays per pixel.")
+            
+        else:
+            x_split = np.array_split(self.x, n_parts) 
+            y_split = np.array_split(self.y, n_parts) 
+            z_split = np.array_split(self.z, n_parts) 
+            mu_split = np.array_split(self.mu, n_parts) 
+            phi_split = np.array_split(self.phi, n_parts)
+            weight_split = np.array_split(self.weight, n_parts)
+            rays_per_pixel = [1]* n_parts
+            # Note that here there is no matter what is the samples_per_pixel since the split function
+            # splits the projection such that the rays in one branch may origin from different pixels with different samples per pixel.
+            # So the samples_per_pixel of the projection created bwlow is JUST ONE.
+            # In addition the npix here is also unusable.             
+                
+        
+        
 
         projections = [
-            Projection(x, y, z, mu, phi, weight) for 
-            x, y, z, mu, phi, weight in zip(x_split, y_split, z_split, mu_split, phi_split,weight_split)
+            Projection(x, y, z, mu, phi, weight, ray_per_pixel) for 
+            x, y, z, mu, phi, weight, ray_per_pixel in zip(x_split, y_split, z_split, mu_split, phi_split,weight_split,rays_per_pixel)
         ]
         return projections
     
@@ -723,7 +837,7 @@ class PerspectiveProjection(HomographyProjection):
         self._dy = 2*R[1]/ny # pixel length in y direction in the normalized image plane.
         self._dx = 2*R[0]/nx # pixel length in x direction in the normalized image plane.            
         x_c, y_c, z_c = np.meshgrid(np.linspace(-R[0], R[0]-self._dx, nx), np.linspace(-R[1], R[1]-self._dy, ny), 1.0)                
-
+        
         # Randomly replicate rays inside each pixel.
         if(self._samples_per_pixel>1):
             if(rigid_sampling):
@@ -743,10 +857,14 @@ class PerspectiveProjection(HomographyProjection):
                                 x_c_n[ind_n] = x_c.ravel()[ind_o] + kx*(self._dx/self._Q)
                                 y_c_n[ind_n] = y_c.ravel()[ind_o] + ky*(self._dy/self._Q)                
                 
+                                #x_c_n[ind_n] = x_c.ravel()[ind_o]
+                                #y_c_n[ind_n] = y_c.ravel()[ind_o]
+                                
                 #x_c = x_c_n.reshape(self._resolution +[self._samples_per_pixel], order='F')
                 #y_c = y_c_n.reshape(self._resolution +[self._samples_per_pixel], order='F')
                 x_c = x_c_n
                 y_c = y_c_n
+                
                 
             else:
                 x_c = np.tile(x_c[:, :, np.newaxis], [1, 1, self._samples_per_pixel])
@@ -754,7 +872,8 @@ class PerspectiveProjection(HomographyProjection):
                 z_c = np.tile(z_c[:, :, np.newaxis], [1, 1, self._samples_per_pixel])
                 x_c += np.random.rand(*x_c.shape)*self._dx
                 y_c += np.random.rand(*y_c.shape)*self._dy  
-            
+                
+        self._pixel_indexes = np.repeat(np.expand_dims(np.arange(len(x_c)),1),self._samples_per_pixel).ravel()   
         self._homogeneous_coordinates = np.stack([x_c.ravel(), y_c.ravel(), z_c.ravel()])
         self.update_global_coordinates()
         
@@ -780,7 +899,7 @@ class PerspectiveProjection(HomographyProjection):
             z_c = np.tile(z_c[:, :, np.newaxis], [1, 1, self._samples_per_pixel])
             x_c += np.random.rand(*x_c.shape)*self._dx
             y_c += np.random.rand(*y_c.shape)*self._dy  
-            
+            #print('--> {}, {}'.format(x_c.ravel()[10], y_c.ravel()[10]))
             self._homogeneous_coordinates = np.stack([x_c.ravel(), y_c.ravel(), z_c.ravel()])
             self.update_global_coordinates()            
         else:
