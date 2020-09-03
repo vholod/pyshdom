@@ -311,6 +311,7 @@ def main(cloud_indices):
 
         # ---------SOLVE INVERSE ------------------------
         if run_params['DOINVERSE']:
+            inverse_start_time = time.time()
             inverse_options = run_params['inverse_options']
 
             # See the simulated images:
@@ -347,11 +348,16 @@ def main(cloud_indices):
                 Final_results_3Dfiles = visualize_results(forward_dir=forward_dir, log_name=log_name,
                                                           wavelength_micron=wavelengths_micron[0])
 
-            # save lwc and reff for neural network
-            copyfile(Final_results_3Dfiles[0], os.path.join(run_params['neural_network']['lwcs_path'],
-                                                            Final_results_3Dfiles[0].split('/')[-1]))
-            copyfile(Final_results_3Dfiles[1], os.path.join(run_params['neural_network']['reffs_path'],
-                                                            Final_results_3Dfiles[1].split('/')[-1]))
+                # save lwc and reff for neural network
+                copyfile(Final_results_3Dfiles[0], os.path.join('/home/yaelsc/Data/08_10_2020/test/pyshdom/lwcs',
+                                                                f'cloud{cloud_index}'))
+                # copyfile(Final_results_3Dfiles[1], os.path.join(run_params['neural_network']['reffs_path'],
+                #                                                 Final_results_3Dfiles[1].split('/')[-1]))
+                # save inverse process time as mat for cloudCT neural network
+                time_result = {'time_seconds': time.time()-inverse_start_time}
+                time_filename = os.path.join(os.path.join('/home/yaelsc/Data/08_10_2020/test/pyshdom/lwcs/times',
+                                                                f'cloud{cloud_index}.mat'))
+                sio.savemat(time_filename, time_result)
 
             logger.debug("Inverse phase complete")
 
@@ -740,12 +746,13 @@ def load_run_params(params_path):
 
 
 if __name__ == '__main__':
-    clouds_path = "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/clouds/cloud*.txt"
-    satellites_images_path = "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/satellites_images/satellites_images_*.mat"
-    satellites_images_indices = [i.split('satellites_images/satellites_images_')[1].split('.mat')[0] for i in
-                                 glob.glob(satellites_images_path)]
+    clouds_path = "/home/yaelsc/Data/08_10_2020/test/clouds/cloud*.txt"
+    # satellites_images_path = "/home/yaelsc/Data/08_10_2020/test/satellites_images/satellites_images_*.mat"
+    # satellites_images_indices = [i.split('satellites_images/satellites_images_')[1].split('.mat')[0] for i in
+    #                              glob.glob(satellites_images_path)]
+    satellites_images_indices = []
 
-    num_workers = 20
+    num_workers = 1
     cloud_indices_chunks = np.array_split(
         np.setdiff1d(
             [i.split('clouds/cloud')[1].split('.txt')[0] for i in glob.glob(clouds_path)],

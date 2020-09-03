@@ -9,15 +9,15 @@
 # --------   CloudCT neural network  ---------------
 # --------------------------------------------------
 neural_network:
-  satellites_images_path:  "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/satellites_images"
-  lwcs_path:  "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/lwcs"
-  reffs_path:  "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/reffs"
-  clouds_path: "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/clouds/cloud*.txt"
+  satellites_images_path:  "/home/yaelsc/Data/08_10_2020/test/satellites_images"
+#  lwcs_path:  "/home/yaelsc/Data/08_10_2020/lwcs"
+#  reffs_path:  "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/reffs"
+  clouds_path: "/home/yaelsc/Data/08_10_2020/test/clouds/cloud*.txt"
 # --------------------------------------------------
 # -------------   Simulation flags  ----------------
 # --------------------------------------------------
-DOFORWARD: True
-DOINVERSE: False
+DOFORWARD: False
+DOINVERSE: True
 
 # --------------------------------------------------
 # --------------   Use Simple Imager?  --------------
@@ -34,7 +34,7 @@ vis_options:
   ImportConfigPath: '../notebooks/Gecko_config.json'
   temperature: *temperature # celsius
   true_indices: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31]  # where imagers are located
-  rays_per_pixel: 16
+  rays_per_pixel: 1
   rigid_sampling: True
 
 # --------------------------------------------------
@@ -44,14 +44,14 @@ swir_options:
   ImportConfigPath: '../notebooks/Hypothetic_SWIR_camera_config_50m_nadir_resolution.json'
   temperature: *temperature # celsius
   true_indices: []   # where imagers are located, if true_indices: [], no swir imager will be simulated
-  rays_per_pixel: 16
+  rays_per_pixel: 1
   rigid_sampling: True
 
 
 # --------------------------------------------------
 # -------------   Cloud & Air Field files  ---------
 # --------------------------------------------------
-CloudFieldFile: '/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/clouds/cloud{CLOUD_INDEX}.txt'
+CloudFieldFile: '/home/yaelsc/Data/08_10_2020/test/clouds/cloud{CLOUD_INDEX}.txt'
 #CloudFieldFile: '../WIZ_Clouds/cloud1261.txt'
 AirFieldFile: '../ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file which contains temperature measurements
 
@@ -150,7 +150,7 @@ forward_options:
 
   max_total_mb: 100000.0
 
-  rte_solver_max_iter: 100 # max number of iterations for rte solver
+  rte_solver_max_iter: 1 # max number of iterations for rte solver
 
   solar_fluxes: [1, 1]  # unity flux, IT IS IMPORTANT HERE!
 
@@ -179,7 +179,7 @@ inverse_options:
   MICROPHYSICS: True
   
   # if micropyhsics is  true, specify where to recover lwc / reff / veff or (reff and lwc)
-  recover_type: 'reff_and_lwc' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
+  recover_type: 'lwc' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
 
   # Initialization and Medium parameters:
   lwc: 0.01  # init lwc of the generator
@@ -213,8 +213,8 @@ inverse_options:
 
   # optimization:
   globalopt: False  # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
-  maxiter: 1000  # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
-  maxls: 30  # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+  maxiter: 1  # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+  maxls: 1  # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
   disp: True  # Display optimization progression.
   gtol: 1e-16  # Stop criteria for the maximum projected gradient. # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
   ftol: 1e-16  # Stop criteria for the relative change in loss function. # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
