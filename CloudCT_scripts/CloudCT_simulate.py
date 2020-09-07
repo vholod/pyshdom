@@ -180,18 +180,24 @@ def main():
         """
 
         # create CloudCT setups:
+        vis_rays_per_pixel = run_params['vis_options']['rays_per_pixel']
+        rigid_sampling = run_params['vis_options']['rigid_sampling'] # True of False
         vis_CloudCT_VIEWS, _ = CloudCT_setup.Create(SATS_NUMBER=SATS_NUMBER_SETUP,
                                                     ORBIT_ALTITUDE=run_params['Rsat'],
                                                     SAT_LOOKATS=SAT_LOOKATS,
                                                     Imager_config=vis_imager_config,
                                                     imager=vis_imager,
+                                                    samples_per_pixel = vis_rays_per_pixel,rigid_sampling = rigid_sampling,
                                                     VISSETUP=vizual_options['VISSETUP'])
         if USESWIR:
+            swir_rays_per_pixel = run_params['swir_options']['rays_per_pixel']
+            rigid_sampling = run_params['swir_options']['rigid_sampling'] # True of False
             swir_CloudCT_VIEWS, _ = CloudCT_setup.Create(SATS_NUMBER=SATS_NUMBER_SETUP,
                                                          ORBIT_ALTITUDE=run_params['Rsat'],
                                                          SAT_LOOKATS=SAT_LOOKATS,
                                                          Imager_config=swir_imager_config,
                                                          imager=swir_imager,
+                                                         samples_per_pixel = swir_rays_per_pixel,rigid_sampling = rigid_sampling,
                                                          VISSETUP=vizual_options['VISSETUP'])
 
         # Generate a solver array for a multi-spectral solution.
@@ -226,7 +232,7 @@ def main():
 
         # ---------RTE SOLVE ----------------------------
         rte_solvers.solve(maxiter=forward_options['rte_solver_max_iter'])
-
+        #rte_solvers.solve(maxiter=1)
         # -----------------------------------------------
         # ---------RENDER IMAGES FOR CLOUDCT SETUP ------
         # -----------------------------------------------
