@@ -3,17 +3,25 @@ import gc
 import logging
 import matplotlib.pyplot as plt
 import yaml
+from argparse import ArgumentParser
 
 from shdom import CloudCT_setup, plank
 from shdom.CloudCT_Utils import *
 
 
 def main():
-    
+
     logger = create_and_configer_logger(log_name='../CloudCT_experiments/run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
-    run_params = load_run_params(params_path="../CloudCT_experiments/run_params.yaml")
+    run_params = load_run_params(params_path="run_params.yaml")
+
+    # parser = ArgumentParser()
+    # parser.add_argument('--cloudFieldFile', help='path to load cload field file', type=str)
+    # args = parser.parse_args()
+    # run_params['CloudFieldFile'] = args.cloudFieldFile
+    # logger.debug(f"Override cloudFieldFile from yaml. Using: {run_params['CloudFieldFile']}")
+
 
     """
         Here load the imagers, the imagers dictates the spectral bands of the rte solver and rendering.
