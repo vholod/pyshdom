@@ -790,7 +790,28 @@ class LesFile(CloudGenerator):
             self._droplets.add_mie(mie)
         return self._droplets
     
-
+    def get_lwc(self):
+        return self._droplets.lwc
+    
+    def get_reff(self):
+        return self._droplets.reff
+    
+    def get_veff(self):
+        return self._droplets.veff   
+        
+class InitParam_FromMatFile(CloudGenerator):
+    """
+    It will initialize one parameter fro a mat file.
+    For example, 'lwc' from some lwc.mat file.
+    """
+    def __init__(self, args):
+        super(InitParam_FromMatFile, self).__init__(args)
+        self._param_name = None
+        
+    def get_param(self, grid=None):   
+        pass
+        
+        
 class GaussianFieldGenerator(object):
     """
         An object that stochastically generates 3D fields in a cubic domain drawn from

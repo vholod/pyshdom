@@ -126,10 +126,18 @@ class OptimizationScript(ExtinctionOptimizationScript):
         elif self.args.const_lwc:
             lwc = self.cloud_generator.get_lwc(lwc_grid)
         else:
-            lwc = shdom.GridDataEstimator(self.cloud_generator.get_lwc(lwc_grid),
-                                          min_bound=1e-5,
-                                          max_bound=2.0,
-                                          precondition_scale_factor=self.args.lwc_scaling)
+            if(isinstance(self.cloud_generator,shdom.generate.LesFile)):
+                
+                lwc = shdom.GridDataEstimator(self.cloud_generator.get_lwc(),
+                                              min_bound=1e-5,
+                                              max_bound=2.0,
+                                              precondition_scale_factor=self.args.lwc_scaling)                
+            else:
+                
+                lwc = shdom.GridDataEstimator(self.cloud_generator.get_lwc(lwc_grid),
+                                              min_bound=1e-5,
+                                              max_bound=2.0,
+                                              precondition_scale_factor=self.args.lwc_scaling)
         lwc.apply_mask(mask)
 
         if self.args.use_forward_reff:
@@ -137,10 +145,19 @@ class OptimizationScript(ExtinctionOptimizationScript):
         elif self.args.const_reff:
             reff = self.cloud_generator.get_reff(reff_grid)
         else:
-            reff = shdom.GridDataEstimator(self.cloud_generator.get_reff(reff_grid),
-                                           min_bound=ground_truth.min_reff,
-                                           max_bound=ground_truth.max_reff,
-                                           precondition_scale_factor=self.args.reff_scaling)
+            if(isinstance(self.cloud_generator,shdom.generate.LesFile)):
+                
+                reff = shdom.GridDataEstimator(self.cloud_generator.get_reff(),
+                                               min_bound=ground_truth.min_reff,
+                                               max_bound=ground_truth.max_reff,
+                                               precondition_scale_factor=self.args.reff_scaling)
+                
+            else:
+                
+                reff = shdom.GridDataEstimator(self.cloud_generator.get_reff(reff_grid),
+                                               min_bound=ground_truth.min_reff,
+                                               max_bound=ground_truth.max_reff,
+                                               precondition_scale_factor=self.args.reff_scaling)
         reff.apply_mask(mask)
 
         if self.args.use_forward_veff:
@@ -148,10 +165,20 @@ class OptimizationScript(ExtinctionOptimizationScript):
         elif self.args.const_veff:
             veff = self.cloud_generator.get_veff(veff_grid)
         else:
-            veff = shdom.GridDataEstimator(self.cloud_generator.get_veff(veff_grid),
-                                           max_bound=ground_truth.max_veff,
-                                           min_bound=ground_truth.min_veff,
-                                           precondition_scale_factor=self.args.veff_scaling)
+            if(isinstance(self.cloud_generator,shdom.generate.LesFile)):
+            
+                veff = shdom.GridDataEstimator(self.cloud_generator.get_veff(),
+                                               max_bound=ground_truth.max_veff,
+                                               min_bound=ground_truth.min_veff,
+                                               precondition_scale_factor=self.args.veff_scaling)
+                
+            else:
+                
+                
+                veff = shdom.GridDataEstimator(self.cloud_generator.get_veff(veff_grid),
+                                               max_bound=ground_truth.max_veff,
+                                               min_bound=ground_truth.min_veff,
+                                               precondition_scale_factor=self.args.veff_scaling)
         veff.apply_mask(mask)
 
         # Define a MicrophysicalScattererEstimator object

@@ -6,6 +6,7 @@ import time, os, copy, shutil
 from scipy.optimize import minimize
 from scipy.optimize import basinhopping
 import scipy.io as sio
+import copy
 
 import shdom
 from shdom import GridData, core, float_round
@@ -1179,7 +1180,7 @@ class MediumEstimator(shdom.Medium):
         rays_weights = projection.weight # pixel/ray weight of contibution to gradient due to samples per pixel introdution, interduced by vadim.
 
 
-        #print('--> {}, {}'.format(projection.phi[10], projection.mu[10]))
+        #print('--> rays per pixel {}\n, total_pixs {}'.format(rays_per_pixel, total_pixs))
 
         gradient, loss, images = core.gradient_l2(
             weights=self._stokes_weights[:rte_solver._nstokes],
@@ -1323,8 +1324,8 @@ class MediumEstimator(shdom.Medium):
                 CloudCT_projection = CloudCT_geometry_and_imagers[imager_index]
                 # resample rays per pixels to imitate random sampling of the rays per pixel:
                 if any(np.array(CloudCT_projection.samples_per_pixel)>1):
-                    #CloudCT_projection.resample_rays_per_pixel()
-                    pass
+                    CloudCT_projection.resample_rays_per_pixel()
+                    
                 # chack consistensy in the wavelengths:
                 assert wavelength == CloudCT_projection.imager.centeral_wavelength_in_microns,\
                        "There is not consistency between the wavelengths between the imager and the CLoudCT setup measurements."
@@ -2265,6 +2266,9 @@ class LocalOptimizer(object):
         -----
         This function also saves the current synthetic images for visualization purpose
         """
+        #if(self.iteration % 5 == 0):
+            #state = 5*state
+            
         self.set_state(state)
         gradient, loss, images, debug_gradients = self.medium.compute_gradient(
             rte_solvers=self.rte_solver,
@@ -2277,17 +2281,37 @@ class LocalOptimizer(object):
         # vadim save gradients for each iteration for debug:
         SAVE_GRADIENTS_DB = True
         if(SAVE_GRADIENTS_DB):
-            gredient_save_dir = self.writer.dir + '_gradients'            
+            gredient_save_dir = self.writer.dir + '_gradients'  
+            
             if not os.path.exists(gredient_save_dir):
                 os.mkdir(gredient_save_dir)
                 
             scatterers = self.medium.estimators.keys()
+            
             for scatterer_name in scatterers:
                 scatterer = self.medium.get_scatterer(name=scatterer_name)
+                file_name = 'iteration_{}.txt'.format(self.iteration) 
+                file_name  = os.path.join(self.writer.dir,file_name)
+                
+                #lwc = scatterer.lwc.resample(scatterer.grid)
+                #reff = scatterer.reff.resample(scatterer.grid)
+                #veff = scatterer.veff.resample(scatterer.grid)               
+                #droplets = shdom.MicrophysicalScatterer(lwc, reff, veff)
+                
+                #scatterer_copy = copy.deepcopy(scatterer)
+                #scatterer_copy.lwc = scatterer.lwc.resample(scatterer.grid)
+                #scatterer_copy.reff = scatterer.reff.resample(scatterer.grid)
+                #scatterer_copy.veff = scatterer.veff.resample(scatterer.grid)                
+                #scatterer_copy.save_to_csv(file_name, comment_line='from some minimization process')
+                
                 for index,parameter_name in enumerate(scatterer.estimators.keys()):
-                    filename = 'gradient_of_{}_at_iteration_{}.mat'.format(parameter_name,self.iteration)                    
+                    filename = 'gradient_of_{}_at_iteration_{}.mat'.format(parameter_name,self.iteration) 
                     grad_save = debug_gradients[index]
+                    estimator = scatterer.estimators[parameter_name]
                     sio.savemat(os.path.join(gredient_save_dir,filename), {'data':grad_save})
+                    
+                    filename = '{}_at_iteration_{}.mat'.format(parameter_name,self.iteration)                                        
+                    sio.savemat(os.path.join(gredient_save_dir,filename), {'data':estimator})
             
         return loss, gradient
             

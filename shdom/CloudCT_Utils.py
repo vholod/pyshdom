@@ -52,9 +52,10 @@ def CALC_MIE_TABLES(where_to_check_path = './mie_tables',wavelength_micron=None,
     """    
     
     # YOU MAY TUNE THE MIE TABLE PARAMETERS HERE:
+    dr = options['dr']
     start_reff = options['start_reff'] # Starting effective radius [Micron]
     end_reff = options['end_reff']
-    num_reff = options['num_reff']
+    num_reff = int((end_reff - start_reff)/dr) + 1 
     start_veff = options['start_veff']
     end_veff = options['end_veff']
     num_veff = options['num_veff']
@@ -140,22 +141,32 @@ def CALC_MIE_TABLES(where_to_check_path = './mie_tables',wavelength_micron=None,
         
     else: # treat the mie calculations for each wavelength separately.
     
-        if(os.path.exists(where_to_check_path)):
-            mie_tables_paths = sorted(glob.glob(where_to_check_path + '/Water_*.scat'))
-            mie_tables_names = [os.path.split(i)[-1] for i in mie_tables_paths]
-            # extract the wavelength:
-            exist_wavelengths_list = [re.findall('Water_(\d*)nm.scat', i)[0] for i in mie_tables_names]# wavelength that already has mie table.
-            exist_wavelengths_list = [int(i) for i in exist_wavelengths_list]# convert to integer 
-            # the wavelength_list is in microne. the exist_wavelengths_list is in nm
-            wavelength_list_final = []
-            for _wavelength_ in wavelength_list:
-                print('Check if wavelength {}um has already a table.'.format(_wavelength_))
-                if(1e3*_wavelength_ in exist_wavelengths_list):
-                    print('Does exist, skip its creation\n')
-                else:
-                    print('Does not exist, it will be created\n')
-                    wavelength_list_final.append(_wavelength_)
-                                
+        if(not os.path.exists(where_to_check_path)):
+            # safe creation of the directories:
+            mono_directory = os.path.join(base_path,'monodisperse')
+            if not os.path.exists(mono_directory):
+                os.makedirs(mono_directory)
+            
+            poly_directory = os.path.join(base_path,'polydisperse')
+            if not os.path.exists(poly_directory):
+                os.makedirs(poly_directory)
+            
+        
+        mie_tables_paths = sorted(glob.glob(where_to_check_path + '/Water_*.scat'))
+        mie_tables_names = [os.path.split(i)[-1] for i in mie_tables_paths]
+        # extract the wavelength:
+        exist_wavelengths_list = [re.findall('Water_(\d*)nm.scat', i)[0] for i in mie_tables_names]# wavelength that already has mie table.
+        exist_wavelengths_list = [int(i) for i in exist_wavelengths_list]# convert to integer 
+        # the wavelength_list is in microne. the exist_wavelengths_list is in nm
+        wavelength_list_final = []
+        for _wavelength_ in wavelength_list:
+            print('Check if wavelength {}um has already a table.'.format(_wavelength_))
+            if(1e3*_wavelength_ in exist_wavelengths_list):
+                print('Does exist, skip its creation\n')
+            else:
+                print('Does not exist, it will be created\n')
+                wavelength_list_final.append(_wavelength_)
+                            
         
         if(not (wavelength_list_final==[])):
             

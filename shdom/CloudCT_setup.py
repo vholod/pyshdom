@@ -629,6 +629,7 @@ def old_Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500, CAM_FOV = 0.1, CAM_RES = (
     MV.update_solar_irradiances(solar_flux_list)
     MV.set_commonCameraIntrinsics(FOV,cnx,cny)     
     MV.update_views()
+    MV.resample_rays_per_pixel()
     
     # visualization params:
     scale = 500

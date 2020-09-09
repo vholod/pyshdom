@@ -513,7 +513,10 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
     Returns:
 
     """
-    INIT_USE = ' --init ' + inverse_options['init']
+    if(inverse_options['init'] == 'Homogeneous' ):
+        INIT_USE = ' --init ' + inverse_options['init']
+    elif(inverse_options['init'] == 'LesFile' ):
+        INIT_USE = ' --init ' + inverse_options['init'] + ' --path ' + inverse_options['LesFile_path']
 
     GT_USE = ''
     GT_USE = GT_USE + ' --cloudct_use' if inverse_options['cloudct_use'] else GT_USE  # -----------------

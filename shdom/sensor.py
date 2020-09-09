@@ -585,6 +585,9 @@ class Projection(object):
         for n in range(N_views):
             
             N = int(coarse_split[n]/NP_DEBUG)
+            while(not(N % self.samples_per_pixel[n] == 0)):
+                N = N + 1
+            N = int(N)
             NF = np.array(coarse_split[n] - (NP_DEBUG - 1)*N)
             R = np.tile(N, NP_DEBUG - 1)
             R = np.hstack((R,NF))
