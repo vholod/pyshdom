@@ -1845,7 +1845,7 @@ class SummaryWriter(object):
                 gt_param = gt_param_masked.data.ravel()
 
                 delta = (np.linalg.norm(est_param, 1) - np.linalg.norm(gt_param, 1)) / np.linalg.norm(gt_param, 1)
-                epsilon = np.linalg.norm((est_param - gt_param), 1) / np.linalg.norm(gt_param,1)
+                epsilon = np.linalg.norm((est_param - gt_param), 1) / np.linalg.norm(gt_param,1) # TODO: use this 0.5 is good
                 self.tf_writer.add_scalar(kwargs['title'][0].format(scatterer_name, parameter_name), delta, self.optimizer.iteration)
                 self.tf_writer.add_scalar(kwargs['title'][1].format(scatterer_name, parameter_name), epsilon, self.optimizer.iteration)
 
