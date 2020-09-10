@@ -114,6 +114,9 @@ class OptimizationScript(object):
                             choices=['l2', 'normcorr'],
                             default='l2',
                             help='Different loss functions for optimization. Currently only l2 is supported.')
+        parser.add_argument('--initialization_path',
+                            default='',
+                            help='Path to the mat file of the initialization.')
         return parser
 
     def medium_args(self, parser):
@@ -254,7 +257,9 @@ class OptimizationScript(object):
         else:
             phase = self.cloud_generator.get_phase(wavelength, phase_grid)
 
-        extinction = shdom.GridDataEstimator(self.cloud_generator.get_extinction(grid=grid),
+        extinction = self.cloud_generator.get_extinction(grid=grid)
+        extinction._data = sio.loadmat(self.args.initialization_path)['extinction']
+        extinction = shdom.GridDataEstimator(extinction, # TODO: change here!!!
                                              min_bound=1e-3,
                                              max_bound=2e2)
         cloud_estimator = shdom.OpticalScattererEstimator(wavelength, extinction, albedo, phase)

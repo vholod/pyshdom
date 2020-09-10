@@ -126,7 +126,7 @@ class OptimizationScript(ExtinctionOptimizationScript):
         elif self.args.const_lwc:
             lwc = self.cloud_generator.get_lwc(lwc_grid)
         else:
-            lwc = shdom.GridDataEstimator(self.cloud_generator.get_lwc(lwc_grid),
+            lwc = shdom.GridDataEstimator(self.cloud_generator.get_lwc(lwc_grid), # TODO: chnage here
                                           min_bound=1e-5,
                                           max_bound=2.0,
                                           precondition_scale_factor=self.args.lwc_scaling)
