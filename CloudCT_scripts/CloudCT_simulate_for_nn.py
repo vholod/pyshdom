@@ -15,7 +15,7 @@ def main(cloud_indices):
     logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
-    run_params = load_run_params(params_path="run_params_cloud_ct_nn_test.yaml")
+    run_params = load_run_params(params_path="run_params_cloud_ct_nn_no_use_forward.yaml")
     # run_params['sun_zenith'] = sun_zenith # if you need to set the angle from main's input
     # logger.debug(f"New Run with sun zenith {run_params['sun_zenith']} (overrides yaml)")
 
@@ -115,7 +115,7 @@ def main(cloud_indices):
         # cny x cnx is the camera resolution in pixels
         fov = 2 * np.rad2deg(np.arctan(0.5 * L / (run_params['Rsat'])))
 
-        vis_cnx = vis_cny = 32  # int(np.floor(L / vis_pixel_footprint))
+        vis_cnx = vis_cny =  int(np.floor(L / vis_pixel_footprint)) # 32  #
         if USESWIR:
             swir_cnx = swir_cny = int(np.floor(L / swir_pixel_footprint))
 
@@ -127,7 +127,7 @@ def main(cloud_indices):
         if run_params['IFTUNE_CAM']:
             L *= 1.5
             fov = 2 * np.rad2deg(np.arctan(0.5 * L / (run_params['Rsat'])))
-            vis_cnx = vis_cny = 32  # int(np.floor(L / vis_pixel_footprint))
+            vis_cnx = vis_cny = int(np.floor(L / vis_pixel_footprint)) # 32  #
             if USESWIR:
                 swir_cnx = swir_cny = int(np.floor(L / swir_pixel_footprint))
 
@@ -354,20 +354,20 @@ def main(cloud_indices):
 
                 # save lwc and reff for neural network
                 copyfile(Final_results_3Dfiles[0], os.path.join(run_params['neural_network']['lwcs_path'],
-                                                                f'lwc{cloud_index}'))
+                                                                f'lwc_no_use_forward{cloud_index}'))
                 result = {'time': time.time()-inverse_start_time}
                 filename = os.path.join(run_params['neural_network']['times_path'],
-                                        f'cloud{cloud_index}.mat')
+                                        f'cloud_no_use_forward{cloud_index}.mat')
                 sio.savemat(filename, result)
 
                 logger.debug("Inverse phase complete")
             except:
                 print(f'cloud {cloud_index} FAILED, YAEL log')
-        shutil.rmtree(f"/home/yaelsc/PycharmProjects/pyshdom/CloudCT_experiments/cloud{cloud_index}")
+        # shutil.rmtree(f"/home/yaelsc/PycharmProjects/pyshdom/CloudCT_experiments/cloud{cloud_index}")
         logger.debug(f"--------------- End for cloud {cloud_index} , {time.time() - start_time} sec---------------")
 
-    return vis_max_radiance_list, swir_max_radiance_list
-
+    # return vis_max_radiance_list, swir_max_radiance_list
+    return
 
 def write_to_run_tracker(forward_dir, msg):
     """
@@ -749,15 +749,16 @@ def load_run_params(params_path):
 
 
 if __name__ == '__main__':
-    clouds_path = "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/clouds/cloud*.txt"
-    satellites_images_path = "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/satellites_images/satellites_images_*.mat"
-    satellites_images_indices = [i.split('satellites_images/satellites_images_')[1].split('.mat')[0] for i in
-                                 glob.glob(satellites_images_path)]
-
-    num_workers = 20
-    cloud_indices_chunks = np.array_split(
-        np.setdiff1d(
-            [i.split('clouds/cloud')[1].split('.txt')[0] for i in glob.glob(clouds_path)],
-            satellites_images_indices), num_workers)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-        future_to_url = {executor.submit(main, cloud_indices_chunks[i]) for i in np.arange(num_workers)}
+    # clouds_path = "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/clouds/cloud*.txt"
+    # satellites_images_path = "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/satellites_images/satellites_images_*.mat"
+    # satellites_images_indices = [i.split('satellites_images/satellites_images_')[1].split('.mat')[0] for i in
+    #                              glob.glob(satellites_images_path)]
+    #
+    # num_workers = 20
+    # cloud_indices_chunks = np.array_split(
+    #     np.setdiff1d(
+    #         [i.split('clouds/cloud')[1].split('.txt')[0] for i in glob.glob(clouds_path)],
+    #         satellites_images_indices), num_workers)
+    # with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+    #     future_to_url = {executor.submit(main, cloud_indices_chunks[i]) for i in np.arange(num_workers)}
+    main(['6001','6002','6003','6004'])
