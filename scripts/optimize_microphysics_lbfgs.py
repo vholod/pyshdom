@@ -1,9 +1,11 @@
-import os, time
-import numpy as np
-import shdom
-import scipy.io as sio
+import os
+import time
 
+import numpy as np
+import scipy.io as sio
 from optimize_extinction_lbfgs import OptimizationScript as ExtinctionOptimizationScript
+
+import shdom
 
 
 class OptimizationScript(ExtinctionOptimizationScript):
@@ -27,6 +29,7 @@ class OptimizationScript(ExtinctionOptimizationScript):
     scatterer_name: str
         The name of the scatterer that will be optimized.
     """
+
     def __init__(self, scatterer_name='cloud'):
         super().__init__(scatterer_name)
 
@@ -48,8 +51,8 @@ class OptimizationScript(ExtinctionOptimizationScript):
                             action='store_true',
                             help='Use the ground-truth LWC.')
         parser.add_argument('--use_forward_reff',
-                                action='store_true',
-                                help='Use the ground-truth effective radius.')
+                            action='store_true',
+                            help='Use the ground-truth effective radius.')
         parser.add_argument('--use_forward_veff',
                             action='store_true',
                             help='Use the ground-truth effective variance.')
@@ -67,7 +70,7 @@ class OptimizationScript(ExtinctionOptimizationScript):
                             nargs='+',
                             type=np.float32,
                             help='(default value: %(default)s) Threshold for the radiance to create a cloud mask.'
-                            'Threshold is either a scalar or a list of length of measurements.')
+                                 'Threshold is either a scalar or a list of length of measurements.')
         parser.add_argument('--lwc_scaling',
                             default=10.0,
                             type=np.float32,
@@ -79,7 +82,7 @@ class OptimizationScript(ExtinctionOptimizationScript):
         parser.add_argument('--veff_scaling',
                             default=1.0,
                             type=np.float32,
-                            help='(default value: %(default)s) Pre-conditioning scale factor for effective variance estimation')        
+                            help='(default value: %(default)s) Pre-conditioning scale factor for effective variance estimation')
         return parser
 
     def get_medium_estimator(self, measurements, ground_truth):
@@ -115,18 +118,20 @@ class OptimizationScript(ExtinctionOptimizationScript):
             mask = carver.carve(grid, agreement=0.9, thresholds=self.args.radiance_threshold)
 
             # Vadim added: Save the mask3d, just for the case we want to see how good we bound the cloudy voxels.
-            if(self.args.save_gt_and_carver_masks):
-                
+            if (self.args.save_gt_and_carver_masks):
                 GT_mask = ground_truth.get_mask(threshold=1.0)
-                sio.savemat(os.path.join(self.args.input_dir,'3D_masks.mat'), {'GT':GT_mask.data,'CARVER':mask.data,'thresholds':self.args.radiance_threshold})
-                        
+                sio.savemat(os.path.join(self.args.input_dir, '3D_masks.mat'),
+                            {'GT': GT_mask.data, 'CARVER': mask.data, 'thresholds': self.args.radiance_threshold})
+
         # Define micro-physical parameters: either optimize, keep constant at a specified value or use ground-truth
         if self.args.use_forward_lwc:
             lwc = ground_truth.lwc
         elif self.args.const_lwc:
             lwc = self.cloud_generator.get_lwc(lwc_grid)
         else:
-            lwc = shdom.GridDataEstimator(self.cloud_generator.get_lwc(lwc_grid), # TODO: chnage here
+            lwc = self.cloud_generator.get_lwc(lwc_grid)
+            lwc._data = sio.loadmat(self.args.initialization_path)['lwc']
+            lwc = shdom.GridDataEstimator(lwc,  # TODO: chnage here
                                           min_bound=1e-5,
                                           max_bound=2.0,
                                           precondition_scale_factor=self.args.lwc_scaling)
@@ -155,7 +160,7 @@ class OptimizationScript(ExtinctionOptimizationScript):
         veff.apply_mask(mask)
 
         # Define a MicrophysicalScattererEstimator object
-        
+
         cloud_estimator = shdom.MicrophysicalScattererEstimator(ground_truth.mie, lwc, reff, veff)
         cloud_estimator.set_mask(mask)
 
@@ -192,13 +197,13 @@ class OptimizationScript(ExtinctionOptimizationScript):
         measurements: shdom.Measurements
             The acquired measurements
         """
-        if(self.args.cloudct_use):
-            
+        if (self.args.cloudct_use):
+
             # Load forward model and cloud ct measurements
             medium, rte_solver, measurements = shdom.load_CloudCT_measurments_and_forward_model(input_directory)
             # if(isinstance(measurments,shdom.CloudCT_setup.SpaceMultiView_Measurements)
         else:
-            
+
             # Load forward model and measurements
             medium, rte_solver, measurements = shdom.load_forward_model(input_directory)
 
@@ -206,11 +211,11 @@ class OptimizationScript(ExtinctionOptimizationScript):
         ground_truth = medium.get_scatterer(self.scatterer_name)
         return ground_truth, rte_solver, measurements
 
-    #def get_ground_truth(self):
-        #ground_truth, _, _ = self.load_forward_model(self.args.input_dir)
-        ## here ground_truth is ???.
-        #return ground_truth
-    
+    # def get_ground_truth(self):
+    # ground_truth, _, _ = self.load_forward_model(self.args.input_dir)
+    ## here ground_truth is ???.
+    # return ground_truth
+
     def get_summary_writer(self, measurements, ground_truth):
         """
         Define a SummaryWriter object
@@ -229,25 +234,25 @@ class OptimizationScript(ExtinctionOptimizationScript):
         """
         writer = None
         if self.args.log is not None:
-            log_dir = os.path.join(self.args.input_dir, 'logs', self.args.log + '-' + time.strftime("%d-%b-%Y-%H:%M:%S"))
+            log_dir = os.path.join(self.args.input_dir, 'logs',
+                                   self.args.log + '-' + time.strftime("%d-%b-%Y-%H:%M:%S"))
             writer = shdom.SummaryWriter(log_dir)
             writer.save_checkpoints(ckpt_period=20 * 60)
             writer.monitor_loss()
 
             # Compare estimator to ground-truth
             writer.monitor_scatterer_error(estimator_name=self.scatterer_name, ground_truth=ground_truth)
-            writer.monitor_scatter_plot(estimator_name=self.scatterer_name, ground_truth=ground_truth, dilute_percent=0.4, parameters=['lwc'])
-            writer.monitor_horizontal_mean(estimator_name=self.scatterer_name, ground_truth=ground_truth, ground_truth_mask=ground_truth.get_mask(threshold=0.01))
+            writer.monitor_scatter_plot(estimator_name=self.scatterer_name, ground_truth=ground_truth,
+                                        dilute_percent=0.4, parameters=['lwc'])
+            writer.monitor_horizontal_mean(estimator_name=self.scatterer_name, ground_truth=ground_truth,
+                                           ground_truth_mask=ground_truth.get_mask(threshold=0.01))
 
             # vadim added:
             writer.monitor_images(measurements=measurements, ckpt_period=5 * 60)
-            
+
         return writer
 
 
 if __name__ == "__main__":
     script = OptimizationScript(scatterer_name='cloud')
     script.main()
-
-
-
