@@ -15,7 +15,7 @@ DOINVERSE: True
 # --------------------------------------------------
 # --------------   Use Simple Imager?  --------------
 # --------------------------------------------------
-USE_SIMPLE_IMAGER: True
+USE_SIMPLE_IMAGER: False
 # if it's true, the imager is simple and not loaded from the imagers data set.
 
 
@@ -24,27 +24,28 @@ USE_SIMPLE_IMAGER: True
 # --------------------------------------------------
 temperature: &temperature 15
 vis_options:
-  ImportConfigPath: '../notebooks/Gecko_config.json'
+  ImportConfigPath: '../CloudCT_notebooks/Gecko_config_20mGDS.json'
   temperature: *temperature # celsius
   true_indices: [0,1,2,3,4,5,6,7,8,9]  # where imagers are located
-  rays_per_pixel: 16
-  rigid_sampling: False # True
+  rays_per_pixel: 1
+  rigid_sampling: True # True
 
 # --------------------------------------------------
 # ------------   SWIR Imager Parameters  ------------
 # --------------------------------------------------
 swir_options:
-  ImportConfigPath: '../notebooks/Hypothetic_SWIR_camera_config_50m_nadir_resolution.json'
+  ImportConfigPath: '../CloudCT_notebooks/Hypothetic_SWIR_camera_config_50m_nadir_resolution.json'
   temperature: *temperature # celsius
-  true_indices: [0,1,2,3,4,5,6,7,8,9]   # where imagers are located, if true_indices: [], no swir imager will be simulated
+  true_indices: []   # where imagers are located, if true_indices: [], no swir imager will be simulated
   rays_per_pixel: 16
-  rigid_sampling: False # True
+  rigid_sampling: True # True
 
 
 # --------------------------------------------------
 # -------------   Cloud & Air Field files  ---------
 # --------------------------------------------------
-CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
+#CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
+CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36000_29x24x15_0251'
 #CloudFieldFile: '../WIZ_Clouds/cloud1261.txt'
 AirFieldFile: '../ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file which contains temperature measurements
 
@@ -52,7 +53,7 @@ AirFieldFile: '../ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file wh
 # --------------------------------------------------
 # ----------------  Number of Jobs  ----------------
 # --------------------------------------------------
-n_jobs: 30
+n_jobs: 40
 
 
 # --------------------------------------------------
@@ -102,14 +103,24 @@ radiance_threshold: [0.023, 0.02] # Threshold is either a scalar or a list of le
 # -------------   mia table parameters  -----------
 # -------------------------------------------------
 mie_options:
-  start_reff: 4 # Starting effective radius [Micron]
+
+  start_reff: 2.5 #4 # Starting effective radius [Micron]
   end_reff: 25.0
   num_reff: 100
   start_veff: 0.01
-  end_veff: 0.4 # return it to 0.4
+  end_veff: 0.47 #0.4 # return it to 0.4
   num_veff: 117
   radius_cutoff: 65.0 # The cutoff radius for the pdf averaging [Micron]
   wavelength_resolution: 0.001 # it is the delta in the wavelengths (microns) for the optical parameters avaraging inside shdom.
+  
+  #dr: &dr 0.2 # step in effective radius [Micron]
+  #start_reff: &rs 2.5 # Starting effective radius [Micron]
+  #end_reff: &rf 25.0
+  #start_veff: &vs 0.01
+  #end_veff: &vf 0.53 # return it to 0.4
+  #num_veff: 127
+  #radius_cutoff: 65.0 # The cutoff radius for the pdf averaging [Micron]
+  #wavelength_resolution: 0.001 # it is the delta in the wavelengths (microns) for the optical parameters avaraging inside shdom.
 
 
 # -------------------------------------------------
@@ -137,13 +148,13 @@ forward_options:
   # --------------------------------------------------
 
   # note: when num_mu, num_phi are 16,32, the retrievals look better than with 8,16.
-  num_mu: 16
+  num_mu: 8
 
-  num_phi: 32
+  num_phi: 16
 
   max_total_mb: 100000.0
 
-  rte_solver_max_iter: 100 # max number of iterations for rte solver
+  rte_solver_max_iter: 150 # max number of iterations for rte solver
 
   solar_fluxes: [1, 1]  # unity flux, IT IS IMPORTANT HERE!
 
@@ -172,16 +183,16 @@ inverse_options:
   MICROPHYSICS: True
   
   # if micropyhsics is  true, specify where to recover lwc / reff / veff or (reff and lwc)
-  recover_type: 'reff_and_lwc' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
+  recover_type: 'reff_and_lwc' #reff_and_lwc' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
 
   # Initialization and Medium parameters:
-  lwc: 0.01  # init lwc of the generator
-  reff: 12 # init reff of the generator
+  lwc: 0.3  # init lwc of the generator
+  reff: 7 # init reff of the generator
   veff: 0.19 # init veff of the generator
 
   # Scaling params when recovering reff and lwc:
-  lwc_scaling_val: 15
-  reff_scaling_val: 0.01
+  lwc_scaling_val: 10
+  reff_scaling_val: 0.1
 
   # if not microphysics:
   extinction: 0.01  # init extinction of the generator
@@ -192,8 +203,13 @@ inverse_options:
   stokes_weights: [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V]
 
   # INIT
-  init: 'Homogeneous' # init_generator = 'Homogeneous' it is the CloudGenerator from shdom.generate.py
-
+  #init: 'Homogeneous' # init_generator = 'Homogeneous' it is the CloudGenerator from shdom.generate.py
+  #init: 'LesFile'
+  #LesFile_path: '../CloudCT_experiments/iteration_1.txt'
+  init: 'Monotonous'
+  #mono_in: 'reff'
+  
+  
   # GT_USE
   add_rayleigh: True
   use_forward_mask: True

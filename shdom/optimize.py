@@ -1323,8 +1323,8 @@ class MediumEstimator(shdom.Medium):
                 acquired_images = images_dict[imager_index]
                 CloudCT_projection = CloudCT_geometry_and_imagers[imager_index]
                 # resample rays per pixels to imitate random sampling of the rays per pixel:
-                if any(np.array(CloudCT_projection.samples_per_pixel)>1):
-                    CloudCT_projection.resample_rays_per_pixel()
+                #if any(np.array(CloudCT_projection.samples_per_pixel)>1):
+                    #CloudCT_projection.resample_rays_per_pixel()
                     
                 # chack consistensy in the wavelengths:
                 assert wavelength == CloudCT_projection.imager.centeral_wavelength_in_microns,\
