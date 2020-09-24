@@ -15,7 +15,7 @@ def main(cloud_indices):
     logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
-    run_params = load_run_params(params_path="run_params_cloud_ct_nn_no_use_forward.yaml")
+    run_params = load_run_params(params_path="run_params_cloud_ct_nn_initialize_soloution.yaml")
     # run_params['sun_zenith'] = sun_zenith # if you need to set the angle from main's input
     # logger.debug(f"New Run with sun zenith {run_params['sun_zenith']} (overrides yaml)")
 
@@ -332,7 +332,7 @@ def main(cloud_indices):
                 cmd = create_inverse_command(run_params=run_params, inverse_options=inverse_options,
                                              vizual_options=vizual_options,
                                              forward_dir=forward_dir, AirFieldFile=AirFieldFile,
-                                             run_type=run_type, log_name=log_name)
+                                             run_type=run_type, log_name=log_name, cloud_index = cloud_index)
 
                 dump_run_params(run_params=run_params, dump_dir=forward_dir)
 
@@ -353,8 +353,8 @@ def main(cloud_indices):
                                                               wavelength_micron=wavelengths_micron[0])
 
                 # save lwc and reff for neural network
-                copyfile(Final_results_3Dfiles[0], os.path.join(run_params['neural_network']['lwcs_path'],
-                                                                f'lwc_no_use_forward{cloud_index}'))
+                copyfile(Final_results_3Dfiles[0], os.path.join(run_params['neural_network']['betas_path'],
+                                                                f'beta_no_use_forward{cloud_index}'))
                 result = {'time': time.time()-inverse_start_time}
                 filename = os.path.join(run_params['neural_network']['times_path'],
                                         f'cloud_no_use_forward{cloud_index}.mat')
@@ -529,7 +529,7 @@ def dump_run_params(run_params, dump_dir):
 
 
 def create_inverse_command(run_params, inverse_options, vizual_options,
-                           forward_dir, AirFieldFile, run_type, log_name):
+                           forward_dir, AirFieldFile, run_type, log_name, cloud_index):
     """
     TODO
     Args:
@@ -554,6 +554,8 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
     GT_USE = GT_USE + ' --use_forward_grid' if inverse_options['use_forward_grid'] else GT_USE
     GT_USE = GT_USE + ' --save_gt_and_carver_masks' if inverse_options['if_save_gt_and_carver_masks'] else GT_USE
     GT_USE = GT_USE + ' --save_final3d' if inverse_options['if_save_final3d'] else GT_USE
+    GT_USE = GT_USE + ' --initialization_path '+os.path.join(run_params['neural_network']['betas_path'],
+        'net_beta'+cloud_index+'.mat') if inverse_options['if_initialize_solution'] else GT_USE
 
     # The mie_base_path is defined at the beginning of this script.
     # (use_forward_mask, use_forward_grid, use_forward_albedo, use_forward_phase):
