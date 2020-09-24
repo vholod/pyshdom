@@ -1,8 +1,12 @@
-import os, time
-import numpy as np
 import argparse
-import shdom
+import os
+import time
+
+import numpy as np
 import scipy.io as sio
+
+import shdom
+
 
 class OptimizationScript(object):
     """
@@ -24,6 +28,7 @@ class OptimizationScript(object):
     scatterer_name: str
         The name of the scatterer that will be optimized.
     """
+
     def __init__(self, scatterer_name='cloud'):
         self.scatterer_name = scatterer_name
 
@@ -43,7 +48,7 @@ class OptimizationScript(object):
         """
         parser.add_argument('--cloudct_use',
                             action='store_true',
-                            help='Use it if you want to laoad and work with cloudct measurments.')          
+                            help='Use it if you want to laoad and work with cloudct measurments.')
         parser.add_argument('--input_dir',
                             help='Path to an input directory where the forward modeling parameters are be saved. \
                                   This directory will be used to save the optimization results and progress.')
@@ -54,7 +59,7 @@ class OptimizationScript(object):
                                   The provided string is added as a comment to the specific run.')
         parser.add_argument('--save_gt_and_carver_masks',
                             action='store_true',
-                            help='Use it if you want to save the curver m3d mask and the GT mask so you can compare them after the reconstruction.')                
+                            help='Use it if you want to save the curver m3d mask and the GT mask so you can compare them after the reconstruction.')
         parser.add_argument('--use_forward_grid',
                             action='store_true',
                             help='Use the same grid for the reconstruction. This is a sort of inverse crime which is \
@@ -62,7 +67,7 @@ class OptimizationScript(object):
         parser.add_argument('--save_final3d',
                             action='store_true',
                             help='Use it if you want to save the retrieved parameters in 3D .mat file. It is \
-                                  usefull for debugging/development.')        
+                                  usefull for debugging/development.')
         parser.add_argument('--use_forward_mask',
                             action='store_true',
                             help='Use the ground-truth cloud mask. This is an inverse crime which is \
@@ -115,8 +120,10 @@ class OptimizationScript(object):
                             default='l2',
                             help='Different loss functions for optimization. Currently only l2 is supported.')
         parser.add_argument('--initialization_path',
-                            default='',
                             help='Path to the mat file of the initialization.')
+        parser.add_argument('--initialize_solution',
+                            action='store_true',
+                            help='If to initialize solution.')
         return parser
 
     def medium_args(self, parser):
@@ -144,7 +151,7 @@ class OptimizationScript(object):
                             nargs='+',
                             type=np.float32,
                             help='(default value: %(default)s) Threshold for the radiance to create a cloud mask.' \
-                            'Threshold is either a scalar or a list of length of measurements.')
+                                 'Threshold is either a scalar or a list of length of measurements.')
         parser.add_argument('--mie_base_path',
                             default='mie_tables/polydisperse/Water_<wavelength>nm.scat',
                             help='(default value: %(default)s) Mie table base file name. ' \
@@ -233,15 +240,15 @@ class OptimizationScript(object):
             mask = ground_truth.get_mask(threshold=1.0)
         else:
             carver = shdom.SpaceCarver(measurements)
-            
+
             mask = carver.carve(grid, agreement=0.9, thresholds=self.args.radiance_threshold)
-            
+
             # Vadim added: Save the mask3d, just for the case we want to see how good we bound the cloudy voxels.
-            if(self.args.save_gt_and_carver_masks):
-                
+            if (self.args.save_gt_and_carver_masks):
                 GT_mask = ground_truth.get_mask(threshold=1.0)
-                sio.savemat(os.path.join(self.args.input_dir,'3D_masks.mat'), {'GT':GT_mask.data,'CARVER':mask.data,'thresholds':self.args.radiance_threshold})
-                        
+                sio.savemat(os.path.join(self.args.input_dir, '3D_masks.mat'),
+                            {'GT': GT_mask.data, 'CARVER': mask.data, 'thresholds': self.args.radiance_threshold})
+
         # Define the known albedo and phase: either ground-truth or specified, but it is not optimized.
         if self.args.use_forward_albedo is False or self.args.use_forward_phase is False:
             table_path = self.args.mie_base_path.replace('<wavelength>', '{}'.format(shdom.int_round(wavelength)))
@@ -258,10 +265,9 @@ class OptimizationScript(object):
             phase = self.cloud_generator.get_phase(wavelength, phase_grid)
 
         extinction = self.cloud_generator.get_extinction(grid=grid)
-        extinction._data = sio.loadmat(self.args.initialization_path)['extinction']
-        extinction = shdom.GridDataEstimator(extinction, # TODO: change here!!!
-                                             min_bound=1e-3,
-                                             max_bound=2e2)
+        if self.args.initialize_solution:
+            extinction._data = sio.loadmat(self.args.initialization_path)['extinction']
+        extinction = shdom.GridDataEstimator(extinction, min_bound=1e-3, max_bound=2e2)
         cloud_estimator = shdom.OpticalScattererEstimator(wavelength, extinction, albedo, phase)
         cloud_estimator.set_mask(mask)
 
@@ -296,7 +302,8 @@ class OptimizationScript(object):
         """
         writer = None
         if self.args.log is not None:
-            log_dir = os.path.join(self.args.input_dir, 'logs', self.args.log + '-' + time.strftime("%d-%b-%Y-%H:%M:%S"))
+            log_dir = os.path.join(self.args.input_dir, 'logs',
+                                   self.args.log + '-' + time.strftime("%d-%b-%Y-%H:%M:%S"))
             writer = shdom.SummaryWriter(log_dir)
             writer.save_checkpoints(ckpt_period=20 * 60)
             writer.monitor_loss()
@@ -306,8 +313,10 @@ class OptimizationScript(object):
             # Compare estimator to ground-truth
             writer.monitor_scatterer_error(estimator_name=self.scatterer_name, ground_truth=ground_truth)
             writer.monitor_domain_mean(estimator_name=self.scatterer_name, ground_truth=ground_truth)
-            writer.monitor_scatter_plot(estimator_name=self.scatterer_name, ground_truth=ground_truth, dilute_percent=0.4)
-            writer.monitor_horizontal_mean(estimator_name=self.scatterer_name, ground_truth=ground_truth, ground_truth_mask=ground_truth.get_mask(threshold=1.0))
+            writer.monitor_scatter_plot(estimator_name=self.scatterer_name, ground_truth=ground_truth,
+                                        dilute_percent=0.4)
+            writer.monitor_horizontal_mean(estimator_name=self.scatterer_name, ground_truth=ground_truth,
+                                           ground_truth_mask=ground_truth.get_mask(threshold=1.0))
 
         return writer
 
@@ -329,28 +338,27 @@ class OptimizationScript(object):
         measurements: shdom.Measurements
             The acquired measurements
         """
-        if(self.args.cloudct_use):
-            
+        if (self.args.cloudct_use):
+
             # Load forward model and cloud ct measurements
             medium, rte_solver, measurements = shdom.load_CloudCT_measurments_and_forward_model(input_directory)
             # if(isinstance(measurments,shdom.CloudCT_setup.SpaceMultiView_Measurements)
         else:
-            
+
             # Load forward model and measurements
             medium, rte_solver, measurements = shdom.load_forward_model(input_directory)
-        
+
         # Get optical medium ground-truth
         ground_truth = medium.get_scatterer(self.scatterer_name)
         if isinstance(ground_truth, shdom.MicrophysicalScatterer):
             ground_truth = ground_truth.get_optical_scatterer(measurements.wavelength)
         return ground_truth, rte_solver, measurements
 
-    
     def get_ground_truth(self):
         ground_truth, _, _ = self.load_forward_model(self.args.input_dir)
         # here ground_truth is shdom.medium.OpticalScatterer.
         return ground_truth
-    
+
     def get_optimizer(self):
         """
         Define an Optimizer object
@@ -403,7 +411,7 @@ class OptimizationScript(object):
         # Optimization process
         num_global_iter = 1
         if self.args.globalopt:
-            global_optimizer = shdom.GlobalOptimizer(local_optimizer = local_optimizer)
+            global_optimizer = shdom.GlobalOptimizer(local_optimizer=local_optimizer)
             result = global_optimizer.minimize(niter_success=20, T=1e-3)
             num_global_iter = result.nit
             result = result.lowest_optimization_result
@@ -423,33 +431,30 @@ class OptimizationScript(object):
         local_optimizer.save_state(os.path.join(save_dir, 'final_state.ckpt'))
 
         # vadim added to save final 3D reconstructions:
-        if(self.args.save_final3d):  
+        if (self.args.save_final3d):
             ground_truth = self.get_ground_truth()
-            #if not isinstance(ground_truth, shdom.MicrophysicalScatterer):
-                ## If we here, it means that the optimization was called on extinction and not for microphysics.
-                #GT_parameter = ground_truth.extinction.data = ground_truth.extinction.data
-                
+            # if not isinstance(ground_truth, shdom.MicrophysicalScatterer):
+            ## If we here, it means that the optimization was called on extinction and not for microphysics.
+            # GT_parameter = ground_truth.extinction.data = ground_truth.extinction.data
+
             rec_scatterer = local_optimizer.medium.get_scatterer(name=self.scatterer_name)
             # local_optimizer.medium is shdom.optimize.MediumEstimator object.
             for parameter_name, parameter in rec_scatterer.estimators.items():
-                rec_param = parameter.data 
+                rec_param = parameter.data
                 try:
                     dx = parameter.grid.dx
                     dy = parameter.grid.dy
                 except AttributeError:
                     dx = -1
                     dy = -1
-                    
+
                 nz = parameter.grid.nz
-                dz = (parameter.grid.zmax - parameter.grid.zmin)/nz
+                dz = (parameter.grid.zmax - parameter.grid.zmin) / nz
                 GT_parameter = ground_truth.__getattribute__(parameter_name).data
-                sio.savemat(os.path.join(save_dir,'FINAL_3D_{}.mat'.format(parameter_name)), {'GT':GT_parameter,parameter_name:rec_param,'dx':dx,'dy':dy,'dz':dz})
-            
+                sio.savemat(os.path.join(save_dir, 'FINAL_3D_{}.mat'.format(parameter_name)),
+                            {'GT': GT_parameter, parameter_name: rec_param, 'dx': dx, 'dy': dy, 'dz': dz})
+
 
 if __name__ == "__main__":
     script = OptimizationScript(scatterer_name='cloud')
     script.main()
-
-
-
-

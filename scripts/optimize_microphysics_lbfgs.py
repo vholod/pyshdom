@@ -83,6 +83,11 @@ class OptimizationScript(ExtinctionOptimizationScript):
                             default=1.0,
                             type=np.float32,
                             help='(default value: %(default)s) Pre-conditioning scale factor for effective variance estimation')
+        parser.add_argument('--initialization_path',
+                            help='Path to the mat file of the initialization.')
+        parser.add_argument('--initialize_solution',
+                            action='store_true',
+                            help='If to initialize solution.')
         return parser
 
     def get_medium_estimator(self, measurements, ground_truth):
@@ -130,10 +135,9 @@ class OptimizationScript(ExtinctionOptimizationScript):
             lwc = self.cloud_generator.get_lwc(lwc_grid)
         else:
             lwc = self.cloud_generator.get_lwc(lwc_grid)
-            lwc._data = sio.loadmat(self.args.initialization_path)['lwc']
-            lwc = shdom.GridDataEstimator(lwc,  # TODO: chnage here
-                                          min_bound=1e-5,
-                                          max_bound=2.0,
+            if self.args.initialize_solution:
+                lwc._data = sio.loadmat(self.args.initialization_path)['lwc']
+            lwc = shdom.GridDataEstimator(lwc, min_bound=1e-5, max_bound=2.0,
                                           precondition_scale_factor=self.args.lwc_scaling)
         lwc.apply_mask(mask)
 

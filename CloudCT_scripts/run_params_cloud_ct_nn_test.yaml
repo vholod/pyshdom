@@ -36,10 +36,9 @@ temperature: &temperature 15
 vis_options:
   ImportConfigPath: '../notebooks/Gecko_config.json'
   temperature: *temperature # celsius
-  true_indices: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31]  # where imagers are located
+  true_indices: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31]
   rays_per_pixel: 1
   rigid_sampling: True
-
 # --------------------------------------------------
 # ------------   SWIR Imager Parameters  ------------
 # --------------------------------------------------
@@ -47,8 +46,7 @@ swir_options:
   ImportConfigPath: '../notebooks/Hypothetic_SWIR_camera_config_50m_nadir_resolution.json'
   temperature: *temperature # celsius
   true_indices: []   # where imagers are located, if true_indices: [], no swir imager will be simulated
-  rays_per_pixel: 1
-  rigid_sampling: True
+
 
 
 # --------------------------------------------------
@@ -112,11 +110,11 @@ radiance_threshold: [0.023, 0.02] # Threshold is either a scalar or a list of le
 # -------------   mia table parameters  -----------
 # -------------------------------------------------
 mie_options:
-  start_reff: 4 # Starting effective radius [Micron]
+  start_reff: 3 # Starting effective radius [Micron]
   end_reff: 25.0
   num_reff: 100
   start_veff: 0.01
-  end_veff: 0.4 # return it to 0.4
+  end_veff: 0.5 # return it to 0.4
   num_veff: 117
   radius_cutoff: 65.0 # The cutoff radius for the pdf averaging [Micron]
   wavelength_resolution: 0.001 # it is the delta in the wavelengths (microns) for the optical parameters avaraging inside shdom.
@@ -179,7 +177,7 @@ inverse_options:
   VIS_RESULTS3D: True  # show the results in 3D visualization
 
   #MICROPHYSICS: True # False for extinction
-  MICROPHYSICS: True
+  MICROPHYSICS: False
 
   # if micropyhsics is  true, specify where to recover lwc / reff / veff or (reff and lwc)
   recover_type: 'lwc' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'

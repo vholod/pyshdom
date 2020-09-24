@@ -12,7 +12,7 @@ def main(cloud_indices):
     logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
-    run_params = load_run_params(params_path="run_params_cloud_ct_nn_no_use_forward.yaml")
+    run_params = load_run_params(params_path="run_params_cloud_ct_nn_initialize_soloution.yaml")
     # run_params['sun_zenith'] = sun_zenith # if you need to set the angle from main's input
     # logger.debug(f"New Run with sun zenith {run_params['sun_zenith']} (overrides yaml)")
 
@@ -552,6 +552,11 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
     GT_USE = GT_USE + ' --use_forward_grid' if inverse_options['use_forward_grid'] else GT_USE
     GT_USE = GT_USE + ' --save_gt_and_carver_masks' if inverse_options['if_save_gt_and_carver_masks'] else GT_USE
     GT_USE = GT_USE + ' --save_final3d' if inverse_options['if_save_final3d'] else GT_USE
+    GT_USE = GT_USE + ' --initialize_solution' if inverse_options['if_initialize_solution'] else GT_USE
+    GT_USE = GT_USE + f" --initialization_path {os.path.join(run_params['neural_network']['betas_path'], 'net_beta' + cloud_index + '.mat')}" if \
+        inverse_options['if_initialize_solution'] else GT_USE
+    # GT_USE = GT_USE + f" --initialization_path {os.path.join('/home/yaelsc/Data/08_10_2020/test/pyshdom/betas', 'beta' + cloud_index)}" if \
+    #          inverse_options['if_initialize_solution'] else GT_USE
 
     # The mie_base_path is defined at the beginning of this script.
     # (use_forward_mask, use_forward_grid, use_forward_albedo, use_forward_phase):

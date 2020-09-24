@@ -9,13 +9,13 @@
 # --------   CloudCT neural network  ---------------
 # --------------------------------------------------
 neural_network:
-  satellites_images_path:  "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/satellites_images"
-  lwcs_path:  "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/lwcs"
-  reffs_path:  "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/reffs"
-  veffs_path:  "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/veffs"
-  betas_path:  "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/betas"
-  clouds_path: "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/clouds/cloud*.txt"
-  times_path: "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/times_betas"
+  satellites_images_path:  "/home/yaelsc/Data/08_10_2020/satellites_images"
+  lwcs_path:  "/home/yaelsc/Data/08_10_2020/lwcs"
+  reffs_path:  "/home/yaelsc/Data/08_10_2020/reffs"
+  veffs_path:  "/home/yaelsc/Data/08_10_2020/veffs"
+  betas_path:  "/home/yaelsc/Data/08_10_2020/betas"
+  clouds_path: "/home/yaelsc/Data/08_10_2020/test/clouds/cloud*.txt"
+  times_path: "/home/yaelsc/Data/08_10_2020/times_betas"
 # --------------------------------------------------
 # -------------   Simulation flags  ----------------
 # --------------------------------------------------
@@ -54,7 +54,7 @@ swir_options:
 # --------------------------------------------------
 # -------------   Cloud & Air Field files  ---------
 # --------------------------------------------------
-CloudFieldFile: '/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/clouds/cloud{CLOUD_INDEX}.txt'
+CloudFieldFile: '/home/yaelsc/Data/08_10_2020/test/clouds/cloud{CLOUD_INDEX}.txt'
 #CloudFieldFile: '../WIZ_Clouds/cloud1261.txt'
 AirFieldFile: '../ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file which contains temperature measurements
 
