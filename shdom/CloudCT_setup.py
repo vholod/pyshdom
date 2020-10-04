@@ -141,7 +141,7 @@ class SpaceMultiView_Measurements(object):
                 images_list_per_imager = [images_list_per_imager]
               
             if(IF_REDUCE_EXPOSURE):
-                projections.imager.adjust_exposure_time(images_list_per_imager)
+                projections.imager.adjust_exposure_time(images_list_per_imager, C = 0.9)# C = 0.9 - the imager will reach 90 procent of the full well.
                  
             self._Images_per_imager[imager_index], radiance_to_graylevel_scale = projections.imager.convert_radiance_to_graylevel(images_list_per_imager,IF_APPLY_NOISE=IF_APPLY_NOISE,IF_SCALE_IDEALLY=IF_SCALE_IDEALLY)
             # the lines below does the following: It scale back the grayscale values to radiances but it does that after nosie addition.

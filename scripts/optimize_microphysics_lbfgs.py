@@ -134,10 +134,10 @@ class OptimizationScript(ExtinctionOptimizationScript):
                                               precondition_scale_factor=self.args.lwc_scaling)                
             else:
                 
-                lwc = shdom.GridDataEstimator(self.cloud_generator.get_lwc(lwc_grid),
-                                              min_bound=1e-5,
-                                              max_bound=2.0,
-                                              precondition_scale_factor=self.args.lwc_scaling)
+                lwc = shdom.GridDataEstimator(self.cloud_generator.get_lwc(grid=lwc_grid, min_lwc= 1.5e-5),
+                                          min_bound=1e-5,
+                                          max_bound=2.0,
+                                          precondition_scale_factor=self.args.lwc_scaling)
         lwc.apply_mask(mask)
 
         if self.args.use_forward_reff:
@@ -154,10 +154,11 @@ class OptimizationScript(ExtinctionOptimizationScript):
                 
             else:
                 
-                reff = shdom.GridDataEstimator(self.cloud_generator.get_reff(reff_grid),
-                                               min_bound=ground_truth.min_reff,
-                                               max_bound=ground_truth.max_reff,
-                                               precondition_scale_factor=self.args.reff_scaling)
+                reff = shdom.GridDataEstimator(self.cloud_generator.get_reff(grid = reff_grid, min_reff = ground_truth.min_reff),
+                                           min_bound=ground_truth.min_reff,
+                                           max_bound=ground_truth.max_reff,
+                                           precondition_scale_factor=self.args.reff_scaling)
+                
         reff.apply_mask(mask)
 
         if self.args.use_forward_veff:
@@ -264,6 +265,7 @@ class OptimizationScript(ExtinctionOptimizationScript):
             # Compare estimator to ground-truth
             writer.monitor_scatterer_error(estimator_name=self.scatterer_name, ground_truth=ground_truth)
             writer.monitor_scatter_plot(estimator_name=self.scatterer_name, ground_truth=ground_truth, dilute_percent=0.4, parameters=['lwc'])
+            writer.monitor_scatter_plot(estimator_name=self.scatterer_name, ground_truth=ground_truth, dilute_percent=0.2, parameters=['reff'])
             writer.monitor_horizontal_mean(estimator_name=self.scatterer_name, ground_truth=ground_truth, ground_truth_mask=ground_truth.get_mask(threshold=0.01))
 
             # vadim added:

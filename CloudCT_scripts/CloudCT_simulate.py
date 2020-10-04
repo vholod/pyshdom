@@ -8,7 +8,7 @@ from shdom import CloudCT_setup, plank
 from shdom.CloudCT_Utils import *
 
 
-def main():
+def main(reff,lwc):
     
     logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
@@ -16,7 +16,12 @@ def main():
     run_params = load_run_params(params_path="run_params.yaml")
     # run_params['sun_zenith'] = sun_zenith # if you need to set the angle from main's input
     # logger.debug(f"New Run with sun zenith {run_params['sun_zenith']} (overrides yaml)")
-
+    if(reff is not None):
+        run_params['inverse_options']['reff'] = reff
+        
+    if(lwc is not None):
+        run_params['inverse_options']['lwc'] = lwc
+    
 
     """
         Here load the imagers, the imagers dictates the spectral bands of the rte solver and rendering.
@@ -48,7 +53,8 @@ def main():
             simple_type='swir')
 
     SATS_NUMBER_SETUP = run_params['SATS_NUMBER_SETUP']
-
+    
+    cloud_name = run_params['CloudFieldFile'].split('/')[-1]
     # where to save the forward outputs:
     if USESWIR:
         forward_dir = f'../CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_{int(1e3 * vis_wavelength_range[0])}-' \
@@ -56,16 +62,16 @@ def main():
                       f'GSD_{int(1e3 * vis_pixel_footprint)}m_and' \
                       f'_SWIR_{int(1e3 * swir_wavelength_range[0])}-{int(1e3 * swir_wavelength_range[1])}' \
                       f'nm_active_sats_{SATS_NUMBER_SETUP}_GSD_{int(1e3 * swir_pixel_footprint)}m' \
-                      f'_LES_cloud_field_rico'
+                      f"_LES_cloud_field_{cloud_name.split('_')[0]}"
     else:
         forward_dir = f'../CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_{int(1e3 * vis_wavelength_range[0])}-' \
                       f'{int(1e3 * vis_wavelength_range[1])}nm_active_sats_{SATS_NUMBER_SETUP}_' \
                       f'GSD_{int(1e3 * vis_pixel_footprint)}m' \
-                      f'_LES_cloud_field_rico'
+                      f"_LES_cloud_field_{cloud_name.split('_')[0]}"
 
     # inverse_dir, where to save everything that is related to invers model:
     inverse_dir = forward_dir  # TODO not in use
-    log_name_base = f'active_sats_{SATS_NUMBER_SETUP}_easiest_rico32x37x26'
+    log_name_base = f"active_sats_{SATS_NUMBER_SETUP}_{cloud_name}"
     # Write intermediate TensorBoardX results into log_name.
     # The provided string is added as a comment to the specific run.
 
@@ -337,7 +343,7 @@ def main():
 
     logger.debug("--------------- End of Simulation ---------------")
 
-    return vis_max_radiance_list, swir_max_radiance_list
+    return #vis_max_radiance_list, swir_max_radiance_list
 
 
 def write_to_run_tracker(forward_dir, msg):
@@ -684,7 +690,7 @@ def create_and_configer_logger(log_name):
     # set up logging to file
     logging.basicConfig(
         filename=log_name,
-        level=logging.DEBUG,
+        level=logging.ERROR,
         format='[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s'
     )
 
@@ -722,5 +728,50 @@ def load_run_params(params_path):
     return run_params
 
 
+
 if __name__ == '__main__':
-    main()
+    
+    FULLINVERSE = True
+    
+    if(FULLINVERSE):
+        
+        main(reff=None,lwc=None)
+        
+    else:
+        
+        #old:
+        #reff_list = np.linspace(5,10,8)
+        #lwc_list = np.linspace(0.1,0.6,8)
+        
+        reff_list = np.linspace(3,15,16)
+        lwc_list = np.linspace(0.1,1.6,16)
+        
+        #reff_list = np.linspace(3,5,5)
+        #lwc_list = np.linspace(0.6,1.0,5)
+
+        
+        IFDELETEOLD = True
+        
+        
+        if(IFDELETEOLD):
+            
+            
+            
+            if(os.path.exists("lwc.txt")):
+                os.remove("lwc.txt")
+            if(os.path.exists("reff.txt")):
+                os.remove("reff.txt")
+            if(os.path.exists("cost.txt")):
+                os.remove("cost.txt")
+        
+        for reff in reff_list:
+            for lwc in lwc_list:
+                print('(reff,lwc) =  ({}, {})'.format(reff,lwc))
+                main(reff,lwc)
+                tracker_path = 'lwc.txt'
+                with open(tracker_path, 'a') as file_object:
+                    file_object.write('{}\n'.format(lwc))
+                
+                tracker_path = 'reff.txt'
+                with open(tracker_path, 'a') as file_object:
+                    file_object.write('{}\n'.format(reff))

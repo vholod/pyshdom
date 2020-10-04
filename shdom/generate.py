@@ -845,7 +845,7 @@ class Monotonous(CloudGenerator):
             extinction = self.mie[float_round(wavelength)].get_extinction(lwc, reff, veff)
         return extinction
 
-    def get_lwc(self, grid=None):
+    def get_lwc(self, grid=None, min_lwc = 0):
         """
         Retrieve the liquid water content.
         Parameters
@@ -864,15 +864,21 @@ class Monotonous(CloudGenerator):
         dlwc = 0.2
         if lwc is not None:
             if grid.type == '1D':
-                lwc_data = np.squeeze(np.array([np.linspace(lwc-dlwc, lwc+dlwc, num=grid.nz)]))
+                Z = grid.z - grid.z[2]
+                Z[Z<0] = 0
+                lwc_data = (lwc*Z) + min_lwc                 
+
             elif grid.type == '3D':
-                lwc_profile = np.array([np.linspace(lwc-dlwc, lwc+dlwc, num=grid.nz)])
-                lwc_2d_data = np.repeat(lwc_profile, grid.ny, axis= 0)
-                lwc_data = f = np.repeat(lwc_2d_data[None,...], grid.nx, axis =0)
+              
+                Z = grid.z - grid.z[2]
+                Z[Z<0] = 0
+                lwc_profile = (lwc*Z) + min_lwc            
+                lwc_data = np.tile(lwc_profile[np.newaxis, np.newaxis, :], (grid.nx, grid.ny, 1))
+                
             lwc = shdom.GridData(grid, lwc_data)
         return lwc
 
-    def get_reff(self, grid=None):
+    def get_reff(self, grid=None, min_reff=2.5):
         """
         Retrieve the effective radius on a grid.
         Parameters
@@ -889,12 +895,18 @@ class Monotonous(CloudGenerator):
         if grid is None:
             grid = self.get_grid()
         if grid.type == '1D':
-            reff_data = np.squeeze(np.array([np.linspace(reff-dreff, reff+dreff, num=grid.nz)]))
+            Z = grid.z - grid.z[2]
+            Z[Z<0] = 0
+            reff_data = (reff*Z**(1./3.)) + min_reff
+            #reff_data = np.squeeze(np.array([np.linspace(reff-dreff, reff+dreff, num=grid.nz)]))
         elif grid.type == '3D':
-            reff_profile = np.array([np.linspace(reff-dreff, reff+dreff, num=grid.nz)])
-            reff_2d_data = np.repeat(reff_profile, grid.ny, axis= 0)
-            reff_data = f = np.repeat(reff_2d_data[None,...], grid.nx, axis =0)
+            Z = grid.z - grid.z[2]
+            Z[Z<0] = 0
+            reff_profile = (reff*Z**(1./3.)) + min_reff            
+            #reff_profile = np.array([np.linspace(reff-dreff, reff+dreff, num=grid.nz)])
+            reff_data = np.tile(reff_profile[np.newaxis, np.newaxis, :], (grid.nx, grid.ny, 1))
         return shdom.GridData(grid, reff_data)
+    
 
     def get_veff(self, grid=None):
         """

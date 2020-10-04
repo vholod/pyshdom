@@ -26,7 +26,7 @@ temperature: &temperature 15
 vis_options:
   ImportConfigPath: '../CloudCT_notebooks/Gecko_config_20mGDS.json'
   temperature: *temperature # celsius
-  true_indices: [0,1,2,3,4,5,6,7,8,9]  # where imagers are located
+  true_indices: [0,1,2,3,5,7,8,9]  # where imagers are located
   rays_per_pixel: 1
   rigid_sampling: True # True
 
@@ -36,8 +36,8 @@ vis_options:
 swir_options:
   ImportConfigPath: '../CloudCT_notebooks/Hypothetic_SWIR_camera_config_50m_nadir_resolution.json'
   temperature: *temperature # celsius
-  true_indices: []   # where imagers are located, if true_indices: [], no swir imager will be simulated
-  rays_per_pixel: 16
+  true_indices: [4,6]   # where imagers are located, if true_indices: [], no swir imager will be simulated
+  rays_per_pixel: 1
   rigid_sampling: True # True
 
 
@@ -45,7 +45,8 @@ swir_options:
 # -------------   Cloud & Air Field files  ---------
 # --------------------------------------------------
 #CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
-CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36000_29x24x15_0251'
+#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36000_29x24x15_0251'
+CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821'
 #CloudFieldFile: '../WIZ_Clouds/cloud1261.txt'
 AirFieldFile: '../ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file which contains temperature measurements
 
@@ -71,8 +72,8 @@ GSD: 0.02
 # --------------------------------------------------
 # -------------   Sun Azimuth & Zenith  ------------
 # --------------------------------------------------
-sun_azimuth: 45  # azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
-sun_zenith: 150  # zenith: Solar beam zenith angle in range (90,180]
+sun_azimuth: 90  # azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
+sun_zenith: 180  # zenith: Solar beam zenith angle in range (90,180]
 
 
 # --------------------------------------------------
@@ -186,7 +187,7 @@ inverse_options:
   recover_type: 'reff_and_lwc' #reff_and_lwc' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
 
   # Initialization and Medium parameters:
-  lwc: 0.3  # init lwc of the generator
+  lwc: 1  # init lwc of the generator
   reff: 7 # init reff of the generator
   veff: 0.19 # init veff of the generator
 
