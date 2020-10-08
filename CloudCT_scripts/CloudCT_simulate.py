@@ -15,12 +15,13 @@ def main():
     logger.debug("--------------- New Simulation ---------------")
 
     run_params = load_run_params(params_path="run_params.yaml")
-
-    # parser = ArgumentParser()
-    # parser.add_argument('--cloudFieldFile', help='path to load cload field file', type=str)
-    # args = parser.parse_args()
-    # run_params['CloudFieldFile'] = args.cloudFieldFile
-    # logger.debug(f"Override cloudFieldFile from yaml. Using: {run_params['CloudFieldFile']}")
+    OVERRIDE_CLOUD = False
+    if OVERRIDE_CLOUD:
+        parser = ArgumentParser()
+        parser.add_argument('--cloudFieldFile', help='path to load cload field file', type=str)
+        args = parser.parse_args()
+        run_params['CloudFieldFile'] = args.cloudFieldFile
+        logger.debug(f"Override cloudFieldFile from yaml. Using: {run_params['CloudFieldFile']}")
 
 
     """
