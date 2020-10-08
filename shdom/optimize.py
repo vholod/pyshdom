@@ -1582,6 +1582,29 @@ class SummaryWriter(object):
         else:
             self._ground_truth = OrderedDict({estimator_name: ground_truth})
 
+    def monitor_scatterer_slices(self, estimator_name, ground_truth, ckpt_period=-1):
+        """
+        Monitor a slice of each paramater, displays the image".
+
+        Parameters
+        ----------
+        estimator_name: str
+            The name of the scatterer to monitor
+        ground_truth: shdom.Scatterer
+            The ground truth medium.
+        ckpt_period: float
+           time [seconds] between updates. setting ckpt_period=-1 will log at every iteration.
+        """
+        kwargs = {
+            'ckpt_period': ckpt_period,
+            'ckpt_time': time.time()
+        }
+        self.add_callback_fn(self.scatterer_slices_cbfn, kwargs)
+        if hasattr(self, '_ground_truth'):
+            self._ground_truth[estimator_name] = ground_truth
+        else:
+            self._ground_truth = OrderedDict({estimator_name: ground_truth})
+
     def monitor_scatter_plot(self, estimator_name, ground_truth, dilute_percent=0.4, ckpt_period=-1, parameters='all'):
         """
         Monitor scatter plot of the parameters
@@ -1809,7 +1832,64 @@ class SummaryWriter(object):
                 self.tf_writer.add_scalar(kwargs['title'][0].format(scatterer_name, parameter_name), delta, self.optimizer.iteration)
                 self.tf_writer.add_scalar(kwargs['title'][1].format(scatterer_name, parameter_name), epsilon, self.optimizer.iteration)
 
-        
+    def scatterer_slices_cbfn(self, kwargs):
+        """
+        Callback function for monitoring parameter slices (x,y,z) measures.
+
+        Parameters
+        ----------
+        kwargs: dict,
+            keyword arguments
+        """
+        for scatterer_name, gt_scatterer in self._ground_truth.items():
+            est_scatterer = self.optimizer.medium.get_scatterer(scatterer_name)
+
+            common_grid = est_scatterer.grid + gt_scatterer.grid
+            a = est_scatterer.get_mask(threshold=0.0).resample(common_grid,method='nearest')
+            b = gt_scatterer.get_mask(threshold=0.0).resample(common_grid,method='nearest')
+            common_mask = shdom.GridData(data=np.bitwise_or(a.data,b.data),grid=common_grid)
+
+            for parameter_name, parameter in est_scatterer.estimators.items():
+                ground_truth = getattr(gt_scatterer, parameter_name)
+
+                est_parameter_masked = copy.copy(parameter).resample(common_grid)
+                est_parameter_masked.apply_mask(common_mask)
+                est_param = est_parameter_masked.data
+
+                gt_param_masked = copy.copy(ground_truth).resample(common_grid)
+                gt_param_masked.apply_mask(common_mask)
+                gt_param = gt_param_masked.data
+
+                # Slices of Center of each dimension
+                # x_mid, y_mid, z_mid = np.array(est_parameter_masked.data.shape)//2
+                # self.tf_writer.add_image(parameter_name + '/x_mid', est_param[x_mid, :, :], self.optimizer.iteration, dataformats='HW')
+                # self.tf_writer.add_image(parameter_name + '/y_mid', est_param[:, y_mid, :], self.optimizer.iteration, dataformats='HW')
+                # self.tf_writer.add_image(parameter_name + '/z_mid', est_param[:, :, z_mid], self.optimizer.iteration, dataformats='HW')
+
+                # Slices of index of highest mean values for each dimension
+                x_mean = gt_param.mean(axis=(1, 2))
+                x_max_mean_index = x_mean.argmax()
+                x_max_mean_val = gt_param[x_max_mean_index, :, :].max()
+
+                y_mean = gt_param.mean(axis=(0, 2))
+                y_max_mean_index = y_mean.argmax()
+                y_max_mean_val = gt_param[:, y_max_mean_index, :].max()
+
+                z_mean = gt_param.mean(axis=(0, 1))
+                z_max_mean_index = z_mean.argmax()
+                z_max_mean_val = gt_param[:, :, z_max_mean_index].max()
+
+
+                # todo divide by /z_max_mean_val
+                # est_param = est_param*1.5*gt_param.max()/est_param.max()
+                self.tf_writer.add_image(parameter_name + '/x_max_mean_index_gt', gt_param[x_max_mean_index, :, :], self.optimizer.iteration, dataformats='HW')
+                self.tf_writer.add_image(parameter_name + '/y_max_mean_index_gt', gt_param[:, y_max_mean_index, :], self.optimizer.iteration, dataformats='HW')
+                self.tf_writer.add_image(parameter_name + '/z_max_mean_index_gt', gt_param[:, :, z_max_mean_index], self.optimizer.iteration, dataformats='HW')
+
+                self.tf_writer.add_image(parameter_name + '/x_max_mean_index_est', est_param[x_max_mean_index, :, :], self.optimizer.iteration, dataformats='HW')
+                self.tf_writer.add_image(parameter_name + '/y_max_mean_index_est', est_param[:, y_max_mean_index, :], self.optimizer.iteration, dataformats='HW')
+                self.tf_writer.add_image(parameter_name + '/z_max_mean_index_est', est_param[:, :, z_max_mean_index], self.optimizer.iteration, dataformats='HW')
+
         
     def domain_mean_cbfn(self, kwargs):
         """
