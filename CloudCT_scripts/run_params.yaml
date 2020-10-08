@@ -42,7 +42,8 @@ swir_options:
 # -------------   Cloud & Air Field files  ---------
 # --------------------------------------------------
 
-CloudFieldFile: '/wdata/clouds_from_weizmann/BOMEX_512X512X170_500CCN_20m/cropped/BOMEX_36000_41x35x50_048171.txt'
+#CloudFieldFile: '/wdata/clouds_from_weizmann/BOMEX_512X512X170_500CCN_20m/cropped/BOMEX_36000_43x33x54_1833.txt'
+CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
 AirFieldFile: '../ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file which contains temperature measurements
 
 
@@ -169,7 +170,7 @@ inverse_options:
   MICROPHYSICS: True
   
   # if micropyhsics is  true, specify where to recover lwc / reff / veff or (reff and lwc)
-  recover_type: 'reff' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
+  recover_type: 'reff_and_lwc' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
 
   # Initialization and Medium parameters:
   lwc: 0.1  # init lwc of the generator
