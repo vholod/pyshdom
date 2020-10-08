@@ -213,8 +213,9 @@ tmp[tmp == 0] = max(tmp)
 # GET RID OF ZEROS -> done
 Bottom_minimum = np.argmin(tmp)
 
-min_z_index = Bottom_minimum
-max_z_index = np.amax(np.argmax(cumsum_volume_axis2, axis=2))
+# 2 is for padding
+min_z_index = Bottom_minimum - 2
+max_z_index = np.amax(np.argmax(cumsum_volume_axis2, axis=2)) + 2
 
 new_field = new_field[:, :, min_z_index:max_z_index]
 
@@ -279,7 +280,7 @@ new_medium.show_scatterer(name='clouds')
 mlab.title('new volume')
 
 # save the txt file:
-new_cloud_name = f"{cloud_name.split('_')[0]}_{cloud_id}_{new_nx}x{new_ny}x{new_nz}_{''.join([str(elem) for elem in np.random.randint(low=0, high=9, size=4)])}"
+new_cloud_name = f"{cloud_name.split('_')[0]}_{cloud_id}_{new_nx}x{new_ny}x{new_nz}_{''.join([str(elem) for elem in np.random.randint(low=0, high=9, size=4)])}.txt"
 file_name = os.path.join(base_path, 'cropped', new_cloud_name)
 new_droplets.save_to_csv(file_name, comment_line='a part of the data of Eshkol August 2020')
 logger.info(f'saving to {file_name}')
