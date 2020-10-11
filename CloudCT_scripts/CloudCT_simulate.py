@@ -14,8 +14,8 @@ def main():
     logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
-    run_params = load_run_params(params_path="run_params.yaml")
-    #run_params = load_run_params(params_path="run_params_rec_only_extinction.yaml")
+    #run_params = load_run_params(params_path="run_params.yaml")
+    run_params = load_run_params(params_path="run_params_rec_only_extinction.yaml")
 
     
     # run_params['sun_zenith'] = sun_zenith # if you need to set the angle from main's input
@@ -290,7 +290,25 @@ def main():
 
         # See the simulated images:
         if forward_options['SEE_IMAGES']:
-            CloudCT_measurements.show_measurments(title_content=run_params['sun_zenith'])
+            if(run_params['inverse_options']['use_forward_mask']):
+                
+                CloudCT_measurements.show_measurments(title_content=run_params['sun_zenith'])
+                
+            else:
+                
+                # In a case of use_forward_mask = False which means that the 3D mask will be 
+                # calculated by Space Carving, we will visualize the images after radiance trashold on radiances images.
+                
+                radiance_threshold_dict = dict()
+                radiance_threshold_dict[0] = sum(vis_imager_config)*\
+                    [run_params['inverse_options']['radiance_threshold'][0]]
+                
+                if USESWIR:
+                    radiance_threshold_dict[1] = sum(swir_imager_config)*\
+                        [run_params['inverse_options']['radiance_threshold'][1]]
+                    
+                CloudCT_measurements.show_measurments(title_content=run_params['sun_zenith'], 
+                                                      radiance_threshold_dict = radiance_threshold_dict)                
             plt.show()
 
         # ---------SAVE EVERYTHING FOR THIS SETUP -------
@@ -531,7 +549,7 @@ def setup_imager(imager_options, run_params, MieTablesPath, simple_type):
 
     imager_config = run_params['SATS_NUMBER_SETUP'] * [False]
     for index in imager_options['true_indices']:
-        imager_config[index] = [True]
+        imager_config[index] = True
 
     return imager, wavelegth_range, imager_pixel_footprint, imager_config
 
@@ -616,7 +634,7 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
     OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if not vizual_options['CENCEL_AIR'] else OTHER_PARAMS
 
     OTHER_PARAMS = OTHER_PARAMS + ' --radiance_threshold ' + " ".join(
-        map(str, run_params['radiance_threshold'])) if run_type != 'reff_and_lwc' else OTHER_PARAMS
+        map(str, run_params['inverse_options']['radiance_threshold'])) if run_type != 'reff_and_lwc' else OTHER_PARAMS
 
     if inverse_options['MICROPHYSICS']:
         # -----------------------------------------------

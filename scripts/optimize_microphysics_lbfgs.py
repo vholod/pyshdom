@@ -44,9 +44,6 @@ class OptimizationScript(ExtinctionOptimizationScript):
         parser: argparse.ArgumentParser()
             parser initialized with basic arguments that are common to most rendering scripts.
         """
-        parser.add_argument('--calc_only_cost',
-                            action='store_true',
-                            help='Use the calc_only_cost if you want only to calculate the cost of the initialized state.')        
         parser.add_argument('--use_forward_lwc',
                             action='store_true',
                             help='Use the ground-truth LWC.')

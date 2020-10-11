@@ -27,7 +27,8 @@ vis_options:
   ImportConfigPath: '../notebooks/Gecko_config.json'
   temperature: *temperature # celsius
   true_indices: [0,1,2,3,4,5,6,7,8,9]  # where imagers are located
-
+  rays_per_pixel: 1
+  rigid_sampling: True # True
 # --------------------------------------------------
 # ------------   SWIR Imager Parameters  ------------
 # --------------------------------------------------
@@ -41,8 +42,8 @@ swir_options:
 # --------------------------------------------------
 # -------------   Cloud & Air Field files  ---------
 # --------------------------------------------------
-#CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
-CloudFieldFile: '../WIZ_Clouds/cloud1261.txt'
+CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
+#CloudFieldFile: '../WIZ_Clouds/cloud1261.txt'
 AirFieldFile: '../ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file which contains temperature measurements
 
 
@@ -88,11 +89,6 @@ SATS_NUMBER_INVERSE: *num_sats  #10, how much satellites will be used for the in
 solar_fluxes_val: 1.0
 split_accuracies_val: 0.1
 surface_albedos_val: 0.05
-
-# --------------------------------------------------
-# -------------   Radiance Threshold  ------------
-# --------------------------------------------------
-radiance_threshold: [0.023, 0.02] # Threshold is either a scalar or a list of length of measurements.
 
 
 # -------------------------------------------------
@@ -159,6 +155,12 @@ forward_options:
 # -------------------------------------------------
 inverse_options:
 
+  # --------------------------------------------------
+  # -------------   Radiance Threshold  ------------
+  # --------------------------------------------------
+  radiance_threshold: [0.023] # Threshold is either a scalar or a list of length of measurements.
+
+
   SEE_SETUP: False
 
   SEE_IMAGES: False
@@ -193,7 +195,7 @@ inverse_options:
 
   # GT_USE
   add_rayleigh: True
-  use_forward_mask: True
+  use_forward_mask: False
   use_forward_grid: True
   cloudct_use: True
   use_forward_albedo: True

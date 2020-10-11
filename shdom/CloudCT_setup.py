@@ -210,9 +210,10 @@ class SpaceMultiView_Measurements(object):
                     
                     # show all
                     for projection_index, (ax, name) in enumerate(zip(grid, projections.projection_names)):
-                        image = images[projection_index].copy()\
-                            *self._radiance_to_graylevel_scales[imager_index] # to set the images in the grayscale level..
+                        image = images[projection_index].copy()
                         image[image<=radiance_thresholds[projection_index]] = 0
+                        image *= self._radiance_to_graylevel_scales[imager_index] # to set the images in the grayscale level..
+                        
                         
                         ax.set_axis_off()
                         im = ax.imshow(image,cmap='gray',vmin=0, vmax=MAXI)

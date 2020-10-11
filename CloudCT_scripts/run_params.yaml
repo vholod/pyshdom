@@ -9,7 +9,7 @@
 # --------------------------------------------------
 # -------------   Simulation flags  ----------------
 # --------------------------------------------------
-DOFORWARD: False
+DOFORWARD: True
 DOINVERSE: True
 DOCOSTEVAL: False
 
@@ -95,12 +95,6 @@ solar_fluxes_val: 1.0
 split_accuracies_val: 0.1
 surface_albedos_val: 0.05
 
-# --------------------------------------------------
-# -------------   Radiance Threshold  ------------
-# --------------------------------------------------
-radiance_threshold: 0.023 # Threshold is either a scalar or a list of length of measurements.
-
-
 # -------------------------------------------------
 # -------------   mia table parameters  -----------
 # -------------------------------------------------
@@ -175,6 +169,12 @@ forward_options:
 # -------------------------------------------------
 inverse_options:
 
+  # --------------------------------------------------
+  # -------------   Radiance Threshold  ------------
+  # --------------------------------------------------
+  radiance_threshold: 0.023 # Threshold is either a scalar or a list of length of measurements.
+  #--------------------------------------------------------------
+  
   SEE_SETUP: False
 
   SEE_IMAGES: False
