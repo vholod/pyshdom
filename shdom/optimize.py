@@ -1281,6 +1281,60 @@ class MediumEstimator(shdom.Medium):
         )
         return gradient, loss, images
 
+    def compute_cost(self, rte_solvers, measurements, n_jobs):
+        """
+        Vadim added to compute only the cost of the current state.
+        If n_jobs>1 than parallel gradient computation is used with pixels are distributed amongst all workers
+        
+        Parameters
+        ----------
+        rte_solvers: shdom.RteSolverArray
+            A solver array with all the associated parameters and the solution to the RTE
+        measurements: shdom.Measurements or shdom.CloudCT_setup.SpaceMultiView_Measurements
+            A measurements object storing the acquired images and sensor geometry
+        n_jobs: int,
+            The number of jobs to divide the gradient computation into.
+
+        Returns
+        -------
+        loss: np.float64
+            The total loss accumulated over all pixels.
+        """   
+        loss = 0
+        if(isinstance(measurements,shdom.CloudCT_setup.SpaceMultiView_Measurements)):
+            # relating to CloudCT multi-view setup with different imagers.
+            CloudCT_geometry_and_imagers = measurements.setup
+            images_dict = measurements.images.copy() # if the measurments of type cloudct...., the images in grayscale.
+            
+            imagers_channels = measurements.get_channels_of_imagers() # A list, it is the central wavelength of al imagers. 
+            for imager_index, wavelength in enumerate(imagers_channels):
+                acquired_images = images_dict[imager_index]
+                CloudCT_projection = CloudCT_geometry_and_imagers[imager_index]
+                
+                if(measurements.sensor_type == 'RadianceSensor'):
+                    sensor=shdom.RadianceSensor()  
+                    
+                elif(measurements.sensor_type == 'StokesSensor'):
+                    sensor=shdom.StokesSensor()
+                else:
+                    raise Exception('Unsupported')
+                
+                camera = shdom.Camera(sensor, CloudCT_projection)
+                images_per_imager = camera.render(rte_solvers[imager_index], n_jobs=n_jobs)  
+                                  
+                for (i_measured,i) in zip(acquired_images,images_per_imager):
+                    loss += 0.5*np.sum(np.power((i_measured.ravel() - i.ravel()),2))
+                
+                            
+                            
+        else:
+            raise Exception('Unsupported')
+            #projection = measurements.camera.projection
+            #sensor = measurements.camera.sensor
+            #pixels = measurements.pixels            
+         
+        return loss   
+        
     def compute_gradient(self, rte_solvers, measurements, n_jobs):
         """
         Compute the gradient with respect to the current state.
@@ -2279,12 +2333,7 @@ class LocalOptimizer(object):
         self._loss = loss
         self._images = images
         
-        if(self.iteration == 0):
-            
-            tracker_path = 'cost.txt'
-            with open(tracker_path, 'a') as file_object:
-                file_object.write('{}\n'.format(loss))
-                
+        
         # vadim save gradients for each iteration for debug:
         SAVE_GRADIENTS_DB = False
         if(SAVE_GRADIENTS_DB):

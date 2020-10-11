@@ -3,24 +3,23 @@ import gc
 import logging
 import matplotlib.pyplot as plt
 import yaml
+import sys
 
 from shdom import CloudCT_setup, plank
 from shdom.CloudCT_Utils import *
 
 
-def main(reff,lwc):
+def main():
     
     logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
     run_params = load_run_params(params_path="run_params.yaml")
+    #run_params = load_run_params(params_path="run_params_rec_only_extinction.yaml")
+
+    
     # run_params['sun_zenith'] = sun_zenith # if you need to set the angle from main's input
     # logger.debug(f"New Run with sun zenith {run_params['sun_zenith']} (overrides yaml)")
-    if(reff is not None):
-        run_params['inverse_options']['reff'] = reff
-        
-    if(lwc is not None):
-        run_params['inverse_options']['lwc'] = lwc
     
 
     """
@@ -129,7 +128,7 @@ def main(reff,lwc):
     # so the FOV is also tuned:
     # -- TUNE FOV, CNY,CNX:
     if run_params['IFTUNE_CAM']:
-        L *= 1.5
+        L *= 1.6
         fov = 2 * np.rad2deg(np.arctan(0.5 * L / (run_params['Rsat'])))
         vis_cnx = vis_cny = int(np.floor(L / vis_pixel_footprint))
         if USESWIR:
@@ -145,7 +144,7 @@ def main(reff,lwc):
     # tuning is applied by the variable LOOKAT.
     LOOKAT = CENTER_OF_MEDIUM_BOTTOM
     if run_params['IFTUNE_CAM']:
-        LOOKAT[2] = 0.68 * nx * dz  # tuning. if IFTUNE_CAM = False, just lookat the bottom
+        LOOKAT[2] = 1.5*0.68 * nz * dz  # tuning. if IFTUNE_CAM = False, just lookat the bottom
 
     # currently, all satellites lookat the same point.
     SAT_LOOKATS = np.array(SATS_NUMBER_SETUP * LOOKAT).reshape(-1, 3)
@@ -340,6 +339,62 @@ def main(reff,lwc):
             visualize_results(forward_dir=forward_dir, log_name=log_name, wavelength_micron=wavelengths_micron[0])
 
         logger.debug("Inverse phase complete")
+        
+        
+    elif run_params['DOCOSTEVAL']:
+        # just calculate the cost function in different initialization modes:
+        inverse_options = run_params['inverse_options']
+        # ---------what perameter to initialize----------------------------
+        run_type = inverse_options['recover_type'] if inverse_options['MICROPHYSICS'] else 'extinction'
+        log_name = 'cost_' + log_name_base + '-' + time.strftime("%d-%b-%Y-%H:%M:%S")
+        log_dir = os.path.join(forward_dir, 'logs', log_name)
+        if not os.path.exists(log_dir):
+            os.mkdir(log_dir)
+            
+        reff_tracker_path = os.path.join(log_dir,'reff.txt')
+        lwc_tracker_path = os.path.join(log_dir,'lwc.txt')
+        cost_tracker_path = os.path.join(log_dir,'cost.txt')
+        
+        if(os.path.exists(reff_tracker_path)):
+            os.remove(reff_tracker_path)
+        if(os.path.exists(lwc_tracker_path)):
+            os.remove(lwc_tracker_path)
+        if(os.path.exists(cost_tracker_path)):
+            os.remove(cost_tracker_path)
+            
+        reff_list = np.linspace(3,15,16)
+        lwc_list = np.linspace(0.1,1.6,16)
+
+        for reff in reff_list:
+            for lwc in lwc_list:
+                print('(reff,lwc) =  ({}, {})'.format(reff,lwc))
+                with open(lwc_tracker_path, 'a') as file_object:
+                    file_object.write('{}\n'.format(lwc))
+                
+                with open(reff_tracker_path, 'a') as file_object:
+                    file_object.write('{}\n'.format(reff))
+                    
+                # the cost is calculated inside the ptimize_microphysics_lbfgs.py:
+                run_params['inverse_options']['reff'] = reff 
+                run_params['inverse_options']['lwc'] = lwc
+                                
+                cmd = create_inverse_command(run_params=run_params, inverse_options=inverse_options,
+                                             vizual_options=vizual_options,
+                                             forward_dir=forward_dir, AirFieldFile=AirFieldFile,
+                                             run_type=run_type, log_name=log_name)                
+                
+                cmd = cmd + ' --calc_only_cost'    
+                _ = subprocess.call(cmd, shell=True)
+                
+        logger.debug("Calculation of costs is complete")
+                
+                
+        
+        
+        
+        
+    else:
+        print('Forward is finished')
 
     logger.debug("--------------- End of Simulation ---------------")
 
@@ -696,7 +751,7 @@ def create_and_configer_logger(log_name):
 
     # set up logging to console
     console = logging.StreamHandler()
-    console.setLevel(logging.DEBUG)
+    console.setLevel(logging.ERROR)
     # set a format which is simpler for console use
     formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
     console.setFormatter(formatter)
@@ -731,47 +786,4 @@ def load_run_params(params_path):
 
 if __name__ == '__main__':
     
-    FULLINVERSE = True
-    
-    if(FULLINVERSE):
-        
-        main(reff=None,lwc=None)
-        
-    else:
-        
-        #old:
-        #reff_list = np.linspace(5,10,8)
-        #lwc_list = np.linspace(0.1,0.6,8)
-        
-        reff_list = np.linspace(3,15,16)
-        lwc_list = np.linspace(0.1,1.6,16)
-        
-        #reff_list = np.linspace(3,5,5)
-        #lwc_list = np.linspace(0.6,1.0,5)
-
-        
-        IFDELETEOLD = True
-        
-        
-        if(IFDELETEOLD):
-            
-            
-            
-            if(os.path.exists("lwc.txt")):
-                os.remove("lwc.txt")
-            if(os.path.exists("reff.txt")):
-                os.remove("reff.txt")
-            if(os.path.exists("cost.txt")):
-                os.remove("cost.txt")
-        
-        for reff in reff_list:
-            for lwc in lwc_list:
-                print('(reff,lwc) =  ({}, {})'.format(reff,lwc))
-                main(reff,lwc)
-                tracker_path = 'lwc.txt'
-                with open(tracker_path, 'a') as file_object:
-                    file_object.write('{}\n'.format(lwc))
-                
-                tracker_path = 'reff.txt'
-                with open(tracker_path, 'a') as file_object:
-                    file_object.write('{}\n'.format(reff))
+    main()

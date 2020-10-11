@@ -9,8 +9,9 @@
 # --------------------------------------------------
 # -------------   Simulation flags  ----------------
 # --------------------------------------------------
-DOFORWARD: True
+DOFORWARD: False
 DOINVERSE: True
+DOCOSTEVAL: False
 
 # --------------------------------------------------
 # --------------   Use Simple Imager?  --------------
@@ -46,7 +47,7 @@ swir_options:
 # --------------------------------------------------
 #CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36000_29x24x15_0251'
-CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821'
+CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt'
 #CloudFieldFile: '../WIZ_Clouds/cloud1261.txt'
 AirFieldFile: '../ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file which contains temperature measurements
 
@@ -97,7 +98,7 @@ surface_albedos_val: 0.05
 # --------------------------------------------------
 # -------------   Radiance Threshold  ------------
 # --------------------------------------------------
-radiance_threshold: [0.023, 0.02] # Threshold is either a scalar or a list of length of measurements.
+radiance_threshold: 0.023 # Threshold is either a scalar or a list of length of measurements.
 
 
 # -------------------------------------------------
@@ -109,7 +110,7 @@ mie_options:
   end_reff: 25.0
   num_reff: 100
   start_veff: 0.01
-  end_veff: 0.47 #0.4 # return it to 0.4
+  end_veff: 0.53 #0.4 # return it to 0.4
   num_veff: 117
   radius_cutoff: 65.0 # The cutoff radius for the pdf averaging [Micron]
   wavelength_resolution: 0.001 # it is the delta in the wavelengths (microns) for the optical parameters avaraging inside shdom.
@@ -187,8 +188,8 @@ inverse_options:
   recover_type: 'reff_and_lwc' #reff_and_lwc' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
 
   # Initialization and Medium parameters:
-  lwc: 1  # init lwc of the generator
-  reff: 7 # init reff of the generator
+  lwc: 0.4 # 1  # init lwc of the generator
+  reff: 7.8 # 7 # init reff of the generator
   veff: 0.19 # init veff of the generator
 
   # Scaling params when recovering reff and lwc:

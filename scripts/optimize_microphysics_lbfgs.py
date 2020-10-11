@@ -44,6 +44,9 @@ class OptimizationScript(ExtinctionOptimizationScript):
         parser: argparse.ArgumentParser()
             parser initialized with basic arguments that are common to most rendering scripts.
         """
+        parser.add_argument('--calc_only_cost',
+                            action='store_true',
+                            help='Use the calc_only_cost if you want only to calculate the cost of the initialized state.')        
         parser.add_argument('--use_forward_lwc',
                             action='store_true',
                             help='Use the ground-truth LWC.')
@@ -134,10 +137,20 @@ class OptimizationScript(ExtinctionOptimizationScript):
                                               precondition_scale_factor=self.args.lwc_scaling)                
             else:
                 
-                lwc = shdom.GridDataEstimator(self.cloud_generator.get_lwc(grid=lwc_grid, min_lwc= 1.5e-5),
-                                          min_bound=1e-5,
-                                          max_bound=2.0,
-                                          precondition_scale_factor=self.args.lwc_scaling)
+                if(self.cloud_generator.args.init == 'Monotonous'):
+                    
+                    lwc = shdom.GridDataEstimator(self.cloud_generator.get_lwc(grid=lwc_grid, min_lwc= 1.5e-5),
+                                              min_bound=1e-5,
+                                              max_bound=2.0,
+                                              precondition_scale_factor=self.args.lwc_scaling)
+                    
+                else:
+                    lwc = shdom.GridDataEstimator(self.cloud_generator.get_lwc(grid=lwc_grid),
+                                              min_bound=1e-5,
+                                              max_bound=2.0,
+                                              precondition_scale_factor=self.args.lwc_scaling)
+                    
+                    
         lwc.apply_mask(mask)
 
         if self.args.use_forward_reff:
@@ -154,11 +167,21 @@ class OptimizationScript(ExtinctionOptimizationScript):
                 
             else:
                 
-                reff = shdom.GridDataEstimator(self.cloud_generator.get_reff(grid = reff_grid, min_reff = ground_truth.min_reff),
-                                           min_bound=ground_truth.min_reff,
-                                           max_bound=ground_truth.max_reff,
-                                           precondition_scale_factor=self.args.reff_scaling)
+                if(self.cloud_generator.args.init == 'Monotonous'):
                 
+                    reff = shdom.GridDataEstimator(self.cloud_generator.get_reff(grid = reff_grid, min_reff = ground_truth.min_reff),
+                                               min_bound=ground_truth.min_reff,
+                                               max_bound=ground_truth.max_reff,
+                                               precondition_scale_factor=self.args.reff_scaling)
+                
+                else:
+                    
+                    reff = shdom.GridDataEstimator(self.cloud_generator.get_reff(grid = reff_grid),
+                                               min_bound=ground_truth.min_reff,
+                                               max_bound=ground_truth.max_reff,
+                                               precondition_scale_factor=self.args.reff_scaling)
+
+                    
         reff.apply_mask(mask)
 
         if self.args.use_forward_veff:
@@ -220,16 +243,22 @@ class OptimizationScript(ExtinctionOptimizationScript):
         measurements: shdom.Measurements
             The acquired measurements
         """
-        if(self.args.cloudct_use):
-            
-            # Load forward model and cloud ct measurements
-            medium, rte_solver, measurements = shdom.load_CloudCT_measurments_and_forward_model(input_directory)
-            # if(isinstance(measurments,shdom.CloudCT_setup.SpaceMultiView_Measurements)
-        else:
-            
-            # Load forward model and measurements
-            medium, rte_solver, measurements = shdom.load_forward_model(input_directory)
+        if hasattr(self, 'args'):
+            if(self.args.cloudct_use):
+                
+                # Load forward model and cloud ct measurements
+                medium, rte_solver, measurements = shdom.load_CloudCT_measurments_and_forward_model(input_directory)
+                # if(isinstance(measurments,shdom.CloudCT_setup.SpaceMultiView_Measurements)
+            else:
+                
+                # Load forward model and measurements
+                medium, rte_solver, measurements = shdom.load_forward_model(input_directory)
 
+        else:
+            # Load forward model and cloud ct measurements
+            medium, rte_solver, measurements = shdom.load_CloudCT_measurments_and_forward_model(input_directory)            
+            
+            
         # Get micro-physical medium ground-truth
         ground_truth = medium.get_scatterer(self.scatterer_name)
         return ground_truth, rte_solver, measurements
