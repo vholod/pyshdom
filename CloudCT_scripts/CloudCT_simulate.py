@@ -14,8 +14,8 @@ def main():
     logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
-    #run_params = load_run_params(params_path="run_params.yaml")
-    run_params = load_run_params(params_path="run_params_rec_only_extinction.yaml")
+    run_params = load_run_params(params_path="run_params.yaml")
+    #run_params = load_run_params(params_path="run_params_rec_only_extinction.yaml")
 
     
     # run_params['sun_zenith'] = sun_zenith # if you need to set the angle from main's input
@@ -253,6 +253,10 @@ def main():
             scale_ideally = False
             apply_noise = True
 
+            # Cancel noise only for test: Than uncomment the above.
+            #reduce_exposure = False
+            #scale_ideally = True
+            #apply_noise = False
         else:
             # If we do not use realistic imager, we MUST use IF_SCALE_IDEALLY=True so the images will have values in
             # maximum range.

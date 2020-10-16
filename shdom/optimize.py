@@ -1165,6 +1165,7 @@ class MediumEstimator(shdom.Medium):
         images: np.array(shape=(rte_solver._nstokes, projection.npix), dtype=np.float32)
             The rendered (synthetic) images.
         """
+        c = 0
         if isinstance(projection.npix, list):
             total_pixs = np.sum(projection.npix)
             rays_per_pixel = []
@@ -1175,10 +1176,10 @@ class MediumEstimator(shdom.Medium):
         else:
             total_pixs = projection.npix
             rays_per_pixel = np.repeat(projection.samples_per_pixel, total_pixs)
-            
+            c = c + 1
     
         rays_weights = projection.weight # pixel/ray weight of contibution to gradient due to samples per pixel introdution, interduced by vadim.
-
+        
 
         #print('--> rays per pixel {}\n, total_pixs {}'.format(rays_per_pixel, total_pixs))
 
@@ -1279,6 +1280,9 @@ class MediumEstimator(shdom.Medium):
             radiance=rte_solver._radiance,
             total_ext=rte_solver._total_ext[:rte_solver._npts]
         )
+        #print("-------")
+        #print('{} - total pixels is {}'.format(c,total_pixs))        
+        #print('{} - loss is {}'.format(c,loss))
         return gradient, loss, images
 
     def compute_cost(self, rte_solvers, measurements, n_jobs):
@@ -1417,16 +1421,21 @@ class MediumEstimator(shdom.Medium):
                 #n_jobs = 1
                 
                 if n_jobs > 1:          
-                    #if any(np.array(CloudCT_projection.samples_per_pixel)>1):
-                        #n_jobs = CloudCT_projection.num_projections
-                        
+                    
+                    # special split for n_jobs != N_views:
+                    n_jobs_projections = CloudCT_projection.split(n_jobs)
+                    special_split = [p.npix for p in n_jobs_projections]
+                    test_split = [int(p.nrays/p.samples_per_pixel) for p in n_jobs_projections]
+                    assert special_split == test_split , 'wrong rays counting or spliting'
+                    n_jobs_split_pixels = np.split(pixels, np.cumsum(special_split[:-1]))
+                    
                     output = Parallel(n_jobs=n_jobs, backend="threading", verbose=0)(
                         delayed(self.core_grad, check_pickle=False)(
                             rte_solver=rte_solvers[loop_imager_index],
                             projection=projection,
                             pixels=loop_pixels
                         ) for loop_imager_index, projection, loop_pixels in
-                        zip(np.tile(imager_index,n_jobs) , CloudCT_projection.split(n_jobs), np.array_split(pixels, n_jobs, axis=-2))
+                        zip(np.tile(imager_index,n_jobs) , n_jobs_projections, n_jobs_split_pixels )
                     )
                     
                     #for loop_imager_index, projection, loop_pixels in zip(np.tile(imager_index,n_jobs, CloudCT_projection.split(n_jobs), np.array_split(pixels, n_jobs, axis=-2)):
@@ -1465,12 +1474,30 @@ class MediumEstimator(shdom.Medium):
                                     #for (i_measured,i) in zip(acquired_images,images_per_imager):
                                         #loss_per_imager += 0.5*np.sum(np.power((i_measured.ravel() - i.ravel()),2))
                 
-                                
+                #if(imager_index == 1):
+                    #gradient_per_imager = 5*gradient_per_imager
+                    
                 gradient = np.sum([gradient, gradient_per_imager], axis=0) 
                 loss += loss_per_imager
                 images += images_per_imager
                 
+                #import scipy.io as sio
+                #file_name = '133_state_images.mat'
+                #sio.savemat(file_name, {'images':images_per_imager})
+                print('-------------')                
+                #see images of a state:
+                #fig, ax = plt.subplots(2, 5, figsize=(20, 20))
+                #from mpl_toolkits.axes_grid1 import make_axes_locatable
                 
+                #ax = ax.flatten()
+                #MAXI = np.array(images_per_imager).max()
+                #for index, img in enumerate(images_per_imager):
+                    #im = ax[index].imshow(img,cmap='gray',vmin=0, vmax=MAXI)
+                    #ax[index].set_title("{}".format(index))
+                    #divider = make_axes_locatable(ax[index])
+                    #cax = divider.append_axes("right", size="5%", pad=0.01)
+                    #plt.colorbar(im, cax=cax)                    
+                #plt.show()                
                 
             # Outside the imager_index loop:
             gradient = gradient.reshape(self.grid.shape + tuple([self.num_derivatives])) # An array containing the gradient of the cost function with respect to the parameters. the shape is of the internal shdom grid upon which the gradient was computed.

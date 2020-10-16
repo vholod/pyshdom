@@ -525,6 +525,7 @@ class Projection(object):
         if type(x)==type(y)==type(z)==type(mu)==type(phi)==np.ndarray:
             assert x.size==y.size==z.size==mu.size==phi.size, 'All input arrays must be of equal size'
             self._npix = int(x.size/self._samples_per_pixel)
+            assert int(x.size/self._samples_per_pixel) == (x.size/self._samples_per_pixel), "Something went wrong in the split projection process."
             self._nrays = x.size
         self._resolution = resolution
         
@@ -611,6 +612,7 @@ class Projection(object):
                     
                 smaller_split = np.concatenate(smaller_split)
                 rays_split = np.concatenate(rays_split)
+                assert sum(smaller_split) == sum(coarse_split), 'wrong rays counting'
                 # ------------------------------------------
                 x_split = np.split(self.x, np.cumsum(smaller_split[:-1]))
                 y_split = np.split(self.y, np.cumsum(smaller_split[:-1]))

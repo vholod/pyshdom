@@ -9,6 +9,7 @@
 # --------------------------------------------------
 # -------------   Simulation flags  ----------------
 # --------------------------------------------------
+
 DOFORWARD: True
 DOINVERSE: True
 DOCOSTEVAL: False
@@ -38,16 +39,23 @@ swir_options:
   ImportConfigPath: '../CloudCT_notebooks/Hypothetic_SWIR_camera_config_50m_nadir_resolution.json'
   temperature: *temperature # celsius
   true_indices: [4,6]   # where imagers are located, if true_indices: [], no swir imager will be simulated
-  rays_per_pixel: 1
+  rays_per_pixel: 16
   rigid_sampling: True # True
 
 
 # --------------------------------------------------
 # -------------   Cloud & Air Field files  ---------
 # --------------------------------------------------
-#CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
+CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36000_29x24x15_0251'
-CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt'
+#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt' # lwc: 0.4 reff: 7.8
+#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt' # lwc: 0.8 reff: 6.2
+#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt' # reff: 7.8 , lwc: 0.5
+#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt' # reff: 9.4 lwc: 0.6 
+#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt' # lwc: , reff:
+
+
+
 #CloudFieldFile: '../WIZ_Clouds/cloud1261.txt'
 AirFieldFile: '../ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file which contains temperature measurements
 
@@ -188,8 +196,8 @@ inverse_options:
   recover_type: 'reff_and_lwc' #reff_and_lwc' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
 
   # Initialization and Medium parameters:
-  lwc: 0.4 # 1  # init lwc of the generator
-  reff: 7.8 # 7 # init reff of the generator
+  lwc: 0.6 # 1  # init lwc of the generator
+  reff: 15 # 7 # init reff of the generator
   veff: 0.19 # init veff of the generator
 
   # Scaling params when recovering reff and lwc:

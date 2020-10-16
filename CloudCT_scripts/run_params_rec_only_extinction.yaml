@@ -130,9 +130,9 @@ forward_options:
   # --------------------------------------------------
 
   # note: when num_mu, num_phi are 16,32, the retrievals look better than with 8,16.
-  num_mu: 16
+  num_mu: 8
 
-  num_phi: 32
+  num_phi: 16
 
   max_total_mb: 100000.0
 
