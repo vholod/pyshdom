@@ -141,7 +141,7 @@ class SpaceMultiView_Measurements(object):
                 images_list_per_imager = [images_list_per_imager]
               
             if(IF_REDUCE_EXPOSURE):
-                projections.imager.adjust_exposure_time(images_list_per_imager)
+                projections.imager.adjust_exposure_time(images_list_per_imager, C = 0.9)# C = 0.9 - the imager will reach 90 procent of the full well.
                  
             self._Images_per_imager[imager_index], radiance_to_graylevel_scale = projections.imager.convert_radiance_to_graylevel(images_list_per_imager,IF_APPLY_NOISE=IF_APPLY_NOISE,IF_SCALE_IDEALLY=IF_SCALE_IDEALLY)
             # the lines below does the following: It scale back the grayscale values to radiances but it does that after nosie addition.
@@ -210,9 +210,10 @@ class SpaceMultiView_Measurements(object):
                     
                     # show all
                     for projection_index, (ax, name) in enumerate(zip(grid, projections.projection_names)):
-                        image = images[projection_index].copy()\
-                            *self._radiance_to_graylevel_scales[imager_index] # to set the images in the grayscale level..
-                        image[image<=radiance_thresholds] = 0
+                        image = images[projection_index].copy()
+                        image[image<=radiance_thresholds[projection_index]] = 0
+                        image *= self._radiance_to_graylevel_scales[imager_index] # to set the images in the grayscale level..
+
                         
                         ax.set_axis_off()
                         im = ax.imshow(image,cmap='gray',vmin=0, vmax=MAXI)
@@ -629,7 +630,8 @@ def old_Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500, CAM_FOV = 0.1, CAM_RES = (
     MV.update_solar_irradiances(solar_flux_list)
     MV.set_commonCameraIntrinsics(FOV,cnx,cny)     
     MV.update_views()
-    
+    #MV.resample_rays_per_pixel()
+
     # visualization params:
     scale = 500
     axisWidth = 0.02

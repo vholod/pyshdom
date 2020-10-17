@@ -1,12 +1,8 @@
-import argparse
-import os
-import time
-
+import os, time
 import numpy as np
-import scipy.io as sio
-
+import argparse
 import shdom
-
+import scipy.io as sio
 
 class OptimizationScript(object):
     """
@@ -28,7 +24,6 @@ class OptimizationScript(object):
     scatterer_name: str
         The name of the scatterer that will be optimized.
     """
-
     def __init__(self, scatterer_name='cloud'):
         self.scatterer_name = scatterer_name
 
@@ -46,6 +41,9 @@ class OptimizationScript(object):
         parser: argparse.ArgumentParser()
             parser initialized with basic arguments that are common to most rendering scripts.
         """
+        # parser.add_argument('--calc_only_cost',
+        #                     action='store_true',
+        #                     help='Use the calc_only_cost if you want only to calculate the cost of the initialized state.')
         parser.add_argument('--cloudct_use',
                             action='store_true',
                             help='Use it if you want to laoad and work with cloudct measurments.')
@@ -240,9 +238,9 @@ class OptimizationScript(object):
             mask = ground_truth.get_mask(threshold=1.0)
         else:
             carver = shdom.SpaceCarver(measurements)
-
+            
             mask = carver.carve(grid, agreement=0.9, thresholds=self.args.radiance_threshold)
-
+            
             # Vadim added: Save the mask3d, just for the case we want to see how good we bound the cloudy voxels.
             if (self.args.save_gt_and_carver_masks):
                 GT_mask = ground_truth.get_mask(threshold=1.0)
@@ -369,7 +367,7 @@ class OptimizationScript(object):
         optimizer: shdom.Optimizer object
             An optimizer object.
         """
-        self.parse_arguments()
+        # self.parse_arguments()
 
         ground_truth, rte_solver, measurements = self.load_forward_model(self.args.input_dir)
 
@@ -407,53 +405,80 @@ class OptimizationScript(object):
         """
         Main optimization script
         """
-        local_optimizer = self.get_optimizer()
+        self.parse_arguments()
 
-        # Optimization process
-        num_global_iter = 1
-        if self.args.globalopt:
-            global_optimizer = shdom.GlobalOptimizer(local_optimizer=local_optimizer)
-            result = global_optimizer.minimize(niter_success=20, T=1e-3)
-            num_global_iter = result.nit
-            result = result.lowest_optimization_result
-            local_optimizer.set_state(result.x)
+        if(self.args.calc_only_cost):
+            # Here we just calculate the cost of the initialized state.
+            # No need of the optimization.
+            ground_truth, rte_solver, measurements = self.load_forward_model(self.args.input_dir)
+            # Initialize a Medium Estimator
+            medium_estimator = self.get_medium_estimator(measurements, ground_truth)
+
+            # prepere the solvers:
+            if not isinstance(rte_solver, shdom.RteSolverArray):
+                rte_solver = shdom.RteSolverArray([rte_solver])
+            for solver in rte_solver:
+                solver.set_medium(medium_estimator)
+
+            # solve rte:
+            rte_solver.solve(maxiter=100, verbose=False)
+
+            cost = medium_estimator.compute_cost(rte_solver, measurements, self.args.n_jobs)
+
+            log_dir = os.path.join(self.args.input_dir, 'logs', self.args.log)
+            tracker_path = os.path.join(log_dir,'cost.txt')
+            with open(tracker_path, 'a') as file_object:
+                file_object.write('{}\n'.format(cost))
+
         else:
-            result = local_optimizer.minimize()
 
-        print('\n------------------ Optimization Finished ------------------\n')
-        print('Number global iterations: {}'.format(num_global_iter))
-        print('Success: {}'.format(result.success))
-        print('Message: {}'.format(result.message))
-        print('Final loss: {}'.format(result.fun))
-        print('Number iterations: {}'.format(result.nit))
+            # perform full optimization:
+            local_optimizer = self.get_optimizer()
 
-        # Save optimizer state
-        save_dir = local_optimizer.writer.dir if self.args.log is not None else self.args.input_dir
-        local_optimizer.save_state(os.path.join(save_dir, 'final_state.ckpt'))
+            # Optimization process
+            num_global_iter = 1
+            if self.args.globalopt:
+                global_optimizer = shdom.GlobalOptimizer(local_optimizer = local_optimizer)
+                result = global_optimizer.minimize(niter_success=20, T=1e-3)
+                num_global_iter = result.nit
+                result = result.lowest_optimization_result
+                local_optimizer.set_state(result.x)
+            else:
+                result = local_optimizer.minimize()
 
-        # vadim added to save final 3D reconstructions:
-        if (self.args.save_final3d):
-            ground_truth = self.get_ground_truth()
-            # if not isinstance(ground_truth, shdom.MicrophysicalScatterer):
-            ## If we here, it means that the optimization was called on extinction and not for microphysics.
-            # GT_parameter = ground_truth.extinction.data = ground_truth.extinction.data
+            print('\n------------------ Optimization Finished ------------------\n')
+            print('Number global iterations: {}'.format(num_global_iter))
+            print('Success: {}'.format(result.success))
+            print('Message: {}'.format(result.message))
+            print('Final loss: {}'.format(result.fun))
+            print('Number iterations: {}'.format(result.nit))
 
-            rec_scatterer = local_optimizer.medium.get_scatterer(name=self.scatterer_name)
-            # local_optimizer.medium is shdom.optimize.MediumEstimator object.
-            for parameter_name, parameter in rec_scatterer.estimators.items():
-                rec_param = parameter.data
-                try:
-                    dx = parameter.grid.dx
-                    dy = parameter.grid.dy
-                except AttributeError:
-                    dx = -1
-                    dy = -1
+            # Save optimizer state
+            save_dir = local_optimizer.writer.dir if self.args.log is not None else self.args.input_dir
+            local_optimizer.save_state(os.path.join(save_dir, 'final_state.ckpt'))
 
-                nz = parameter.grid.nz
-                dz = (parameter.grid.zmax - parameter.grid.zmin) / nz
-                GT_parameter = ground_truth.__getattribute__(parameter_name).data
-                sio.savemat(os.path.join(save_dir, 'FINAL_3D_{}.mat'.format(parameter_name)),
-                            {'GT': GT_parameter, parameter_name: rec_param, 'dx': dx, 'dy': dy, 'dz': dz})
+            # vadim added to save final 3D reconstructions:
+            if(self.args.save_final3d):
+                ground_truth = self.get_ground_truth()
+                #if not isinstance(ground_truth, shdom.MicrophysicalScatterer):
+                    ## If we here, it means that the optimization was called on extinction and not for microphysics.
+                    #GT_parameter = ground_truth.extinction.data = ground_truth.extinction.data
+
+                rec_scatterer = local_optimizer.medium.get_scatterer(name=self.scatterer_name)
+                # local_optimizer.medium is shdom.optimize.MediumEstimator object.
+                for parameter_name, parameter in rec_scatterer.estimators.items():
+                    rec_param = parameter.data
+                    try:
+                        dx = parameter.grid.dx
+                        dy = parameter.grid.dy
+                    except AttributeError:
+                        dx = -1
+                        dy = -1
+
+                    nz = parameter.grid.nz
+                    dz = (parameter.grid.zmax - parameter.grid.zmin)/nz
+                    GT_parameter = ground_truth.__getattribute__(parameter_name).data
+                    sio.savemat(os.path.join(save_dir,'FINAL_3D_{}.mat'.format(parameter_name)), {'GT':GT_parameter,parameter_name:rec_param,'dx':dx,'dy':dy,'dz':dz})
 
 
 if __name__ == "__main__":

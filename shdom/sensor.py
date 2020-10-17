@@ -525,6 +525,7 @@ class Projection(object):
         if type(x)==type(y)==type(z)==type(mu)==type(phi)==np.ndarray:
             assert x.size==y.size==z.size==mu.size==phi.size, 'All input arrays must be of equal size'
             self._npix = int(x.size/self._samples_per_pixel)
+            assert int(x.size/self._samples_per_pixel) == (x.size/self._samples_per_pixel), "Something went wrong in the split projection process."
             self._nrays = x.size
         self._resolution = resolution
         
@@ -581,20 +582,7 @@ class Projection(object):
         coarse_split = self.nrays
         smaller_split = []
         rays_split = []
-        NP_DEBUG = int(n_parts/N_views) # TODO ? should be self.npix[n]?
-        if NP_DEBUG>0:
-            for n in range(N_views):
 
-                N = int(coarse_split[n]/NP_DEBUG)
-                NF = np.array(coarse_split[n] - (NP_DEBUG - 1)*N)
-                R = np.tile(N, NP_DEBUG - 1)
-                R = np.hstack((R,NF))
-                rays_split.append(np.tile(self.samples_per_pixel[n], NP_DEBUG))
-                smaller_split.append(R)
-
-            smaller_split = np.concatenate(smaller_split)
-            rays_split = np.concatenate(rays_split)
-       
         if(any(np.array(self.samples_per_pixel)>1)):
             if(n_parts == N_views):
                 
@@ -608,6 +596,23 @@ class Projection(object):
                 
             elif(n_parts > N_views):
                 
+                NP_DEBUG = int(n_parts/N_views) # TODO ? should be self.npix[n]?
+                for n in range(N_views):
+
+                    N = int(coarse_split[n]/NP_DEBUG)
+                    while(not(N % self.samples_per_pixel[n] == 0)):
+                        N = N + 1
+                    N = int(N)
+                    NF = np.array(coarse_split[n] - (NP_DEBUG - 1)*N)
+                    R = np.tile(N, NP_DEBUG - 1)
+                    R = np.hstack((R,NF))
+                    rays_split.append(np.tile(self.samples_per_pixel[n], NP_DEBUG))
+                    smaller_split.append(R)
+
+                smaller_split = np.concatenate(smaller_split)
+                rays_split = np.concatenate(rays_split)
+                assert sum(smaller_split) == sum(coarse_split), 'wrong rays counting'
+                # ------------------------------------------
                 x_split = np.split(self.x, np.cumsum(smaller_split[:-1]))
                 y_split = np.split(self.y, np.cumsum(smaller_split[:-1]))
                 z_split = np.split(self.z, np.cumsum(smaller_split[:-1]))

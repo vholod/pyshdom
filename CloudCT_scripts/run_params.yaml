@@ -9,8 +9,10 @@
 # --------------------------------------------------
 # -------------   Simulation flags  ----------------
 # --------------------------------------------------
+
 DOFORWARD: False
 DOINVERSE: True
+DOCOSTEVAL: False
 
 # --------------------------------------------------
 # --------------   Use Simple Imager?  --------------
@@ -28,7 +30,7 @@ vis_options:
   temperature: *temperature # celsius
   true_indices: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31]  # where imagers are located
   rays_per_pixel: 16
-  rigid_sampling: False # True
+  rigid_sampling: True # True
 
 # --------------------------------------------------
 # ------------   SWIR Imager Parameters  ------------
@@ -111,6 +113,15 @@ mie_options:
   radius_cutoff: 65.0 # The cutoff radius for the pdf averaging [Micron]
   wavelength_resolution: 0.001 # it is the delta in the wavelengths (microns) for the optical parameters avaraging inside shdom.
 
+  #dr: &dr 0.2 # step in effective radius [Micron]
+  #start_reff: &rs 2.5 # Starting effective radius [Micron]
+  #end_reff: &rf 25.0
+  #start_veff: &vs 0.01
+  #end_veff: &vf 0.53 # return it to 0.4
+  #num_veff: 127
+  #radius_cutoff: 65.0 # The cutoff radius for the pdf averaging [Micron]
+  #wavelength_resolution: 0.001 # it is the delta in the wavelengths (microns) for the optical parameters avaraging inside shdom.
+
 
 # -------------------------------------------------
 # -----------  Visualization parameters  ----------
@@ -137,9 +148,9 @@ forward_options:
   # --------------------------------------------------
 
   # note: when num_mu, num_phi are 16,32, the retrievals look better than with 8,16.
-  num_mu: 16 #8
+  num_mu: 8
 
-  num_phi: 32 #16
+  num_phi: 16
 
   max_total_mb: 100000.0
 
