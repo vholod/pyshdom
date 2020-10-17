@@ -1,9 +1,12 @@
+import concurrent.futures
 import csv
 import logging
+import shutil
 from shutil import copyfile
 
 import matplotlib.pyplot as plt
 import yaml
+
 from shdom import CloudCT_setup, plank
 from shdom.CloudCT_Utils import *
 
@@ -351,10 +354,10 @@ def main(cloud_indices):
 
                 # save lwc and reff for neural network
                 copyfile(Final_results_3Dfiles[0], os.path.join(run_params['neural_network']['betas_path'],
-                                                                f'beta_no_use_forward{cloud_index}'))
+                                                                f'32_sats_50m_limit_iter_{cloud_index}.mat'))
                 result = {'time': time.time() - inverse_start_time}
                 filename = os.path.join(run_params['neural_network']['times_path'],
-                                        f'cloud_no_use_forward{cloud_index}.mat')
+                                        f'32_sats_50m_limit_iter_{cloud_index}.mat')
                 sio.savemat(filename, result)
 
                 logger.debug("Inverse phase complete")
@@ -759,4 +762,4 @@ if __name__ == '__main__':
     #         satellites_images_indices), num_workers)
     # with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
     #     future_to_url = {executor.submit(main, cloud_indices_chunks[i]) for i in np.arange(num_workers)}
-    main(['6001', '6002', '6003', '6004'])
+    main(['6004'])

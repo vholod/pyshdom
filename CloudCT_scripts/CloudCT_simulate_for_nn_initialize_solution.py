@@ -351,10 +351,10 @@ def main(cloud_indices):
 
                 # save lwc and reff for neural network
                 copyfile(Final_results_3Dfiles[0], os.path.join(run_params['neural_network']['betas_path'],
-                                                                f'beta_no_use_forward{cloud_index}'))
+                                                                f'10_sats_limit_iter_20m_{cloud_index}.mat'))
                 result = {'time': time.time() - inverse_start_time}
                 filename = os.path.join(run_params['neural_network']['times_path'],
-                                        f'cloud_no_use_forward{cloud_index}.mat')
+                                        f'10_sats_limit_iter_20m_{cloud_index}.mat')
                 sio.savemat(filename, result)
 
                 logger.debug("Inverse phase complete")
@@ -552,11 +552,9 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
     GT_USE = GT_USE + ' --use_forward_grid' if inverse_options['use_forward_grid'] else GT_USE
     GT_USE = GT_USE + ' --save_gt_and_carver_masks' if inverse_options['if_save_gt_and_carver_masks'] else GT_USE
     GT_USE = GT_USE + ' --save_final3d' if inverse_options['if_save_final3d'] else GT_USE
-    GT_USE = GT_USE + ' --initialize_solution' if inverse_options['if_initialize_solution'] else GT_USE
-    GT_USE = GT_USE + f" --initialization_path {os.path.join(run_params['neural_network']['betas_path'], 'net_beta' + cloud_index + '.mat')}" if \
+    GT_USE = GT_USE + ' --net_initialize_solution' if inverse_options['if_initialize_solution'] else GT_USE
+    GT_USE = GT_USE + f" --net_initialization_path {os.path.join(run_params['neural_network']['betas_path'], 'net_beta' + cloud_index + '.mat')}" if \
         inverse_options['if_initialize_solution'] else GT_USE
-    # GT_USE = GT_USE + f" --initialization_path {os.path.join('/home/yaelsc/Data/08_10_2020/test/pyshdom/betas', 'beta' + cloud_index)}" if \
-    #          inverse_options['if_initialize_solution'] else GT_USE
 
     # The mie_base_path is defined at the beginning of this script.
     # (use_forward_mask, use_forward_grid, use_forward_albedo, use_forward_phase):
@@ -764,4 +762,4 @@ if __name__ == '__main__':
     #         satellites_images_indices), num_workers)
     # with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
     #     future_to_url = {executor.submit(main, cloud_indices_chunks[i]) for i in np.arange(num_workers)}
-    main(['6001', '6002', '6003', '6004'])
+    main(['6004'])

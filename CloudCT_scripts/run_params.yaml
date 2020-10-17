@@ -9,7 +9,7 @@
 # --------------------------------------------------
 # -------------   Simulation flags  ----------------
 # --------------------------------------------------
-DOFORWARD: True
+DOFORWARD: False
 DOINVERSE: True
 
 # --------------------------------------------------
@@ -26,7 +26,7 @@ temperature: &temperature 15
 vis_options:
   ImportConfigPath: '../notebooks/Gecko_config.json'
   temperature: *temperature # celsius
-  true_indices: [0,1,2,3,4,5,6,7,8,9]  # where imagers are located
+  true_indices: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31]  # where imagers are located
   rays_per_pixel: 16
   rigid_sampling: False # True
 
@@ -36,8 +36,8 @@ vis_options:
 swir_options:
   ImportConfigPath: '../notebooks/Hypothetic_SWIR_camera_config_50m_nadir_resolution.json'
   temperature: *temperature # celsius
-  true_indices: [0,1,2,3,4,5,6,7,8,9]   # where imagers are located, if true_indices: [], no swir imager will be simulated
-  rays_per_pixel: 16
+  true_indices: []   # where imagers are located, if true_indices: [], no swir imager will be simulated
+  rays_per_pixel: 1
   rigid_sampling: False # True
 
 
@@ -52,16 +52,16 @@ AirFieldFile: '../ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file wh
 # --------------------------------------------------
 # ----------------  Number of Jobs  ----------------
 # --------------------------------------------------
-n_jobs: 30
+n_jobs: 32
 
 
 # --------------------------------------------------
 # ----------------   Orbit and GSD  ----------------
 # --------------------------------------------------
-Rsat: 500  # orbit altitude, km
+Rsat: 600  # orbit altitude, km
 #GSD: 0.02  # in km, it is the ground spatial resolution.
 #GSD: 0.005 # /4
-GSD: 0.02
+GSD: 0.05
 # --------------------------------------------------
 # -----------------   Wavelengths  -----------------
 # --------------------------------------------------
@@ -77,7 +77,7 @@ sun_zenith: 150  # zenith: Solar beam zenith angle in range (90,180]
 # --------------------------------------------------
 # ------------   Number of Satellites  -------------
 # --------------------------------------------------
-SATS_NUMBER_SETUP: &num_sats 10  # satellites number to build the setup, for the inverse, we can use less satellites.
+SATS_NUMBER_SETUP: &num_sats 32  # satellites number to build the setup, for the inverse, we can use less satellites.
 SATS_NUMBER_INVERSE: *num_sats  #10, how much satellites will be used for the inverse. TODO not in use
 
 
@@ -95,7 +95,7 @@ surface_albedos_val: 0.05
 # --------------------------------------------------
 # -------------   Radiance Threshold  ------------
 # --------------------------------------------------
-radiance_threshold: [0.023, 0.02] # Threshold is either a scalar or a list of length of measurements.
+radiance_threshold: [0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02] # Threshold is either a scalar or a list of length of measurements.
 
 
 # -------------------------------------------------
@@ -128,7 +128,7 @@ vizual_options:
 # -------------------------------------------------
 forward_options:
 
-  SEE_IMAGES: True
+  SEE_IMAGES: False
 
   temp: 5900  # K,  units of W/(m^2))
 
@@ -137,9 +137,9 @@ forward_options:
   # --------------------------------------------------
 
   # note: when num_mu, num_phi are 16,32, the retrievals look better than with 8,16.
-  num_mu: 16
+  num_mu: 16 #8
 
-  num_phi: 32
+  num_phi: 32 #16
 
   max_total_mb: 100000.0
 
@@ -166,10 +166,10 @@ inverse_options:
 
   SEE_IMAGES: False
 
-  VIS_RESULTS3D: False  # show the results in 3D visualization
+  VIS_RESULTS3D: True  # show the results in 3D visualization
 
   #MICROPHYSICS: True # False for extinction
-  MICROPHYSICS: True
+  MICROPHYSICS: False
   
   # if micropyhsics is  true, specify where to recover lwc / reff / veff or (reff and lwc)
   recover_type: 'reff_and_lwc' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
@@ -196,11 +196,11 @@ inverse_options:
 
   # GT_USE
   add_rayleigh: True
-  use_forward_mask: True
+  use_forward_mask: False
   use_forward_grid: True
-  cloudct_use: True
-  use_forward_albedo: True
-  use_forward_phase: True
+  cloudct_use: False
+  use_forward_albedo: False
+  use_forward_phase: False
   if_save_gt_and_carver_masks: True
   if_save_final3d: True
 

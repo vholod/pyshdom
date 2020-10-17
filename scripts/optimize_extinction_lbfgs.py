@@ -119,9 +119,9 @@ class OptimizationScript(object):
                             choices=['l2', 'normcorr'],
                             default='l2',
                             help='Different loss functions for optimization. Currently only l2 is supported.')
-        parser.add_argument('--initialization_path',
+        parser.add_argument('--net_initialization_path',
                             help='Path to the mat file of the initialization.')
-        parser.add_argument('--initialize_solution',
+        parser.add_argument('--net_initialize_solution',
                             action='store_true',
                             help='If to initialize solution.')
         return parser
@@ -265,8 +265,8 @@ class OptimizationScript(object):
             phase = self.cloud_generator.get_phase(wavelength, phase_grid)
 
         extinction = self.cloud_generator.get_extinction(grid=grid)
-        if self.args.initialize_solution:
-            extinction._data = sio.loadmat(self.args.initialization_path)['extinction']
+        if self.args.net_initialize_solution:
+            extinction._data = sio.loadmat(self.args.net_initialization_path)['extinction']
         extinction = shdom.GridDataEstimator(extinction, min_bound=1e-3, max_bound=2e2)
         cloud_estimator = shdom.OpticalScattererEstimator(wavelength, extinction, albedo, phase)
         cloud_estimator.set_mask(mask)
@@ -354,6 +354,7 @@ class OptimizationScript(object):
             ground_truth = ground_truth.get_optical_scatterer(measurements.wavelength)
         return ground_truth, rte_solver, measurements
 
+    
     def get_ground_truth(self):
         ground_truth, _, _ = self.load_forward_model(self.args.input_dir)
         # here ground_truth is shdom.medium.OpticalScatterer.
@@ -458,3 +459,7 @@ class OptimizationScript(object):
 if __name__ == "__main__":
     script = OptimizationScript(scatterer_name='cloud')
     script.main()
+
+
+
+

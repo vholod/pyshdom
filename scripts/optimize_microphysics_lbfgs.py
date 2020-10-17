@@ -83,9 +83,9 @@ class OptimizationScript(ExtinctionOptimizationScript):
                             default=1.0,
                             type=np.float32,
                             help='(default value: %(default)s) Pre-conditioning scale factor for effective variance estimation')
-        parser.add_argument('--initialization_path',
+        parser.add_argument('--net_initialization_path',
                             help='Path to the mat file of the initialization.')
-        parser.add_argument('--initialize_solution',
+        parser.add_argument('--net_initialize_solution',
                             action='store_true',
                             help='If to initialize solution.')
         return parser

@@ -37,7 +37,6 @@ vis_options:
   ImportConfigPath: '../notebooks/Gecko_config.json'
   temperature: *temperature # celsius
   true_indices: [0,1,2,3,4,5,6,7,8,9]  # where imagers are located
-#  true_indices: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31]  # where imagers are located
   rays_per_pixel: 1
   rigid_sampling: True
 
@@ -62,7 +61,6 @@ AirFieldFile: '../ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file wh
 
 # --------------------------------------------------
 # ----------------  Number of Jobs  ----------------
-# --------------------------------------------------
 # --------------------------------------------------
 n_jobs: 20
 
@@ -89,7 +87,6 @@ sun_zenith: 150  # zenith: Solar beam zenith angle in range (90,180]
 # --------------------------------------------------
 # ------------   Number of Satellites  -------------
 # --------------------------------------------------
-#SATS_NUMBER_SETUP: &num_sats 32  # satellites number to build the setup, for the inverse, we can use less satellites.
 SATS_NUMBER_SETUP: &num_sats 10  # satellites number to build the setup, for the inverse, we can use less satellites.
 SATS_NUMBER_INVERSE: *num_sats  #10, how much satellites will be used for the inverse.
 
@@ -111,7 +108,7 @@ surface_albedos_val: 0.05
 radiance_threshold: [0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02] # Threshold is either a scalar or a list of length of measurements.
 
 
-# -----------------------i--------------------------
+# -------------------------------------------------
 # -------------   mia table parameters  -----------
 # -------------------------------------------------
 mie_options:
@@ -227,8 +224,6 @@ inverse_options:
   loss_type: 'l2'  # Different loss functions for optimization. Currently only l2 is supported.
   extinction_optimizer: 'optimize_extinction_lbfgs.py'
   microphysics_optimizer: 'optimize_microphysics_lbfgs.py'
-
-  if_initialize_solution: False
 
 # ----------------------------------------------
 # -------------------  Others  -----------------

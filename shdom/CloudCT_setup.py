@@ -212,7 +212,7 @@ class SpaceMultiView_Measurements(object):
                     for projection_index, (ax, name) in enumerate(zip(grid, projections.projection_names)):
                         image = images[projection_index].copy()\
                             *self._radiance_to_graylevel_scales[imager_index] # to set the images in the grayscale level..
-                        image[image<=radiance_thresholds[projection_index]] = 0
+                        image[image<=radiance_thresholds] = 0
                         
                         ax.set_axis_off()
                         im = ax.imshow(image,cmap='gray',vmin=0, vmax=MAXI)
@@ -223,8 +223,8 @@ class SpaceMultiView_Measurements(object):
                     # Since currently the view per same imager have identicale nx and ny:
                     nx, ny =  image.shape
                     title = f"Sun Zenith {title_content}, Imager type is {projections.imager.short_description()}, nx={nx} , ny={ny}"
-                    cbar = ax.cax.colorbar(im)
-                    cbar = grid.cbar_axes[0].colorbar(im)
+                    # cbar = ax.cax.colorbar(im)
+                    # cbar = grid.cbar_axes[0].colorbar(im)
                     fig.suptitle(title, size=16,y=0.95)
                     #plt.savefig(f'sun_zenith_cloud_retrievals/cloud_retrievals_sun_zenith_{title_content}.png')
                     #plt.close()

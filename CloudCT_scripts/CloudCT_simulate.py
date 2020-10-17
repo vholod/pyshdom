@@ -285,7 +285,8 @@ def main():
 
         # See the simulated images:
         if forward_options['SEE_IMAGES']:
-            CloudCT_measurements.show_measurments(title_content=run_params['sun_zenith'])
+            CloudCT_measurements.show_measurments(title_content=run_params['sun_zenith'],
+                                                  radiance_threshold_dict=run_params['radiance_threshold'])
             plt.show()
 
         # ---------SAVE EVERYTHING FOR THIS SETUP -------
@@ -337,7 +338,7 @@ def main():
 
     logger.debug("--------------- End of Simulation ---------------")
 
-    return vis_max_radiance_list, swir_max_radiance_list
+    return # vis_max_radiance_list, swir_max_radiance_list
 
 
 def write_to_run_tracker(forward_dir, msg):
@@ -382,7 +383,7 @@ def visualize_results(forward_dir, log_name, wavelength_micron):
     logs_prefix = os.path.join(logs_dir, log_name)
     logs_files = glob.glob(logs_prefix + '-*')
 
-    times = [i.split('{}-'.format(int(1e3 * wavelength_micron)))[-1] for i in logs_files]
+    times = [i.split(logs_prefix + '-')[-1].replace('_gradients', '') for i in logs_files]
     # sort the times to find the last one.
     timestamp = [time.mktime(time.strptime(i, "%d-%b-%Y-%H:%M:%S")) for i in times]
     # time.mktime(t) This is the inverse function of localtime()
@@ -679,13 +680,13 @@ def create_and_configer_logger(log_name):
     # set up logging to file
     logging.basicConfig(
         filename=log_name,
-        level=logging.DEBUG,
+        level=logging.ERROR,
         format='[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s'
     )
 
     # set up logging to console
     console = logging.StreamHandler()
-    console.setLevel(logging.DEBUG)
+    console.setLevel(logging.ERROR)
     # set a format which is simpler for console use
     formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
     console.setFormatter(formatter)
