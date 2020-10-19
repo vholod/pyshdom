@@ -7,7 +7,7 @@ import sys
 
 from shdom import CloudCT_setup, plank
 from shdom.CloudCT_Utils import *
-
+import random
 
 def main():
     
@@ -68,6 +68,8 @@ def main():
                       f'GSD_{int(1e3 * vis_pixel_footprint)}m' \
                       f"_LES_cloud_field_{cloud_name.split('_')[0]}"
 
+    if run_params['use_cal_uncertainty']:
+        forward_dir = forward_dir + '_cal_uncertainty_{}'.format(random.randint(1,1000))
     # inverse_dir, where to save everything that is related to invers model:
     inverse_dir = forward_dir  # TODO not in use
     log_name_base = f"active_sats_{SATS_NUMBER_SETUP}_{cloud_name}"
@@ -92,7 +94,7 @@ def main():
     atmosphere = CloudCT_setup.Prepare_Medium(CloudFieldFile=run_params['CloudFieldFile'],
                                               AirFieldFile=AirFieldFile,
                                               MieTablesPath=MieTablesPath,
-                                        wavelengths_micron=wavelengths_micron,
+                                              wavelengths_micron=wavelengths_micron,
                                               wavelength_averaging=wavelength_averaging)
 
     droplets = atmosphere.get_scatterer('cloud')
@@ -268,8 +270,10 @@ def main():
                                                    rte_solvers=rte_solvers,
                                                    IF_REDUCE_EXPOSURE=reduce_exposure,
                                                    IF_SCALE_IDEALLY=scale_ideally,
-                                                   IF_APPLY_NOISE=apply_noise)
-
+                                                   IF_APPLY_NOISE=apply_noise,
+                                                   IF_CALIBRATION_UNCERTAINTY = run_params['use_cal_uncertainty'],
+                                                   uncertainty_options = run_params['uncertainty_options'])                                                   
+        
         # Calculate irradiance of the spesific wavelength:
         # use plank function:
         Cosain = np.cos(np.deg2rad((180 - run_params['sun_zenith'])))
@@ -386,6 +390,10 @@ def main():
             
         reff_list = np.linspace(3,15,16)
         lwc_list = np.linspace(0.1,1.6,16)
+        
+        # for rico only:
+        #reff_list = np.linspace(8,20,16)
+        #lwc_list = np.linspace(0.1,1.6,16)        
 
         for reff in reff_list:
             for lwc in lwc_list:
@@ -674,7 +682,7 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
             """
 
             GT_USE += ' --use_forward_lwc'
-            GT_USE += ' --use_forward_veff'
+            GT_USE += ' --use_forward_veff' 
             OTHER_PARAMS += ' --reff ' + str(inverse_options['reff'])
 
         # -----------------------------------------------
@@ -707,8 +715,11 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
             4. cloud mask (use_forward_mask) or not (when use_forward_mask = False).
 
             """
-
-            GT_USE += ' --use_forward_veff'
+            if run_params['inverse_options']['use_const_veff']:
+                GT_USE += ' --const_veff --veff '+ str(run_params['inverse_options']['veff']) 
+            else:
+                GT_USE += ' --use_forward_veff' 
+                
             GT_USE += ' --lwc_scaling ' + str(inverse_options['lwc_scaling_val'])
             GT_USE += ' --reff_scaling ' + str(inverse_options['reff_scaling_val'])
             OTHER_PARAMS += ' --reff ' + str(inverse_options['reff'])

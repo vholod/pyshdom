@@ -2360,6 +2360,10 @@ class LocalOptimizer(object):
         self._loss = loss
         self._images = images
         
+        if(self.iteration == 15):
+            cost_tracker_path = os.path.join(self.writer.dir,'cost_itr_15.txt')
+            with open(cost_tracker_path, 'a') as file_object:
+                file_object.write('{}\n'.format(loss))            
         
         # vadim save gradients for each iteration for debug:
         SAVE_GRADIENTS_DB = False

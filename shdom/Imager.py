@@ -702,9 +702,26 @@ class Imager(object):
         
         electrons_number = np.clip(electrons_number, a_min = 0, a_max=None)
         return electrons_number 
-      
-      
-    def convert_radiance_to_graylevel(self,images,IF_APPLY_NOISE = False,IF_SCALE_IDEALLY=False):
+    
+    def add_bais(self, electrons_number_image, uncertainty_options):
+        max_bias = uncertainty_options['max_bias']
+        electrons_number = electrons_number_image.copy()
+        mean_electrons = np.mean(electrons_number)
+        electrons_number_bias = int(mean_electrons*max_bias*np.random.random_sample()/100)
+        electrons_number += electrons_number_bias
+        
+        return electrons_number 
+        
+    def add_gain_uncertainty(self, electrons_number_image,uncertainty_options):
+        
+        max_gain = uncertainty_options['max_gain'] 
+        electrons_number = electrons_number_image.copy()
+        electrons_number_gain = np.random.normal(0.0,max_gain/100,electrons_number.shape)
+        electrons_number =electrons_number*(1+electrons_number_gain)
+        
+        return electrons_number 
+    
+    def convert_radiance_to_graylevel(self,images,IF_APPLY_NOISE = False,IF_SCALE_IDEALLY=False, uncertainty_options = None):
         """
         This method convert radiances to grayscals. In addition, it returns the scale that would convert radiance to grayscale BUT without noise addition in the electrons lavel. 
         The user decides if to use that as normalization or not.
@@ -718,6 +735,10 @@ class Imager(object):
         
         IF_SCALE_IDEALLY - bool, if it is True, ignore imager parameters that plays in the convertion of
         radiance to electrons. It may be used just for simulations of ideal senarios or debug.
+        
+        uncertainty_options - Bool
+        if uncertainty_options = None no calibration uncertainty will be considered, else, will be considered.
+        
         
         Output:
         gray_scales - list of images in grayscale
@@ -742,7 +763,6 @@ class Imager(object):
             # units of INTEGRAL are [electrons*st/sec]        
             radiance_to_graylevel_scale = self._sensor.alpha*(1e-6*self._exposure_time)*INTEGRAL
             
-        
         for index, image in enumerate(images):
             # image - pixels units of [1/st]
             
@@ -758,8 +778,16 @@ class Imager(object):
                 electrons_number = np.round(electrons_number)
             
                 # Here is the place to put the noise, since the noise is on the electrons levels:
+                if(uncertainty_options is not None):
+                    if(uncertainty_options['use_bias']):
+                        self.add_bais(electrons_number, uncertainty_options)
+                    
                 if(IF_APPLY_NOISE):
                     electrons_number = self.add_noise(electrons_number)
+                
+                if(uncertainty_options is not None):    
+                    if(uncertainty_options['use_gain']):
+                        self.add_gain_uncertainty(electrons_number, uncertainty_options)                    
     
                 # ---------------- finish the noise ------------------------------------------------
                 gray_scale = self._sensor.alpha*electrons_number

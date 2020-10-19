@@ -796,6 +796,7 @@ class Monotonous(CloudGenerator):
         Returns
         -------
         '''
+        
 
     def get_grid(self):
         """
