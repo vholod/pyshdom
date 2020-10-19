@@ -783,7 +783,9 @@ class OrthographicProjection(HomographyProjection):
         self._mu = self._mu.ravel().astype(np.float64)
         self._phi = self._phi.ravel().astype(np.float64)
         self._npix = self.x.size
+        self._nrays = self._npix
         self._resolution = [x.size, y.size]
+        self._weight = np.ones_like(self._mu)
 
     @property 
     def altitude(self):

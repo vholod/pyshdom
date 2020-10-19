@@ -4,6 +4,7 @@ import logging
 import matplotlib.pyplot as plt
 import yaml
 import sys
+from itertools import chain
 
 from shdom import CloudCT_setup, plank
 from shdom.CloudCT_Utils import *
@@ -14,7 +15,7 @@ def main():
     logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
-    run_params = load_run_params(params_path="run_params.yaml")
+    run_params = load_run_params(params_path="run_params_rico.yaml")
     #run_params = load_run_params(params_path="run_params_rec_only_extinction.yaml")
 
     
@@ -70,6 +71,15 @@ def main():
 
     if run_params['use_cal_uncertainty']:
         forward_dir = forward_dir + '_cal_uncertainty_{}'.format(random.randint(1,1000))
+        if run_params['uncertainty_options']['use_bias']:
+            forward_dir = forward_dir + '_use_bias_{}'.format(run_params['uncertainty_options']['max_bias'])
+        if run_params['uncertainty_options']['use_gain']:
+            forward_dir = forward_dir + '_use_gain_{}'.format(run_params['uncertainty_options']['max_gain'])
+                
+    
+    if (not run_params['inverse_options']['use_forward_mask']):
+        forward_dir = forward_dir + '_space_curv'
+        
     # inverse_dir, where to save everything that is related to invers model:
     inverse_dir = forward_dir  # TODO not in use
     log_name_base = f"active_sats_{SATS_NUMBER_SETUP}_{cloud_name}"
@@ -296,28 +306,47 @@ def main():
         # The simulate_measurements() simulate images in gray levels.
         # Now we need to save that images and be able to load that images in the inverse pipline/
 
-        # See the simulated images:
+        # ------------------------------------------------------------------------
+        # ----------Threshold for the radiance to create a cloud mask.------------
+        # ------------------------------------------------------------------------
+        radiance_threshold_dict = dict()
+        if(not run_params['inverse_options']['use_forward_mask']):
+            # In a case of use_forward_mask = False which means that the 3D mask will be 
+            # calculated by Space Carving, we will visualize the images after radiance trashold on radiances images.
+            
+            radiance_threshold_vis = run_params['inverse_options']['radiance_threshold_vis']
+            radiance_threshold_swir = run_params['inverse_options']['radiance_threshold_swir']
+            assert isinstance(radiance_threshold_vis,list) , "radiance_threshold must be a list"
+            if len(radiance_threshold_vis) == 1:
+                # index 0 always to vis
+                radiance_threshold_dict[0] = sum(vis_imager_config)*radiance_threshold_vis
+            
+            else:
+                radiance_threshold_dict[0] = radiance_threshold_vis
+                
+            if USESWIR:
+                assert isinstance(radiance_threshold_swir,list) , "radiance_threshold must be a list"
+                if len(radiance_threshold_vis) == 1:
+                    radiance_threshold_dict[1] = sum(swir_imager_config)*radiance_threshold_swir
+            
+                else:
+                    radiance_threshold_dict[1] = radiance_threshold_swir
+
+
+        # ------------------------------------------------------------------------                 
+        # ----------------See the simulated images------------:
+        # ------------------------------------------------------------------------
         if forward_options['SEE_IMAGES']:
             if(run_params['inverse_options']['use_forward_mask']):
                 
                 CloudCT_measurements.show_measurments(title_content=run_params['sun_zenith'])
                 
             else:
-                
-                # In a case of use_forward_mask = False which means that the 3D mask will be 
-                # calculated by Space Carving, we will visualize the images after radiance trashold on radiances images.
-                
-                radiance_threshold_dict = dict()
-                radiance_threshold_dict[0] = sum(vis_imager_config)*\
-                    [run_params['inverse_options']['radiance_threshold'][0]]
-                
-                if USESWIR:
-                    radiance_threshold_dict[1] = sum(swir_imager_config)*\
-                        [run_params['inverse_options']['radiance_threshold'][1]]
-                    
+      
                 CloudCT_measurements.show_measurments(title_content=run_params['sun_zenith'], 
                                                       radiance_threshold_dict = radiance_threshold_dict)                
             plt.show()
+
 
         # ---------SAVE EVERYTHING FOR THIS SETUP -------
         medium = atmosphere
@@ -347,7 +376,7 @@ def main():
         cmd = create_inverse_command(run_params=run_params, inverse_options=inverse_options,
                                      vizual_options=vizual_options,
                                      forward_dir=forward_dir, AirFieldFile=AirFieldFile,
-                                     run_type=run_type, log_name=log_name)
+                                     run_type=run_type, log_name=log_name, radiance_threshold_dict=radiance_threshold_dict)
 
         dump_run_params(run_params=run_params, dump_dir=forward_dir)
 
@@ -411,7 +440,7 @@ def main():
                 cmd = create_inverse_command(run_params=run_params, inverse_options=inverse_options,
                                              vizual_options=vizual_options,
                                              forward_dir=forward_dir, AirFieldFile=AirFieldFile,
-                                             run_type=run_type, log_name=log_name)                
+                                             run_type=run_type, log_name=log_name, radiance_threshold_dict=radiance_threshold_dict)                
                 
                 cmd = cmd + ' --calc_only_cost'    
                 _ = subprocess.call(cmd, shell=True)
@@ -589,7 +618,7 @@ def dump_run_params(run_params, dump_dir):
 
 
 def create_inverse_command(run_params, inverse_options, vizual_options,
-                           forward_dir, AirFieldFile, run_type, log_name):
+                           forward_dir, AirFieldFile, run_type, log_name, radiance_threshold_dict):
     """
     TODO
     Args:
@@ -645,9 +674,18 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
 
     OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if not vizual_options['CENCEL_AIR'] else OTHER_PARAMS
 
-    OTHER_PARAMS = OTHER_PARAMS + ' --radiance_threshold ' + " ".join(
-        map(str, run_params['inverse_options']['radiance_threshold'])) if run_type != 'reff_and_lwc' else OTHER_PARAMS
-
+    if not run_params['inverse_options']['use_forward_mask']:
+        """
+        Her we must use radiance treshold:
+        Threshold for the radiance to create a cloud mask.
+        Threshold is either a scalar or a list of length of measurements.
+        """
+        radiance_thresholds = list(chain(*radiance_threshold_dict.values())) # Concatenating dictionary value lists. 
+            
+        OTHER_PARAMS = OTHER_PARAMS + ' --radiance_threshold ' + " ".join(
+            map(str, radiance_thresholds))
+        
+        
     if inverse_options['MICROPHYSICS']:
         # -----------------------------------------------
         # ---------SOLVE for lwc only  ------------------

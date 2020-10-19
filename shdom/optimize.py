@@ -2152,11 +2152,28 @@ class SpaceCarver(object):
         
         self._measurements = measurements
         
-        if isinstance(measurements.camera.projection, shdom.MultiViewProjection):
-            self._projections = measurements.camera.projection.projection_list
+        if(isinstance(measurements,shdom.CloudCT_setup.SpaceMultiView_Measurements)):
+            self._projections = []
+            self._images = []
+            # relating to CloudCT multi-view setup with different imagers.
+            CloudCT_geometry_and_imagers = measurements.setup  
+            images_dict = measurements.images.copy()
+            
+            imagers_channels = measurements.get_channels_of_imagers() # A list, it is the central wavelength of al imagers. 
+            for imager_index, wavelength in enumerate(imagers_channels):
+                acquired_images = images_dict[imager_index]
+                CloudCT_projection = CloudCT_geometry_and_imagers[imager_index]  
+                
+                self._projections +=  CloudCT_projection.projection_list
+                self._images += acquired_images.copy()
+         
         else:
-            self._projections = [measurements.camera.projection]
-        self._images = measurements.images
+            
+            if isinstance(measurements.camera.projection, shdom.MultiViewProjection):
+                self._projections = measurements.camera.projection.projection_list
+            else:
+                self._projections = [measurements.camera.projection]
+            self._images = measurements.images
 
     def carve(self, grid, thresholds, agreement=0.75):
         """
@@ -2181,6 +2198,9 @@ class SpaceCarver(object):
         -----
         Currently ignores stokes/multispectral measurements and uses only I component and the last channel to retrieve a cloud mask.
         """
+        
+        VIS_VOLUME = False # for debug purposes
+        
         self._rte_solver.set_grid(grid)
         volume = np.zeros((grid.nx, grid.ny, grid.nz))
         
@@ -2193,14 +2213,31 @@ class SpaceCarver(object):
             
         for projection, image, threshold in zip(self._projections, self._images, thresholds):
 
-            if self._measurements.num_channels > 1:
-                image = image[..., -1]
-            if self._measurements.camera.sensor.type == 'StokesSensor':
+            if(self._measurements.sensor_type == 'StokesSensor'):
                 image = image[0]
-
-            image_mask = image > threshold
+            """
+            TODO - if imager has multiple cahnnels this must be adjusted.
+            """    
+            if(projection.samples_per_pixel > 1):
+                samples_per_pixel = projection.samples_per_pixel
+                num_channels = 1
+                image_mask = image > threshold
+                mask_pixels = np.repeat(image_mask.reshape((-1, num_channels), order='F'), samples_per_pixel)
+                projection = projection[mask_pixels == 1]
                 
-            projection = projection[image_mask.ravel(order='F') == 1]
+                    
+            else:
+                
+                if(not isinstance(self._measurements,shdom.CloudCT_setup.SpaceMultiView_Measurements)):
+                    # original usage;
+                    if self._measurements.num_channels > 1:
+                        image = image[..., -1]
+                    if self._measurements.camera.sensor.type == 'StokesSensor':
+                        image = image[0]
+    
+                image_mask = image > threshold
+                    
+                projection = projection[image_mask.ravel(order='F') == 1]
             
             carved_volume = core.space_carve(
                 nx=grid.nx,
@@ -2228,6 +2265,38 @@ class SpaceCarver(object):
             volume += carved_volume.reshape(grid.nx, grid.ny, grid.nz)
         
         volume = volume * 1.0 / len(self._images)
+        
+        if(VIS_VOLUME):
+            # visualize volume:
+            try:
+                import mayavi.mlab as mlab
+        
+            except:
+                raise Exception("Make sure you installed mayavi")
+
+            
+            MAXI = 1
+            show_vol = volume > agreement
+            show_vol = np.multiply(show_vol, 1, dtype= np.int16) 
+            
+            h = mlab.pipeline.scalar_field(show_vol)
+            v = mlab.pipeline.volume(h,vmin=0.0,vmax=MAXI)
+        
+            ipw_x = mlab.pipeline.image_plane_widget(h, plane_orientation='x_axes',vmin=0.0,vmax=MAXI)
+            ipw_x.ipw.reslice_interpolate = 'linear'
+            ipw_x.ipw.texture_interpolate = False
+            ipw_y = mlab.pipeline.image_plane_widget(h, plane_orientation='y_axes',vmin=0.0,vmax=MAXI)
+            ipw_y.ipw.reslice_interpolate = 'linear'
+            ipw_y.ipw.texture_interpolate = False
+            ipw_z = mlab.pipeline.image_plane_widget(h, plane_orientation='z_axes',vmin=0.0,vmax=MAXI)
+            ipw_z.ipw.reslice_interpolate = 'linear'
+            ipw_z.ipw.texture_interpolate = False
+        
+            color_bar = mlab.colorbar(orientation='vertical', nb_labels=5)
+            mlab.outline(color = (1, 1, 1))  # box around data axes
+            
+            mlab.show()
+            
         mask = GridData(grid, volume > agreement) 
         return mask
 

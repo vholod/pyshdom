@@ -50,15 +50,7 @@ swir_options:
 # --------------------------------------------------
 # -------------   Cloud & Air Field files  ---------
 # --------------------------------------------------
-#CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt' # 15.2, 06
-#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt' # lwc: 0.4 reff: 7.8
-#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt' # lwc: 0.8 reff: 6.2
-#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt' # reff: 7.8 , lwc: 0.5
-#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt' # reff: 9.4 lwc: 0.6 
-#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt' # lwc: 0.4, reff: 6.2
-CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821' # 
-
-
+CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt' # 15.2, 0.6
 
 #CloudFieldFile: '../WIZ_Clouds/cloud1261.txt'
 AirFieldFile: '../ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file which contains temperature measurements
@@ -112,11 +104,11 @@ surface_albedos_val: 0.05
 # -------------------------------------------------
 mie_options:
 
-  start_reff: 2.5 #4 # Starting effective radius [Micron]
+  start_reff: 4 # Starting effective radius [Micron]
   end_reff: 25.0
   num_reff: 100
   start_veff: 0.01
-  end_veff: 0.53 #0.4 # return it to 0.4
+  end_veff: 0.4 # return it to 0.4
   num_veff: 117
   radius_cutoff: 65.0 # The cutoff radius for the pdf averaging [Micron]
   wavelength_resolution: 0.001 # it is the delta in the wavelengths (microns) for the optical parameters avaraging inside shdom.
@@ -147,7 +139,7 @@ vizual_options:
 # -------------------------------------------------
 forward_options:
 
-  SEE_IMAGES: False
+  SEE_IMAGES: True
 
   temp: 5900  # K,  units of W/(m^2))
 
@@ -213,13 +205,13 @@ inverse_options:
   recover_type: 'reff_and_lwc' #reff_and_lwc' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
 
   # Initialization and Medium parameters:
-  lwc: 1.3 # 1  # init lwc of the generator
-  reff: 9.2 # 7 # init reff of the generator
+  lwc: 0.6 # 1  # init lwc of the generator
+  reff: 15.2 # 7 # init reff of the generator
   veff: 0.1 # init veff of the generator
 
   # Scaling params when recovering reff and lwc:
-  lwc_scaling_val: 10
-  reff_scaling_val: 0.1
+  lwc_scaling_val: 15
+  reff_scaling_val: 0.01
   
   
   # if not microphysics:
@@ -241,7 +233,7 @@ inverse_options:
   # GT_USE
   use_const_veff: True
   add_rayleigh: True
-  use_forward_mask: True
+  use_forward_mask: False
   use_forward_grid: True
   cloudct_use: True
   use_forward_albedo: True
