@@ -625,7 +625,7 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
     OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if not vizual_options['CENCEL_AIR'] else OTHER_PARAMS
 
     OTHER_PARAMS = OTHER_PARAMS + ' --radiance_threshold ' + " ".join(
-        map(str, run_params['radiance_threshold'])) if run_type != 'reff_and_lwc' else OTHER_PARAMS
+        map(str, run_params['inverse_options']['radiance_threshold'])) if run_type != 'reff_and_lwc' else OTHER_PARAMS
 
     if inverse_options['MICROPHYSICS']:
         # -----------------------------------------------

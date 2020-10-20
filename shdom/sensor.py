@@ -252,9 +252,14 @@ class RadianceSensor(Sensor):
             radiance = np.array(np.split(radiance, num_channels)).T
 
         if multiview:
-            total_rays = [npix*spp for npix, spp in zip(projection.npix, projection.samples_per_pixel)]            
+            total_rays = [npix*spp for npix, spp in zip(projection.npix, projection.samples_per_pixel)]
             split_indices = np.cumsum(total_rays[:-1])
             radiance = np.split(radiance, split_indices)
+
+            ## YAEL
+            # total_rays = [npix * spp for npix, spp in zip(projection.npix, projection.samples_per_pixel)]
+            # split_indices = np.cumsum(projection.npix[:-1])
+            # radiance = np.split(radiance, split_indices)
             # here radiance is a list with #projections elements.
 
             if multichannel:
@@ -274,13 +279,10 @@ class RadianceSensor(Sensor):
                 
                 
             else:
-                #radiance = [
-                    #image.reshape(resolution, order='F')
-                    #for image, resolution in zip(radiance, projection.resolution) 
-                #] 
                 radiances = []
                 for image, resolution, samples_per_pixel in zip(radiance, projection.resolution, projection.samples_per_pixel):
                     r = image.reshape((int(np.prod(resolution)),samples_per_pixel)).sum(axis=1)/samples_per_pixel # sum over the samples per pixel and normalize by #samples.
+                    # r = image.reshape((int(np.prod(resolution)),1)).sum(axis=1) # sum over the samples per pixel and normalize by #samples.
                     r = r.reshape(resolution, order='F')
                     
                     radiances.append(r)
@@ -295,7 +297,6 @@ class RadianceSensor(Sensor):
                     new_shape.append(num_channels)       
                 radiance = radiance.reshape(new_shape, order='F')
             else: # subpixel samplein upgrade.
-                
                 if multichannel:
                     radiance = radiance.reshape((int(np.prod(new_shape)),samples_per_pixel,num_channels)).sum(axis=1)/samples_per_pixel # sum over the samples per pixel and normalize by #samples.                
                     new_shape.append(num_channels)                    
@@ -530,6 +531,7 @@ class Projection(object):
         self._resolution = resolution
         
     def __getitem__(self, val):
+        val = np.tile(val[:, np.newaxis], [1, self._samples_per_pixel]).ravel()
         projection = Projection(
             x=np.array(self._x[val]), 
             y=np.array(self._y[val]),
