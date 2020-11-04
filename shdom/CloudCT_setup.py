@@ -61,6 +61,15 @@ class SpaceMultiView_Measurements(object):
         for projection_list_per_imager in self._setup_of_views_list:
             projection_list_per_imager.resample_rays_per_pixel()
             
+    def apply_view_geometric_scaling(self):
+        """
+        In case we want to scale the gradient per view with a view geometric scaling.
+        E.g, The gradient of view 1 will be scaled by scale_1 by scaling the weights of rays of view 1.
+        """
+        #for projection_list_per_imager in self._setup_of_views_list:
+            #projection_list_per_imager.apply_view_geometric_scaling()
+        pass
+        
         
     def simulate_measurements(self,rte_solvers = None,n_jobs = 1, IF_APPLY_NOISE = False, IF_SCALE_IDEALLY=False, IF_REDUCE_EXPOSURE=False,
                               IF_CALIBRATION_UNCERTAINTY = False, 
@@ -328,6 +337,7 @@ class SpaceMultiView(shdom.MultiViewProjection):
         assert imager is not None, "You must provied the imager object!" 
         self._sat_positions = None # it will be set by set_satellites() and it is np.array.
         self._lookat_list = None
+        self._view_geometric_scaling = None
     
         self._unique_wavelengths_list =  None # if the cameras have different wavelenrgths, this list will have all existing wavelengths. In the bottom line, the rte_solvers depend on that list.
         self._IMAGES_DICT = None
@@ -366,8 +376,9 @@ class SpaceMultiView(shdom.MultiViewProjection):
                 self._projection_list = []
                 self._names = []                
                 self.update_views()
+          
         
-    def update_views(self,names = None):
+    def update_views(self,names = None, APPLY_VIEW_GEOMETRIC_SCALING = False):
         """
         This method does the following:
         1. Direct the sateliites to the right look at vectors.
@@ -380,8 +391,8 @@ class SpaceMultiView(shdom.MultiViewProjection):
         
         # we intentialy, work with projections lists and one Imager
         up_list = np.array(len(self._sat_positions)*[0,1,0]).reshape(-1,3) # default up vector per camera.
-        for pos,lookat,up,samples_per_pixel,name,Flag in zip(self._sat_positions,\
-                                  self._lookat_list,up_list,self._rays_per_pixel,names,self._Imager_config):
+        for pos,lookat,up,samples_per_pixel,name,Flag,view_scaling in zip(self._sat_positions,\
+                                  self._lookat_list,up_list,self._rays_per_pixel,names,self._Imager_config,self._view_geometric_scaling):
             
             # Flag is true if the Imager in an index is defined.
             # Only in that case its projection will be in the set.
@@ -391,7 +402,16 @@ class SpaceMultiView(shdom.MultiViewProjection):
                 fov = np.rad2deg(self._imager.FOV) 
                 nx, ny = self._imager.get_sensor_resolution()
                 loop_projection = shdom.PerspectiveProjection(fov, nx, ny, x, y, z,samples_per_pixel,self._rigid_sampling)
+
                 loop_projection.look_at_transform(lookat, up)
+                if APPLY_VIEW_GEOMETRIC_SCALING:   
+                    """
+                    IT MUST BE AFTER ALL TRANSFORMATIONS E.G. look_at_transform
+                    
+                    In case we want to scale the gradient per view with a view geometric scaling.
+                    E.g, The gradient of view 1 will be scaled by scale_1 by scaling the weights of rays of view 1.
+                    """                    
+                    loop_projection.set_additional_weight(view_scaling)                
                 self.add_projection(loop_projection,name)
                 """
                 Each projection has:
@@ -420,11 +440,19 @@ class SpaceMultiView(shdom.MultiViewProjection):
             It is not adapted in the inverse part.
             But It is well adapted in the forward part.
             TODO - adapt it in the inverse part.
+            
+            The self._view_geometric_scaling may be used to scale the gradient of spesific view based on the distance differences of other views.
+            
             """
             # scale the samples_per_pixel with the distance of the satellite from lookat:
-            #distances = [np.linalg.norm(i-j) for (i,j) in zip(self._sat_positions,self._lookat_list)]
-            #close_distance = min(distances)
-            #scaling = distances/close_distance
+        distances = [np.linalg.norm(i-j) for (i,j) in zip(self._sat_positions,self._lookat_list)]
+        close_distance = min(distances)
+        const = close_distance**2 + 1
+        scaling = (np.array(distances)**2)/const
+        const_per_view_geometric_scaling = (distances/close_distance)**2
+        self._view_geometric_scaling = const_per_view_geometric_scaling
+        if any(self._rays_per_pixel == 1):
+            pass
             #self._rays_per_pixel = np.array([int(i*j) for (i,j) in zip(scaling,self._rays_per_pixel)])
 
 
@@ -484,6 +512,9 @@ class SpaceMultiView(shdom.MultiViewProjection):
     def projection_names(self):
         return self._names  
        
+    @property
+    def view_geometric_scaling(self):
+        return self._view_geometric_scaling
     
     @property
     def imager(self):
@@ -510,12 +541,16 @@ def plank(llambda,T=5800):
     return spectral_radiance
 
     
-def StringOfPearls(SATS_NUMBER = 10,orbit_altitude = 500):
+def StringOfPearls(SATS_NUMBER = 10,orbit_altitude = 500, widest_view = False, move_nadir_x=0, move_nadir_y=0):
     """
     Set orbit parmeters:
          input:
          SATS_NUMBER - int, how many satellite to put?
+         move_nadir_x/y - move in x/y to fit perfect nadir view.
          
+         WIDEST_VIEW - bool, If WIDEST_VIEW False, the setup is the original with 100km distance between satellites.
+         If it is True the distance become 200km.
+
          returns sat_positions: np.array of shape (SATS_NUMBER,3).
          The satellites setup alwas looks like \ \ | / /. 
     """
@@ -523,16 +558,20 @@ def StringOfPearls(SATS_NUMBER = 10,orbit_altitude = 500):
     Rsat = orbit_altitude # km orbit altitude
     R = r_earth + Rsat
     r_orbit = R
-    Darc = 100# km # distance between adjecent satellites (on arc).
+    if (widest_view):
+        Darc = 200
+    else:
+        
+        Darc = 100# km # distance between adjecent satellites (on arc).
     Dtheta = Darc/R # from the center of the earth.
     
     
     # where to set the sateliites?
     theta_config = np.arange(-0.5*SATS_NUMBER,0.5*SATS_NUMBER)*Dtheta
     theta_config = theta_config[::-1] # put sat1 to be the rigthest
-    X_config = r_orbit*np.sin(theta_config)
+    X_config = r_orbit*np.sin(theta_config) + move_nadir_x
     Z_config = r_orbit*np.cos(theta_config) - r_earth
-    Y_config = np.zeros_like(X_config)
+    Y_config = np.zeros_like(X_config) + move_nadir_y
     sat_positions = np.vstack([X_config, Y_config , Z_config]) # path.shape = (3,#sats) in km.
 
     # find near nadir view:
@@ -543,7 +582,7 @@ def StringOfPearls(SATS_NUMBER = 10,orbit_altitude = 500):
     return sat_positions.T, near_nadir_view_index
 
 
-def Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500 ,SAT_LOOKATS=None, Imager_config = None, imager=None, samples_per_pixel = 1, rigid_sampling = False, VISSETUP = False):
+def Create(SATS_NUMBER = 10, WIDEST_VIEW = False, ORBIT_ALTITUDE = 500 ,SAT_LOOKATS=None, Imager_config = None, imager=None, samples_per_pixel = 1, rigid_sampling = False, APPLY_VIEW_GEOMETRIC_SCALING = False, VISSETUP = False):
     
     """
     Create the Multiview setup on orbit direct them with lookat vector and set the Imagers at thier locations + orientations.
@@ -553,6 +592,7 @@ def Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500 ,SAT_LOOKATS=None, Imager_confi
     Parameters:
     input:
        SATS_NUMBER - the number of satellites in the setup, int.
+       WIDEST_VIEW - bool, If WIDEST_VIEW False, the setup is the original with 100km distance between satellites. If it is True the distance become 200km.
        ORBIT_ALTITUDE - in km  , float.
        SAT_LOOKATS in km is where each satellite looks at. Type np.array shape of (#sats,3)
        Imager_config - A list of bools with SATS_NUMBER elements. If Imager_config[Index] = True, the imager is in the location of satellite number Index.
@@ -564,7 +604,7 @@ def Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500 ,SAT_LOOKATS=None, Imager_confi
        MV - SpaceMultiView object. In the bottom line, it is a list of projection with the Imager inside.
     
     """
-    sat_positions, near_nadir_view_index = StringOfPearls(SATS_NUMBER = SATS_NUMBER, orbit_altitude = ORBIT_ALTITUDE)
+    sat_positions, near_nadir_view_index = StringOfPearls(SATS_NUMBER = SATS_NUMBER, orbit_altitude = ORBIT_ALTITUDE,  widest_view = WIDEST_VIEW)
     
     assert imager is not None, "You must provide the Imager object!"
     
@@ -586,7 +626,7 @@ def Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500 ,SAT_LOOKATS=None, Imager_confi
 
     MV = SpaceMultiView(imager,Imager_config,samples_per_pixel,rigid_sampling) # it is the geomerty for spesific imager
     MV.set_satellites_position_and_lookat(sat_positions,sat_lookats) # here we set only the positions and where the satellites are lookin at.   
-    MV.update_views()
+    MV.update_views(APPLY_VIEW_GEOMETRIC_SCALING = APPLY_VIEW_GEOMETRIC_SCALING)
     
     # visualization params:
     scale = 500
@@ -686,8 +726,8 @@ def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, MieTablesPath=None,
         print("You did not provied the air field for the simulation. The atmospher will not include Molecular Rayleigh scattering.")
 
     # user may tune:
-    air_num_points = 20 # Number of altitude grid points for the air volume
-    air_max_alt = 5 # in km ,Maximum altitude for the air volume
+    air_num_points = 80  # Number of altitude grid points for the air volume
+    air_max_alt = 100  # in km ,Maximum altitude for the air volume    
     # ----------------------------------------------------------------
     # Rayleigh scattering for air molecules
     if(AirFieldFile is not None):

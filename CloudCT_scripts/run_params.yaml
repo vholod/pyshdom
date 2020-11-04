@@ -21,7 +21,7 @@ DOCOSTEVAL: False
 # --------------------------------------------------
 # --------------   Use Simple Imager?  --------------
 # --------------------------------------------------
-USE_SIMPLE_IMAGER: False
+USE_SIMPLE_IMAGER: True
 # if it's true, the imager is simple and not loaded from the imagers data set.
 
 
@@ -31,6 +31,7 @@ USE_SIMPLE_IMAGER: False
 temperature: &temperature 15
 vis_options:
   ImportConfigPath: '../CloudCT_notebooks/Gecko_config_20mGDS.json'
+  #ImportConfigPath: '../CloudCT_notebooks/VIS_835-885_config_20mGDS.json'
   temperature: *temperature # celsius
   true_indices: [0,1,2,3,5,7,8,9]  # where imagers are located
   rays_per_pixel: 1
@@ -43,7 +44,7 @@ swir_options:
   ImportConfigPath: '../CloudCT_notebooks/Hypothetic_SWIR_camera_config_50m_nadir_resolution.json'
   temperature: *temperature # celsius
   true_indices: [4,6]   # where imagers are located, if true_indices: [], no swir imager will be simulated
-  rays_per_pixel: 16
+  rays_per_pixel: 1
   rigid_sampling: True # True
 
 
@@ -53,10 +54,10 @@ swir_options:
 #CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt' # 15.2, 06
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt' # lwc: 0.4 reff: 7.8
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt' # lwc: 0.8 reff: 6.2
-#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt' # reff: 7.8 , lwc: 0.5
+CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt' # reff: 7.8 , lwc: 0.5
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt' # reff: 9.4 lwc: 0.6 
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt' # lwc: 0.4, reff: 6.2
-CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821' # 
+#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821' # 
 
 
 
@@ -85,7 +86,7 @@ GSD: 0.02
 # --------------------------------------------------
 # -------------   Sun Azimuth & Zenith  ------------
 # --------------------------------------------------
-sun_azimuth: 90  # azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
+sun_azimuth: 0  # azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
 sun_zenith: 180  # zenith: Solar beam zenith angle in range (90,180]
 
 
@@ -94,7 +95,10 @@ sun_zenith: 180  # zenith: Solar beam zenith angle in range (90,180]
 # --------------------------------------------------
 SATS_NUMBER_SETUP: &num_sats 10  # satellites number to build the setup, for the inverse, we can use less satellites.
 SATS_NUMBER_INVERSE: *num_sats  #10, how much satellites will be used for the inverse. TODO not in use
-
+WIDEST_VIEW: True # If WIDEST_VIEW False, the setup is the original with 100km distance between satellites.
+# If it is True the distance become 200km.
+APPLY_VIEW_GEOMETRIC_SCALING: True
+# If it is True, scale the gradient with geomitric scaling per view.
 
 # --------------------------------------------------
 # ---------  numerical & scene Parameters  ---------
@@ -147,7 +151,7 @@ vizual_options:
 # -------------------------------------------------
 forward_options:
 
-  SEE_IMAGES: False
+  SEE_IMAGES: True
 
   temp: 5900  # K,  units of W/(m^2))
 
@@ -196,8 +200,15 @@ inverse_options:
   # --------------------------------------------------
   # -------------   Radiance Threshold  ------------
   # --------------------------------------------------
+  CloudCT_space_curve: True # do space curve implemented by CloudCT
   radiance_threshold_vis: [0.023] # Threshold is either a scalar or a list of length of measurements.
   radiance_threshold_swir: [0.023]
+  # Shubi added but I need to accept:
+  # radiance_threshold: 0.023 # Threshold is either a scalar or a list of length of measurements.
+  # default_radiance_threshold: [0.02, 0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02]
+  # vis_radiance_threshold_path: '' # '..vis_thresholds.npy'
+  # swir_radiance_threshold_path: '' # '..swir_thresholds.npy'
+  #-------------
   #--------------------------------------------------------------
   
   SEE_SETUP: False
@@ -213,8 +224,8 @@ inverse_options:
   recover_type: 'reff_and_lwc' #reff_and_lwc' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
 
   # Initialization and Medium parameters:
-  lwc: 1.3 # 1  # init lwc of the generator
-  reff: 9.2 # 7 # init reff of the generator
+  lwc: 0.5 # 1  # init lwc of the generator
+  reff: 7.8 # 7 # init reff of the generator
   veff: 0.1 # init veff of the generator
 
   # Scaling params when recovering reff and lwc:
@@ -232,14 +243,14 @@ inverse_options:
 
   # INIT
   #init: 'Homogeneous' # init_generator = 'Homogeneous' it is the CloudGenerator from shdom.generate.py
-  #init: 'LesFile'
-  #LesFile_path: '../CloudCT_experiments/iteration_1.txt'
-  init: 'Monotonous'
+  init: 'LesFile'
+  LesFile_path: '../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt'
+  #init: 'Monotonous'
   #mono_in: 'reff'
   
   
   # GT_USE
-  use_const_veff: True
+  use_const_veff: False
   add_rayleigh: True
   use_forward_mask: True
   use_forward_grid: True

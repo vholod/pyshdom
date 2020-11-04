@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import yaml
 import sys
 from itertools import chain
+import scipy.io as sio
 
 from shdom import CloudCT_setup, plank
 from shdom.CloudCT_Utils import *
@@ -15,8 +16,8 @@ def main():
     logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
-    run_params = load_run_params(params_path="run_params_rico.yaml")
-    #run_params = load_run_params(params_path="run_params_rec_only_extinction.yaml")
+    run_params = load_run_params(params_path="run_params.yaml")
+    #run_params = load_run_params(params_path="run_params_vis.yaml")
 
     
     # run_params['sun_zenith'] = sun_zenith # if you need to set the angle from main's input
@@ -77,12 +78,13 @@ def main():
             forward_dir = forward_dir + '_use_gain_{}'.format(run_params['uncertainty_options']['max_gain'])
                 
     
-    if (not run_params['inverse_options']['use_forward_mask']):
-        forward_dir = forward_dir + '_space_curv'
+    
         
     # inverse_dir, where to save everything that is related to invers model:
     inverse_dir = forward_dir  # TODO not in use
     log_name_base = f"active_sats_{SATS_NUMBER_SETUP}_{cloud_name}"
+    if (not run_params['inverse_options']['use_forward_mask']):
+        log_name_base = 'space_curv_' + log_name_base
     # Write intermediate TensorBoardX results into log_name.
     # The provided string is added as a comment to the specific run.
 
@@ -140,7 +142,7 @@ def main():
     # so the FOV is also tuned:
     # -- TUNE FOV, CNY,CNX:
     if run_params['IFTUNE_CAM']:
-        L *= 1.6
+        L *= 1.8 # 1.6
         fov = 2 * np.rad2deg(np.arctan(0.5 * L / (run_params['Rsat'])))
         vis_cnx = vis_cny = int(np.floor(L / vis_pixel_footprint))
         if USESWIR:
@@ -156,8 +158,8 @@ def main():
     # tuning is applied by the variable LOOKAT.
     LOOKAT = CENTER_OF_MEDIUM_BOTTOM
     if run_params['IFTUNE_CAM']:
-        LOOKAT[2] = 1.5*0.68 * nz * dz  # tuning. if IFTUNE_CAM = False, just lookat the bottom
-
+        LOOKAT[2] = droplets_grid.bounding_box.zmin + 0.1 # tuning. if IFTUNE_CAM = False, just lookat the bottom
+        
     # currently, all satellites lookat the same point.
     SAT_LOOKATS = np.array(SATS_NUMBER_SETUP * LOOKAT).reshape(-1, 3)
 
@@ -194,23 +196,30 @@ def main():
         # create CloudCT setups:
         vis_rays_per_pixel = run_params['vis_options']['rays_per_pixel']
         rigid_sampling = run_params['vis_options']['rigid_sampling'] # True of False
-        vis_CloudCT_VIEWS, _ = CloudCT_setup.Create(SATS_NUMBER=SATS_NUMBER_SETUP,
+        vis_CloudCT_VIEWS, _ = CloudCT_setup.Create(SATS_NUMBER=SATS_NUMBER_SETUP, WIDEST_VIEW = run_params['WIDEST_VIEW'],
                                                     ORBIT_ALTITUDE=run_params['Rsat'],
                                                     SAT_LOOKATS=SAT_LOOKATS,
                                                     Imager_config=vis_imager_config,
                                                     imager=vis_imager,
                                                     samples_per_pixel = vis_rays_per_pixel,rigid_sampling = rigid_sampling,
+                                                    APPLY_VIEW_GEOMETRIC_SCALING = run_params['APPLY_VIEW_GEOMETRIC_SCALING'],
                                                     VISSETUP=vizual_options['VISSETUP'])
+        # If APPLY_VIEW_GEOMETRIC_SCALING is True:
+        # Add additional scaling to the projection. It will be used to scale the gradient per view only.
+                
+            
         if USESWIR:
             swir_rays_per_pixel = run_params['swir_options']['rays_per_pixel']
             rigid_sampling = run_params['swir_options']['rigid_sampling'] # True of False
-            swir_CloudCT_VIEWS, _ = CloudCT_setup.Create(SATS_NUMBER=SATS_NUMBER_SETUP,
+            swir_CloudCT_VIEWS, _ = CloudCT_setup.Create(SATS_NUMBER=SATS_NUMBER_SETUP, WIDEST_VIEW = run_params['WIDEST_VIEW'],
                                                          ORBIT_ALTITUDE=run_params['Rsat'],
                                                          SAT_LOOKATS=SAT_LOOKATS,
                                                          Imager_config=swir_imager_config,
                                                          imager=swir_imager,
                                                          samples_per_pixel = swir_rays_per_pixel,rigid_sampling = rigid_sampling,
+                                                         APPLY_VIEW_GEOMETRIC_SCALING = run_params['APPLY_VIEW_GEOMETRIC_SCALING'],
                                                          VISSETUP=vizual_options['VISSETUP'])
+
 
         # Generate a solver array for a multi-spectral solution.
         # it is great that we can use the parallel solution of all solvers.
@@ -266,9 +275,9 @@ def main():
             apply_noise = True
 
             # Cancel noise only for test: Than uncomment the above.
-            #reduce_exposure = False
-            #scale_ideally = True
-            #apply_noise = False
+            reduce_exposure = False
+            scale_ideally = True
+            apply_noise = False
         else:
             # If we do not use realistic imager, we MUST use IF_SCALE_IDEALLY=True so the images will have values in
             # maximum range.
@@ -332,7 +341,22 @@ def main():
                 else:
                     radiance_threshold_dict[1] = radiance_threshold_swir
 
+        """
+        Merge Shubi's update here:
+        if run_params['inverse_options']['vis_radiance_threshold_path']:
+        with open(run_params['inverse_options']['vis_radiance_threshold_path'], 'rb') as f:
+            vis_radiance_thresholds = np.load(f)
+        else:
+            vis_radiance_thresholds = run_params['inverse_options']['default_radiance_threshold']
+    
+        if run_params['inverse_options']['swir_radiance_threshold_path']:
+            with open(run_params['inverse_options']['swir_radiance_threshold_path'], 'rb') as f:
+                swir_radiance_thresholds = np.load(f)
+        else:
+            swir_radiance_thresholds = run_params['inverse_options']['default_radiance_threshold']
 
+
+        """
         # ------------------------------------------------------------------------                 
         # ----------------See the simulated images------------:
         # ------------------------------------------------------------------------
@@ -648,7 +672,7 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
     GT_USE = GT_USE + ' --use_forward_grid' if inverse_options['use_forward_grid'] else GT_USE
     GT_USE = GT_USE + ' --save_gt_and_carver_masks' if inverse_options['if_save_gt_and_carver_masks'] else GT_USE
     GT_USE = GT_USE + ' --save_final3d' if inverse_options['if_save_final3d'] else GT_USE
-
+    GT_USE = GT_USE + ' --python_space_curve' if run_params['inverse_options']['CloudCT_space_curve'] else GT_USE
     # The mie_base_path is defined at the beginning of this script.
     # (use_forward_mask, use_forward_grid, use_forward_albedo, use_forward_phase):
     # Use the ground-truth things. This is an inverse crime which is
@@ -854,7 +878,68 @@ def load_run_params(params_path):
     return run_params
 
 
+def compare_forward_models(path1,path2):
+    pad = 0.01
+    from mpl_toolkits.axes_grid1 import AxesGrid, make_axes_locatable
 
+    file = open(path1, 'rb')
+    data = file.read()
+    CloudCT_measurments1 = pickle.loads(data)
+    
+    head_tail = os.path.split(path2) 
+    file_name = head_tail[1]
+    if 'mat' in file_name:
+        CloudCT_measurments2 = sio.loadmat(file_name)['images']#[0]
+    else:
+        
+        file = open(path2, 'rb')
+        data = file.read()
+        CloudCT_measurments2 = pickle.loads(data)
+    
+    setup =  CloudCT_measurments1.setup
+    pad = 0.01 # colorbar pad
+    i = 0
+    for imager_index in CloudCT_measurments1.images.keys():
+        
+        names = setup[0].projection_names
+        images1 = CloudCT_measurments1.images[imager_index]
+        #images2 = CloudCT_measurments2.images[imager_index]
+        
+        #for view_index, (img1, img2) in enumerate(zip(images1, images2)):
+        for view_index, img1 in enumerate(images1):
+            name = view_index
+            fig, ax = plt.subplots(1, 3, figsize=(20, 20))
+            img2 = CloudCT_measurments2[imager_index*8 + view_index,...]
+            
+            MAXI = max(np.max(img1), np.max(img2))
+            MINI = min(np.min(img1), np.min(img2))
+            im1 = ax[0].imshow(img1,cmap='jet',vmin=MINI, vmax=MAXI)
+            ax[0].set_title("{}_{}_1".format(name,i))
+            divider = make_axes_locatable(ax[0])
+            cax = divider.append_axes("right", size="5%", pad=pad)
+            plt.colorbar(im1, cax=cax)        
+            
+            im2 = ax[1].imshow(img2,cmap='jet',vmin=MINI, vmax=MAXI)
+            ax[1].set_title("{}_{}_2".format(name,i))
+            divider = make_axes_locatable(ax[1])
+            cax = divider.append_axes("right", size="5%", pad=pad)
+            plt.colorbar(im2, cax=cax)        
+            
+            im3 = ax[2].imshow(img1-img2,cmap='jet')
+            ax[2].set_title("diff.")
+            divider = make_axes_locatable(ax[2])
+            cax = divider.append_axes("right", size="5%", pad=pad)
+            plt.colorbar(im3, cax=cax) 
+        
+    plt.show()
+    
 if __name__ == '__main__':
     
-    main()
+    #main()
+    
+    # -------------------------------
+    if(1):
+        #path1 = "/home/vhold/CloudCT/pyshdom/CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_620-670nm_active_sats_10_GSD_20m_and_SWIR_1628-1658nm_active_sats_10_GSD_50m_LES_cloud_field_BOMEX/cloudct_measurements"
+        path2 = "/home/vhold/CloudCT/pyshdom/CloudCT_scripts/133_state_images.mat"
+        path1 = "/home/vhold/CloudCT/pyshdom/CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_672-672nm_active_sats_10_GSD_20m_and_SWIR_1600-1600nm_active_sats_10_GSD_20m_LES_cloud_field_BOMEX/cloudct_measurements"
+        compare_forward_models(path1,path2)

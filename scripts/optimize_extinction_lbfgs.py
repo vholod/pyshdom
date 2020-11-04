@@ -47,6 +47,9 @@ class OptimizationScript(object):
         parser.add_argument('--cloudct_use',
                             action='store_true',
                             help='Use it if you want to laoad and work with cloudct measurments.')          
+        parser.add_argument('--python_space_curve',
+                            action='store_true',
+                            help='Use python implementation to calculate the 3d mask (space curving).')
         parser.add_argument('--input_dir',
                             help='Path to an input directory where the forward modeling parameters are be saved. \
                                   This directory will be used to save the optimization results and progress.')
@@ -234,7 +237,7 @@ class OptimizationScript(object):
         else:
             carver = shdom.SpaceCarver(measurements)
             
-            mask = carver.carve(grid, agreement=0.9, thresholds=self.args.radiance_threshold)
+            mask = carver.carve(grid, agreement=0.9, thresholds=self.args.radiance_threshold, PYTHON_SPACE_CURVE = self.args.python_space_curve)
             
             # Vadim added: Save the mask3d, just for the case we want to see how good we bound the cloudy voxels.
             if(self.args.save_gt_and_carver_masks):

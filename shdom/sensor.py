@@ -32,9 +32,9 @@ class Sensor(object):
         """
 
         if isinstance(projection.npix, list):
-            totat_rays = np.sum(projection.nrays)
+            total_rays = np.sum(projection.nrays)
         else:
-            totat_rays = projection.nrays 
+            total_rays = projection.nrays 
                 
             
         output = core.render(
@@ -50,7 +50,7 @@ class Sensor(object):
             camz=projection.z,
             cammu=projection.mu,
             camphi=projection.phi,
-            npix=totat_rays,             
+            npix=total_rays,             
             nx=rte_solver._nx,
             ny=rte_solver._ny,
             nz=rte_solver._nz,
@@ -511,7 +511,7 @@ class Projection(object):
     -----
     All input arrays are raveled and should be of the same size.
     """
-    def __init__(self, x=None, y=None, z=None, mu=None, phi=None, weight=None, samples_per_pixel=1, resolution=None):
+    def __init__(self, x=None, y=None, z=None, mu=None, phi=None, weight=None, additional_weight = None, samples_per_pixel=1, resolution=None):
         self._x = x
         self._y = y
         self._z = z
@@ -520,6 +520,7 @@ class Projection(object):
         self._npix = None
         self._nrays = None
         self._weight = weight
+        self._additional_weight = additional_weight
         # vadim added the consept of samples_per_pixel in the sensor.py.
         self._samples_per_pixel = samples_per_pixel # rays per pixel that will be backprojected to space.
         if type(x)==type(y)==type(z)==type(mu)==type(phi)==np.ndarray:
@@ -537,6 +538,7 @@ class Projection(object):
             mu=np.array(self._mu[val]), 
             phi=np.array(self._phi[val]),
             weight=np.array(self._weight[val]),
+            additional_weight = np.array(self._additional_weight[val])
         )
         return projection
     
@@ -567,7 +569,11 @@ class Projection(object):
             total_pixs = self.npix
             
         N_total = total_rays # total samples whitch I need to split into n_parts
-        N_views = self.num_projections
+        if(isinstance(self, shdom.sensor.PerspectiveProjection)):
+            N_views = 1
+        else:
+            N_views = self.num_projections
+        
         
         
         # splited_views expresed array that was splited by the number of views.
@@ -578,6 +584,7 @@ class Projection(object):
         splited_views_mu = np.split(self.mu, np.cumsum(self.nrays[:-1]))
         splited_views_phi = np.split(self.phi, np.cumsum(self.nrays[:-1]))
         splited_views_weight = np.split(self.weight, np.cumsum(self.nrays[:-1]))
+        splited_additional_weight = np.split(self.additional_weight, np.cumsum(self.nrays[:-1]))
         
         coarse_split = self.nrays
         smaller_split = []
@@ -593,6 +600,7 @@ class Projection(object):
                 phi_split = splited_views_phi
                 mu_split = splited_views_mu
                 weight_split = splited_views_weight
+                additional_weight_split = splited_additional_weight
                 rays_per_pixel = self.samples_per_pixel
                 
             elif(n_parts > N_views):
@@ -620,6 +628,7 @@ class Projection(object):
                 phi_split = np.split(self.phi, np.cumsum(smaller_split[:-1]))
                 mu_split = np.split(self.mu, np.cumsum(smaller_split[:-1]))
                 weight_split = np.split(self.weight, np.cumsum(smaller_split[:-1]))
+                additional_weight_split = np.split(self.additional_weight, np.cumsum(smaller_split[:-1]))
                 rays_per_pixel = rays_split.tolist()
                 
             else:
@@ -632,6 +641,8 @@ class Projection(object):
             mu_split = np.array_split(self.mu, n_parts) 
             phi_split = np.array_split(self.phi, n_parts)
             weight_split = np.array_split(self.weight, n_parts)
+            additional_weight_split = np.array_split(self.additional_weight,n_parts)
+            
             rays_per_pixel = [1]* n_parts
             # Note that here there is no matter what is the samples_per_pixel since the split function
             # splits the projection such that the rays in one branch may origin from different pixels with different samples per pixel.
@@ -642,8 +653,8 @@ class Projection(object):
         
 
         projections = [
-            Projection(x, y, z, mu, phi, weight, ray_per_pixel) for 
-            x, y, z, mu, phi, weight, ray_per_pixel in zip(x_split, y_split, z_split, mu_split, phi_split,weight_split,rays_per_pixel)
+            Projection(x, y, z, mu, phi, weight, additional_weight, ray_per_pixel) for 
+            x, y, z, mu, phi, weight, additional_weight, ray_per_pixel in zip(x_split, y_split, z_split, mu_split, phi_split,weight_split,additional_weight_split,rays_per_pixel)
         ]
         return projections
     
@@ -686,6 +697,10 @@ class Projection(object):
     @property 
     def weight(self):
         return self._weight
+    
+    @property 
+    def additional_weight(self):
+        return self._additional_weight
     
     @property
     def samples_per_pixel(self):
@@ -786,6 +801,8 @@ class OrthographicProjection(HomographyProjection):
         self._nrays = self._npix
         self._resolution = [x.size, y.size]
         self._weight = np.ones_like(self._mu)
+        self._additional_weight = np.ones_like(self._mu)
+        
 
     @property 
     def altitude(self):
@@ -831,7 +848,7 @@ class PerspectiveProjection(HomographyProjection):
         self._resolution = [nx, ny]
         self._samples_per_pixel = samples 
         self._npix = nx*ny
-        self._nrays = self._npix*self._samples_per_pixel # rays per pixel * pixels
+        
         self._position = np.array([x, y, z], dtype=np.float32)
         self._fov = fov
         self._focal = 1.0 / np.tan(np.deg2rad(fov) / 2.0)
@@ -881,7 +898,8 @@ class PerspectiveProjection(HomographyProjection):
                 z_c = np.tile(z_c[:, :, np.newaxis], [1, 1, self._samples_per_pixel])
                 x_c += np.random.rand(*x_c.shape)*self._dx
                 y_c += np.random.rand(*y_c.shape)*self._dy  
-                
+        
+        self._nrays = self._npix*self._samples_per_pixel # rays per pixel * pixels        
         self._pixel_indexes = np.repeat(np.expand_dims(np.arange(len(x_c)),1),self._samples_per_pixel).ravel()   
         self._homogeneous_coordinates = np.stack([x_c.ravel(), y_c.ravel(), z_c.ravel()])
         self.update_global_coordinates()
@@ -889,6 +907,12 @@ class PerspectiveProjection(HomographyProjection):
         RandColor = np.random.rand(3) # for visualization purpos
         self._RandColor = tuple(RandColor.tolist())          
 
+        self._camera_xaxis = np.array([1,0,0])
+        self._camera_yaxis = np.array([0,1,0])
+        self._camera_zaxis = np.array([0,0,1])
+        self._lookat = self._camera_zaxis
+        
+        
     def resample_rays_per_pixel(self):
         """
         As we want random sampling of rays in a pixel, we should bettet resample the rays between different rednerings.
@@ -928,7 +952,25 @@ class PerspectiveProjection(HomographyProjection):
         self._y = np.full(self.npix*self._samples_per_pixel, self.position[1], dtype=np.float32)
         self._z = np.full(self.npix*self._samples_per_pixel, self.position[2], dtype=np.float32)    
         self._weight = np.full(self.npix*self._samples_per_pixel, (1/self._samples_per_pixel), dtype=np.float32) 
+        self._additional_weight = np.full(self.npix, 1.0, dtype=np.float32) 
+        # The additional_weight (initialized as ones for each pixel) will be used to scale the gradient in the inverse.
 
+    def set_additional_weight(self,val):
+        """
+        Set the additional_weight (initialized as ones for each pixel) will be used to scale the gradient in the inverse.
+        The setting is done etheir for each pixel (if val is np.array of size npix) or
+        it is done for the whole view (if val is scalar).
+        """
+        if(np.isscalar(val)):
+            assert val > 0, "The additional weight must be positive value."
+            self._additional_weight = val*np.ones(self._npix)
+        else:
+            # it is np array:
+            assert val.size==self._npix, "The additional weight vector must be of length npix."
+            assert all(val>0), "The additional weight must be positive value."
+            self._additional_weight = val
+            
+        
     def look_at_transform(self, point, up):
         """
         A look at transform is defined with a point and an up vector.
@@ -1138,6 +1180,14 @@ class PerspectiveProjection(HomographyProjection):
     def position(self):
         return self._position
     
+    def scale_weight(self,scale):
+        """
+        Scalse weights evenly by constant value, e.g w=w*scale.
+        """
+        assert scale>0 , "Scale can not be zero or negative."
+        self._weight *= scale
+        
+        
     @property
     def samples_per_pixel(self):
         return self._samples_per_pixel
@@ -1150,10 +1200,16 @@ class PerspectiveProjection(HomographyProjection):
     def weight(self):
         return self._weight
 
+    @property
+    def additional_weight(self):
+        return self._additional_weight
+    
+    
     @weight.setter
     def weight(self,val):
         self._weight = val 
         
+    
         
 class PrincipalPlaneProjection(Projection):
     """
@@ -1476,13 +1532,13 @@ class MultiViewProjection(Projection):
         if name is None:
             name = 'View{}'.format(self.num_projections)
 
-        attributes = ['x', 'y', 'z', 'mu', 'phi', 'weight']
+        attributes = ['x', 'y', 'z', 'mu', 'phi', 'weight', 'additional_weight']
         
         if self.num_projections == 0:
             for attr in attributes:
                 self.__setattr__('_' + attr, projection.__getattribute__(attr))
             self._npix = [projection.npix]
-            self._nrays = [projection._nrays]
+            self._nrays = [projection.nrays]
             self._samples_per_pixel = [projection.samples_per_pixel]
             self._resolution = [projection.resolution]
             self._names = [name]
@@ -1491,7 +1547,7 @@ class MultiViewProjection(Projection):
                 self.__setattr__('_' + attr, np.concatenate((self.__getattribute__(attr), 
                                                              projection.__getattribute__(attr))))
             self._npix.append(projection.npix)
-            self._nrays.append(projection._nrays)     
+            self._nrays.append(projection.nrays)     
             
             self._samples_per_pixel.append(projection.samples_per_pixel)
             self._names.append(name)  

@@ -7,6 +7,7 @@ from scipy.optimize import minimize
 from scipy.optimize import basinhopping
 import scipy.io as sio
 import copy
+from shdom.rays_in_voxels import *
 
 import shdom
 from shdom import GridData, core, float_round
@@ -210,13 +211,23 @@ class GridDataEstimator(shdom.GridData):
         """
         gradient = gradient.squeeze(axis=-1)
         state_gradient = shdom.GridData(grid, gradient).resample(self.grid)
+        # vadim try this after Roi suggestion:
+        # state_gradient.data /= self.precondition_scale_factor
+        scale_grad = False
+        # ---- consider the above statment
         debug_gradient = state_gradient.data # vadim added to get the gradient in the base grid to debug/visualize it later on.
         if self.mask is None:
-            return state_gradient.data.ravel(), debug_gradient
+            if(scale_grad):
+                return state_gradient.data.ravel()/self.precondition_scale_factor, debug_gradient
+            else:
+                return state_gradient.data.ravel(), debug_gradient
         else:
             debug_gradient[self.mask.data == False] = 0
-            return state_gradient.data[self.mask.data], debug_gradient
-
+            if(scale_grad):
+                return state_gradient.data[self.mask.data]/self.precondition_scale_factor, debug_gradient
+            else:
+                return state_gradient.data[self.mask.data], debug_gradient
+                
     @property
     def mask(self):
         return self._mask
@@ -1179,7 +1190,7 @@ class MediumEstimator(shdom.Medium):
             c = c + 1
     
         rays_weights = projection.weight # pixel/ray weight of contibution to gradient due to samples per pixel introdution, interduced by vadim.
-        
+        grad_geo_weights = projection.additional_weight
 
         #print('--> rays per pixel {}\n, total_pixs {}'.format(rays_per_pixel, total_pixs))
 
@@ -1269,6 +1280,7 @@ class MediumEstimator(shdom.Medium):
             camz=projection.z,
             ray_weights=rays_weights, 
             rays_per_pixel = rays_per_pixel,
+            grad_geo_weights = grad_geo_weights,# interduced by vadim to scale the gradient differently per view.
             cammu=projection.mu,
             camphi=projection.phi,
             npix=total_pixs,
@@ -1339,7 +1351,7 @@ class MediumEstimator(shdom.Medium):
          
         return loss   
         
-    def compute_gradient(self, rte_solvers, measurements, n_jobs):
+    def compute_gradient(self, rte_solvers, measurements, n_jobs, iteration):
         """
         Compute the gradient with respect to the current state.
         If n_jobs>1 than parallel gradient computation is used with pixels are distributed amongst all workers
@@ -1461,7 +1473,9 @@ class MediumEstimator(shdom.Medium):
                 """ 
                 #loss_per_imager = output[1]
                 loss_per_imager = np.sum(list(map(lambda x: x[1], output)))
-                gradient_per_imager = np.sum(list(map(lambda x: x[0], output)), axis=0)    
+                gradient_per_njob = list(map(lambda x: x[0], output))
+                #gradient_per_njob = [ i*g for i,g in zip(CloudCT_projection.view_geometric_scaling,gradient_per_njob)]
+                gradient_per_imager = np.sum(gradient_per_njob, axis=0)    
                 images_per_imager = sensor.inverse_make_images(np.concatenate(list(map(lambda x: x[2], output)), axis=-1),
                                             CloudCT_projection,
                                             num_channels)   
@@ -1480,11 +1494,13 @@ class MediumEstimator(shdom.Medium):
                 gradient = np.sum([gradient, gradient_per_imager], axis=0) 
                 loss += loss_per_imager
                 images += images_per_imager
-                
-                #import scipy.io as sio
-                #file_name = '133_state_images.mat'
-                #sio.savemat(file_name, {'images':images_per_imager})
-                print('-------------')                
+             
+            # save imaged for the debugging.    
+            if(iteration == 0):
+                import scipy.io as sio
+                file_name = '133_state_images.mat'
+                sio.savemat(file_name, {'images':images})
+                print('---images of iteration {} were saved.-----'.format(iteration))                
                 #see images of a state:
                 #fig, ax = plt.subplots(2, 5, figsize=(20, 20))
                 #from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -2175,7 +2191,7 @@ class SpaceCarver(object):
                 self._projections = [measurements.camera.projection]
             self._images = measurements.images
 
-    def carve(self, grid, thresholds, agreement=0.75):
+    def carve(self, grid, thresholds, agreement=0.75, PYTHON_SPACE_CURVE = False):
         """
         Carves out the cloud geometry on the grid. 
         A threshold on radiances is used to produce a pixel mask and preform space carving.
@@ -2188,6 +2204,9 @@ class SpaceCarver(object):
             Either a constant threshold or a list of len(thresholds)=num_projections is used as for masking.
         agreement: float
             the precentage of pixels that should agree on a cloudy voxels to set it to True in the mask
+        
+        PYTHON_SPACE_CURVE - bool, If True, use Python implmentation by vadim for space curving. It just gives thiner mask than the original
+        space curving (fortran implmentation) and maybe less numeric problems of distant views like in CloudCT.
         
         Returns
         -------
@@ -2210,8 +2229,22 @@ class SpaceCarver(object):
         else:
             assert thresholds.size == len(self._images), 'thresholds (len={}) should be of the same' \
                    'length as the number of images (len={})'.format(thresholds.size,  len(self._images))
+          
+          
+        #-----------------
+        f, axarr = plt.subplots(1, len(self._images), figsize=(20, 20))
+        for ax, image in zip(axarr, self._images):
+            img = image.copy()
+            img[image < thresholds[0]] = 0
+            ax.imshow(img)
+            ax.invert_xaxis() 
+            ax.invert_yaxis() 
+            ax.axis('off')
+        
+        plt.show()
+        #-----------------------
             
-        for projection, image, threshold in zip(self._projections, self._images, thresholds):
+        for view_index, (projection, image, threshold) in enumerate(zip(self._projections, self._images, thresholds)):
 
             if(self._measurements.sensor_type == 'StokesSensor'):
                 image = image[0]
@@ -2239,30 +2272,41 @@ class SpaceCarver(object):
                     
                 projection = projection[image_mask.ravel(order='F') == 1]
             
-            carved_volume = core.space_carve(
-                nx=grid.nx,
-                ny=grid.ny,
-                nz=grid.nz,
-                npts=self._rte_solver._npts,
-                ncells=self._rte_solver._ncells,
-                gridptr=self._rte_solver._gridptr,
-                neighptr=self._rte_solver._neighptr,
-                treeptr=self._rte_solver._treeptr,
-                cellflags=self._rte_solver._cellflags,
-                bcflag=self._rte_solver._bcflag,
-                ipflag=self._rte_solver._ipflag,
-                xgrid=self._rte_solver._xgrid,
-                ygrid=self._rte_solver._ygrid,
-                zgrid=self._rte_solver._zgrid,
-                gridpos=self._rte_solver._gridpos,
-                camx=projection.x,
-                camy=projection.y,
-                camz=projection.z,
-                cammu=projection.mu,
-                camphi=projection.phi,
-                npix=projection.npix,
-            )
-            volume += carved_volume.reshape(grid.nx, grid.ny, grid.nz)
+            if(PYTHON_SPACE_CURVE):
+                # use space curving for CloudCT (I think it is more stable):
+                print('Processing: building mask by space curving of view {} from {} total views'.format(view_index,len(self._images)))
+                carved_volume = self.CloudCT_space_carve(projection,grid)
+                volume += carved_volume
+                
+                file_name = 'volume_{}'.format(view_index)+'.mat'
+                sio.savemat(file_name, {'vol':carved_volume})                
+                    
+            else:
+                
+                carved_volume = core.space_carve(
+                    nx=grid.nx,
+                    ny=grid.ny,
+                    nz=grid.nz,
+                    npts=self._rte_solver._npts,
+                    ncells=self._rte_solver._ncells,
+                    gridptr=self._rte_solver._gridptr,
+                    neighptr=self._rte_solver._neighptr,
+                    treeptr=self._rte_solver._treeptr,
+                    cellflags=self._rte_solver._cellflags,
+                    bcflag=self._rte_solver._bcflag,
+                    ipflag=self._rte_solver._ipflag,
+                    xgrid=self._rte_solver._xgrid,
+                    ygrid=self._rte_solver._ygrid,
+                    zgrid=self._rte_solver._zgrid,
+                    gridpos=self._rte_solver._gridpos,
+                    camx=projection.x,
+                    camy=projection.y,
+                    camz=projection.z,
+                    cammu=projection.mu,
+                    camphi=projection.phi,
+                    npix=projection.npix,
+                )
+                volume += carved_volume.reshape(grid.nx, grid.ny, grid.nz)
         
         volume = volume * 1.0 / len(self._images)
         
@@ -2296,13 +2340,44 @@ class SpaceCarver(object):
             mlab.outline(color = (1, 1, 1))  # box around data axes
             
             mlab.show()
-            
+         
+        show_vol = volume > agreement
+        show_vol = np.multiply(show_vol, 1, dtype= np.int16)         
+        file_name = 'The_mask.mat'
+        sio.savemat(file_name, {'vol':show_vol}) 
+        
         mask = GridData(grid, volume > agreement) 
         return mask
 
     @property
     def grid(self):
         return self._grid
+    
+    def CloudCT_space_carve(self,projection,grid):
+        """
+        Python implmentation by vadim for space curving. It just gives thiner mask than the original
+        space curving (fortran implmentation) and maybe less numeric problems of distant views like in CloudCT.
+        
+        """
+        carved_volume = np.zeros((grid.nx, grid.ny, grid.nz))
+        for pix in range(projection.nrays):
+            z_c = -projection.mu[pix]
+            x_c = -np.sin(np.arccos(-z_c))*np.cos(projection.phi[pix]) 
+            y_c = -np.sin(np.arccos(-z_c))*np.sin(projection.phi[pix])  
+    
+            start_point = np.array([projection.x[pix], projection.y[pix], projection.z[pix]])
+            direction = np.array([x_c,y_c,z_c])
+            voxels, lengths = LengthRayInGrid(start_point,direction,grid)
+            if np.isscalar(voxels):
+    
+                if (voxels==-1)  or (lengths==-1):
+    
+                    continue
+    
+            indices = np.unravel_index(voxels, carved_volume.shape)
+            carved_volume[indices] = 1                            
+    
+        return carved_volume         
 
 
 class LocalOptimizer(object):
@@ -2423,7 +2498,7 @@ class LocalOptimizer(object):
         gradient, loss, images, debug_gradients = self.medium.compute_gradient(
             rte_solvers=self.rte_solver,
             measurements=self.measurements,
-            n_jobs=self.n_jobs
+            n_jobs=self.n_jobs, iteration = self.iteration
         )
         print(state, gradient, loss)
         self._loss = loss

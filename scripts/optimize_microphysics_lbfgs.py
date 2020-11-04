@@ -112,12 +112,12 @@ class OptimizationScript(ExtinctionOptimizationScript):
             mask = ground_truth.get_mask(threshold=0.01)
         else:
             carver = shdom.SpaceCarver(measurements)
-            mask = carver.carve(grid, agreement=0.9, thresholds=self.args.radiance_threshold)
+            mask = carver.carve(grid, agreement=0.9, thresholds=self.args.radiance_threshold, PYTHON_SPACE_CURVE = self.args.python_space_curve)
 
             # Vadim added: Save the mask3d, just for the case we want to see how good we bound the cloudy voxels.
             if(self.args.save_gt_and_carver_masks):
                 
-                GT_mask = ground_truth.get_mask(threshold=1.0)
+                GT_mask = ground_truth.get_mask(threshold=0.01)
                 sio.savemat(os.path.join(self.args.input_dir,'3D_masks.mat'), {'GT':GT_mask.data,'CARVER':mask.data,'thresholds':self.args.radiance_threshold})
                         
         # Define micro-physical parameters: either optimize, keep constant at a specified value or use ground-truth
@@ -149,6 +149,9 @@ class OptimizationScript(ExtinctionOptimizationScript):
                     
                     
         lwc.apply_mask(mask)
+        if not self.args.use_forward_mask:
+            if(self.cloud_generator.args.init == 'Monotonous'):
+                print('Here implement 20% reduction in the masked profile. ')
 
         if self.args.use_forward_reff:
             reff = ground_truth.reff
@@ -180,6 +183,9 @@ class OptimizationScript(ExtinctionOptimizationScript):
 
                     
         reff.apply_mask(mask)
+        if not self.args.use_forward_mask:
+            if(self.cloud_generator.args.init == 'Monotonous'):
+                print('Here implement 20% reduction in the masked profile. ')
 
         if self.args.use_forward_veff:
             veff = ground_truth.veff
