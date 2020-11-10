@@ -952,7 +952,7 @@ class PerspectiveProjection(HomographyProjection):
         self._y = np.full(self.npix*self._samples_per_pixel, self.position[1], dtype=np.float32)
         self._z = np.full(self.npix*self._samples_per_pixel, self.position[2], dtype=np.float32)    
         self._weight = np.full(self.npix*self._samples_per_pixel, (1/self._samples_per_pixel), dtype=np.float32) 
-        self._additional_weight = np.full(self.npix, 1.0, dtype=np.float32) 
+        self._additional_weight = np.full(self.npix*self._samples_per_pixel, 1.0, dtype=np.float32) 
         # The additional_weight (initialized as ones for each pixel) will be used to scale the gradient in the inverse.
 
     def set_additional_weight(self,val):
@@ -963,10 +963,10 @@ class PerspectiveProjection(HomographyProjection):
         """
         if(np.isscalar(val)):
             assert val > 0, "The additional weight must be positive value."
-            self._additional_weight = val*np.ones(self._npix)
+            self._additional_weight = val*np.ones(self._nrays)
         else:
             # it is np array:
-            assert val.size==self._npix, "The additional weight vector must be of length npix."
+            assert val.size==self._nrays, "The additional weight vector must be of length npix."
             assert all(val>0), "The additional weight must be positive value."
             self._additional_weight = val
             

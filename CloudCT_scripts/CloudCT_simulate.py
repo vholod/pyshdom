@@ -91,7 +91,7 @@ def main():
     vizual_options = run_params['vizual_options']  # visualization params
     # -------------LOAD SOME MEDIUM TO RECONSTRUCT--------------------------------
     # Path to csv file which contains temperature measurements or None if the atmosphere will not consider any air.
-    AirFieldFile = run_params['AirFieldFile'] if not vizual_options['CENCEL_AIR'] else None
+    AirFieldFile = run_params['AirFieldFile'] if not run_params['forward_options']['CENCEL_AIR'] else None
 
     # If we do not use simple imager we probably use imager with a band so:
     wavelength_averaging = False if run_params['USE_SIMPLE_IMAGER'] else True
@@ -105,6 +105,8 @@ def main():
 
     atmosphere = CloudCT_setup.Prepare_Medium(CloudFieldFile=run_params['CloudFieldFile'],
                                               AirFieldFile=AirFieldFile,
+                                              air_num_points = run_params['forward_options']['air_num_points'],
+                                              air_max_alt = run_params['forward_options']['air_max_alt'],
                                               MieTablesPath=MieTablesPath,
                                               wavelengths_micron=wavelengths_micron,
                                               wavelength_averaging=wavelength_averaging)
@@ -275,9 +277,9 @@ def main():
             apply_noise = True
 
             # Cancel noise only for test: Than uncomment the above.
-            reduce_exposure = False
-            scale_ideally = True
-            apply_noise = False
+            # - reduce_exposure = False
+            # - scale_ideally = True
+            # - apply_noise = False
         else:
             # If we do not use realistic imager, we MUST use IF_SCALE_IDEALLY=True so the images will have values in
             # maximum range.
@@ -391,6 +393,13 @@ def main():
             # A CloudCT Measurements object bundles together imaging geometry and sensor measurements for later optimization            
             CloudCT_measurements.show_measurments()
             plt.show()
+            
+            # ----------------------------------------------------------
+            # ------------ make solver test-----------------------------
+            solver.set_medium(medium)
+            solver.solve(maxiter=100,init_solution=True)
+            # ------------ end solver test------------------------------
+            # ----------------------------------------------------------
 
         # ---------what to optimize----------------------------
         run_type = inverse_options['recover_type'] if inverse_options['MICROPHYSICS'] else 'extinction'
@@ -666,7 +675,7 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
 
     GT_USE = ''
     GT_USE = GT_USE + ' --cloudct_use' if inverse_options['cloudct_use'] else GT_USE  # -----------------
-    GT_USE = GT_USE + ' --add_rayleigh' if inverse_options['add_rayleigh'] and not vizual_options[
+    GT_USE = GT_USE + ' --add_rayleigh' if inverse_options['add_rayleigh'] and not run_params['forward_options'][
         'CENCEL_AIR'] else GT_USE
     GT_USE = GT_USE + ' --use_forward_mask' if inverse_options['use_forward_mask'] else GT_USE
     GT_USE = GT_USE + ' --use_forward_grid' if inverse_options['use_forward_grid'] else GT_USE
@@ -696,7 +705,9 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
 
     OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if inverse_options['globalopt'] else OTHER_PARAMS
 
-    OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if not vizual_options['CENCEL_AIR'] else OTHER_PARAMS
+    OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if not run_params['forward_options']['CENCEL_AIR'] else OTHER_PARAMS
+    OTHER_PARAMS = OTHER_PARAMS + ' --air_num_points ' + str(run_params['forward_options']['air_num_points'])
+    OTHER_PARAMS = OTHER_PARAMS + ' --air_max_alt ' + str(run_params['forward_options']['air_max_alt'])
 
     if not run_params['inverse_options']['use_forward_mask']:
         """
@@ -935,11 +946,21 @@ def compare_forward_models(path1,path2):
     
 if __name__ == '__main__':
     
-    #main()
+    main()
     
     # -------------------------------
-    if(1):
+    if(0):
         #path1 = "/home/vhold/CloudCT/pyshdom/CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_620-670nm_active_sats_10_GSD_20m_and_SWIR_1628-1658nm_active_sats_10_GSD_50m_LES_cloud_field_BOMEX/cloudct_measurements"
         path2 = "/home/vhold/CloudCT/pyshdom/CloudCT_scripts/133_state_images.mat"
         path1 = "/home/vhold/CloudCT/pyshdom/CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_672-672nm_active_sats_10_GSD_20m_and_SWIR_1600-1600nm_active_sats_10_GSD_20m_LES_cloud_field_BOMEX/cloudct_measurements"
         compare_forward_models(path1,path2)
+        
+    if(0):
+        forward_dir = '/home/vhold/CloudCT/pyshdom/CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_620-670nm_active_sats_10_GSD_20m_and_SWIR_1628-1658nm_active_sats_10_GSD_50m_LES_cloud_field_rico32x37x26.txt'
+        medium, solver, CloudCT_measurements = shdom.load_CloudCT_measurments_and_forward_model(forward_dir)
+        
+        CloudCT_measurements.simulate_measurements(n_jobs=run_params['n_jobs'],
+                                                   rte_solvers=solver,
+                                                   IF_REDUCE_EXPOSURE=reduce_exposure,
+                                                   IF_SCALE_IDEALLY=scale_ideally,
+                                                   IF_APPLY_NOISE=apply_noise)        

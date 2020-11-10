@@ -113,7 +113,22 @@ class OptimizationScript(ExtinctionOptimizationScript):
         else:
             carver = shdom.SpaceCarver(measurements)
             mask = carver.carve(grid, agreement=0.9, thresholds=self.args.radiance_threshold, PYTHON_SPACE_CURVE = self.args.python_space_curve)
-
+            #---------------------------------------------------------------
+            #--------CHACKE HERE IF THE MASK NOT TOO FAT FOR THE GRID-------
+            #---------------------------------------------------------------
+            egde_mask = np.zeros_like(mask.data)
+            mask_shape = mask.data.shape
+            egde_mask[0,:,:] = True
+            egde_mask[mask_shape[0]-1,:,:] = True
+            egde_mask[:,0,:] = True
+            egde_mask[:,mask_shape[1]-1,:] = True
+            egde_mask[:,:,0] = True
+            egde_mask[:,:,mask_shape[2]-1] = True 
+            A = np.bitwise_and(egde_mask , mask.data)
+            MASK_TOO_FAT = np.any(A)
+            if(MASK_TOO_FAT):
+                raise Exception("The mask is too fat for the grid, you must pad the scatterer (to be optimized) with more zoros on the sides.")
+            
             # Vadim added: Save the mask3d, just for the case we want to see how good we bound the cloudy voxels.
             if(self.args.save_gt_and_carver_masks):
                 
@@ -164,7 +179,7 @@ class OptimizationScript(ExtinctionOptimizationScript):
                                                min_bound=ground_truth.min_reff,
                                                max_bound=ground_truth.max_reff,
                                                precondition_scale_factor=self.args.reff_scaling)
-                
+                              
             else:
                 
                 if(self.cloud_generator.args.init == 'Monotonous'):
@@ -209,7 +224,6 @@ class OptimizationScript(ExtinctionOptimizationScript):
         veff.apply_mask(mask)
 
         # Define a MicrophysicalScattererEstimator object
-        
         cloud_estimator = shdom.MicrophysicalScattererEstimator(ground_truth.mie, lwc, reff, veff)
         cloud_estimator.set_mask(mask)
 
@@ -221,11 +235,11 @@ class OptimizationScript(ExtinctionOptimizationScript):
         if self.args.add_rayleigh:
             air = self.air_generator.get_scatterer(cloud_estimator.wavelength)
             medium_estimator.set_grid(cloud_estimator.grid + air.grid)
+            medium_estimator.add_scatterer(cloud_estimator, self.scatterer_name)            
             medium_estimator.add_scatterer(air, 'air')
         else:
             medium_estimator.set_grid(cloud_estimator.grid)
 
-        medium_estimator.add_scatterer(cloud_estimator, self.scatterer_name)
         return medium_estimator
 
     def load_forward_model(self, input_directory):
@@ -264,6 +278,9 @@ class OptimizationScript(ExtinctionOptimizationScript):
             
         # Get micro-physical medium ground-truth
         ground_truth = medium.get_scatterer(self.scatterer_name)
+
+        # ------------- DELETE ABOVE-------------------
+        
         return ground_truth, rte_solver, measurements
 
     #def get_ground_truth(self):

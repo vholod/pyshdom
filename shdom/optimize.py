@@ -1496,11 +1496,47 @@ class MediumEstimator(shdom.Medium):
                 images += images_per_imager
              
             # save imaged for the debugging.    
-            if(iteration == 0):
-                import scipy.io as sio
-                file_name = '133_state_images.mat'
-                sio.savemat(file_name, {'images':images})
-                print('---images of iteration {} were saved.-----'.format(iteration))                
+            if(iteration == -1):
+                measurment_images = measurements.images
+                counter = 0
+                pad = 0.01
+                from mpl_toolkits.axes_grid1 import AxesGrid, make_axes_locatable
+              
+                for imager_index in measurment_images.keys():
+                    
+                    for view_index, img in enumerate(measurment_images[imager_index]):
+                        name = view_index
+                        fig, ax = plt.subplots(1, 3, figsize=(20, 20))
+                        img2 = images[counter]
+                        img1 = img
+                        MAXI = max(np.max(img1), np.max(img2))
+                        MINI = min(np.min(img1), np.min(img2))
+                        im1 = ax[0].imshow(img1,cmap='jet',vmin=MINI, vmax=MAXI)
+                        ax[0].set_title("{}_1".format(name))
+                        divider = make_axes_locatable(ax[0])
+                        cax = divider.append_axes("right", size="5%", pad=pad)
+                        plt.colorbar(im1, cax=cax)        
+                        
+                        im2 = ax[1].imshow(img2,cmap='jet',vmin=MINI, vmax=MAXI)
+                        ax[1].set_title("{}_2".format(name))
+                        divider = make_axes_locatable(ax[1])
+                        cax = divider.append_axes("right", size="5%", pad=pad)
+                        plt.colorbar(im2, cax=cax)        
+                        
+                        im3 = ax[2].imshow(img1-img2,cmap='jet')
+                        ax[2].set_title("diff.")
+                        divider = make_axes_locatable(ax[2])
+                        cax = divider.append_axes("right", size="5%", pad=pad)
+                        plt.colorbar(im3, cax=cax) 
+                        
+                        counter += 1
+                plt.show()
+            #-----------------------------------
+            
+                #import scipy.io as sio
+                #file_name = '133_state_images.mat'
+                #sio.savemat(file_name, {'images':images})
+                #print('---images of iteration {} were saved.-----'.format(iteration))                
                 #see images of a state:
                 #fig, ax = plt.subplots(2, 5, figsize=(20, 20))
                 #from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -2635,6 +2671,7 @@ class LocalOptimizer(object):
         state: np.array(dtype=np.float64)
             The state of the medium estimator
         """
+        
         self.medium.set_state(state)
         self.rte_solver.set_medium(self.medium)
         if self._init_solution is False:

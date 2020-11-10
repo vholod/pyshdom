@@ -571,6 +571,10 @@ class GridData(object):
     def data(self):
         return self._data
     
+    @data.setter
+    def data(self,val):
+        self._data = val
+    
     @property
     def shape(self):
         return self._shape

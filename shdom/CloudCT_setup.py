@@ -574,6 +574,9 @@ def StringOfPearls(SATS_NUMBER = 10,orbit_altitude = 500, widest_view = False, m
     Y_config = np.zeros_like(X_config) + move_nadir_y
     sat_positions = np.vstack([X_config, Y_config , Z_config]) # path.shape = (3,#sats) in km.
 
+    Satellites_angles = np.rad2deg(np.arctan(X_config/Z_config))
+    print('Satellites angles are:')
+    print(Satellites_angles)
     # find near nadir view:
     # since in this setup y=0:
     near_nadir_view_index = np.argmin(np.abs(X_config))
@@ -692,7 +695,7 @@ def old_Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500, CAM_FOV = 0.1, CAM_RES = (
         
     return MV, near_nadir_view_index
 
-def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, MieTablesPath=None, 
+def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, air_num_points = 20, air_max_alt = 20.0, MieTablesPath=None, 
                    wavelengths_micron=None,wavelength_averaging=False):
     """
     Prepare the medium for the CloudCT simulation:
@@ -700,6 +703,10 @@ def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, MieTablesPath=None,
     
     inputs:
     CloudFieldFile - file path to the cloud field.
+    AirFieldFile - file path to the air field.
+    air_num_points - Number of altitude grid points for the air volume
+    air_max_alt - in km ,Maximum altitude for the air volume 
+    
     wavelengths_micron: list or a scalar,
         It is the wavelengths in microns.
     wavelength_averaging: bool,
@@ -724,10 +731,7 @@ def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, MieTablesPath=None,
     air = shdom.MultispectralScatterer()
     if(AirFieldFile is None):
         print("You did not provied the air field for the simulation. The atmospher will not include Molecular Rayleigh scattering.")
-
-    # user may tune:
-    air_num_points = 80  # Number of altitude grid points for the air volume
-    air_max_alt = 100  # in km ,Maximum altitude for the air volume    
+   
     # ----------------------------------------------------------------
     # Rayleigh scattering for air molecules
     if(AirFieldFile is not None):
