@@ -615,7 +615,7 @@ class Imager(object):
         """
         return 2**self._sensor.bits
         
-    def adjust_exposure_time(self,images,C = 1):
+    def adjust_exposure_time(self,images):
         """
         This method adjusts the exposure time such that the pixel reached ist full well for the maximal value of the raciances rendered by RTE.
         However, if the current exposure time does not cause full well, there will be now adjustment.
@@ -624,7 +624,6 @@ class Imager(object):
         Input:
         images - np.array or list of np.arrays, it is the images that represent radiances that reache the lens where the simulation of that radiance considered
         solar flux of 1 [W/m^2] and spectrally-dependent parameters of the atmospheric model are spectrally-averaged.
-        C - 1, the pixel will reach full well. C is the procent of the full well that will be reached.
         """
         max_of_all_images = np.array(images).max()
         
@@ -636,7 +635,7 @@ class Imager(object):
         # The 1e-6* scales electrons_number to units of [electrons]      
         # Thus:
         print("The exposure time was set to {} micro sec.".format(float_round(self._exposure_time)))
-        t = 1e6*C*self._sensor.full_well/(INTEGRAL*max_of_all_images) # in micro sec
+        t = 1e6*self._sensor.full_well/(INTEGRAL*max_of_all_images) # in micro sec
         if(t < self._exposure_time):
             self._exposure_time = t - 10 # - 10 micros it is a margin
             print("The adjusted exposure time is {} micro sec.".format(float_round(self._exposure_time)))

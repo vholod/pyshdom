@@ -72,6 +72,8 @@ class OpticalScatterer(Scatterer):
         """
         extinction = self.extinction.resample(grid)
         albedo = self.albedo.resample(grid)
+        # albedo.data[albedo.data >= 1.0] = 1.0 # Yael
+
         phase = self.phase.resample(grid)            
         return shdom.OpticalScatterer(self.wavelength, extinction, albedo, phase)
 

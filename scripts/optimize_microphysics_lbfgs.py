@@ -29,6 +29,7 @@ class OptimizationScript(ExtinctionOptimizationScript):
     scatterer_name: str
         The name of the scatterer that will be optimized.
     """
+
     def __init__(self, scatterer_name='cloud'):
         super().__init__(scatterer_name)
 
@@ -163,7 +164,7 @@ class OptimizationScript(ExtinctionOptimizationScript):
         veff.apply_mask(mask)
 
         # Define a MicrophysicalScattererEstimator object
-        
+
         cloud_estimator = shdom.MicrophysicalScattererEstimator(ground_truth.mie, lwc, reff, veff)
         cloud_estimator.set_mask(mask)
 
@@ -259,6 +260,3 @@ class OptimizationScript(ExtinctionOptimizationScript):
 if __name__ == "__main__":
     script = OptimizationScript(scatterer_name='cloud')
     script.main()
-
-
-

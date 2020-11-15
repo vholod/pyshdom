@@ -12,7 +12,7 @@ def main(cloud_indices):
     logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
-    run_params = load_run_params(params_path="run_params_cloud_ct_nn_initialize_soloution.yaml")
+    run_params = load_run_params(params_path="run_params_cloud_ct_nn_20m_clouds.yaml")
     # run_params['sun_zenith'] = sun_zenith # if you need to set the angle from main's input
     # logger.debug(f"New Run with sun zenith {run_params['sun_zenith']} (overrides yaml)")
 
@@ -84,6 +84,8 @@ def main(cloud_indices):
         CloudFieldFile = run_params['CloudFieldFile'].replace('{CLOUD_INDEX}', cloud_index)
         atmosphere = CloudCT_setup.Prepare_Medium(CloudFieldFile=CloudFieldFile,
                                                   AirFieldFile=AirFieldFile,
+                                                air_num_points=run_params['forward_options']['air_num_points'],
+                                                air_max_alt=run_params['forward_options']['air_max_alt'],
                                                   MieTablesPath=MieTablesPath,
                                                   wavelengths_micron=wavelengths_micron,
                                                   wavelength_averaging=wavelength_averaging,
@@ -351,10 +353,10 @@ def main(cloud_indices):
 
                 # save lwc and reff for neural network
                 copyfile(Final_results_3Dfiles[0], os.path.join(run_params['neural_network']['betas_path'],
-                                                                f'10_sats_limit_iter_20m_{cloud_index}.mat'))
+                                                                f'32_sats_no_limit_iter_20_m_initialize_{cloud_index}.mat'))
                 result = {'time': time.time() - inverse_start_time}
                 filename = os.path.join(run_params['neural_network']['times_path'],
-                                        f'10_sats_limit_iter_20m_{cloud_index}.mat')
+                                        f'32_sats_no_limit_iter_20_m_initialize_{cloud_index}.mat')
                 sio.savemat(filename, result)
 
                 logger.debug("Inverse phase complete")
@@ -553,7 +555,7 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
     GT_USE = GT_USE + ' --save_gt_and_carver_masks' if inverse_options['if_save_gt_and_carver_masks'] else GT_USE
     GT_USE = GT_USE + ' --save_final3d' if inverse_options['if_save_final3d'] else GT_USE
     GT_USE = GT_USE + ' --net_initialize_solution' if inverse_options['if_initialize_solution'] else GT_USE
-    GT_USE = GT_USE + f" --net_initialization_path {os.path.join(run_params['neural_network']['betas_path'], 'net_beta' + cloud_index + '.mat')}" if \
+    GT_USE = GT_USE + f" --net_initialization_path {os.path.join(run_params['neural_network']['betas_path'], 'net_beta_noise' + cloud_index + '.mat')}" if \
         inverse_options['if_initialize_solution'] else GT_USE
 
     # The mie_base_path is defined at the beginning of this script.
@@ -583,6 +585,9 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
 
     OTHER_PARAMS = OTHER_PARAMS + ' --radiance_threshold ' + " ".join(
         map(str, run_params['radiance_threshold'])) if run_type != 'reff_and_lwc' else OTHER_PARAMS
+
+    OTHER_PARAMS = OTHER_PARAMS + ' --air_num_points '+str(run_params['forward_options']['air_num_points'])
+    OTHER_PARAMS = OTHER_PARAMS + ' --air_max_alt '+str(run_params['forward_options']['air_max_alt'])
 
     if inverse_options['MICROPHYSICS']:
         # -----------------------------------------------
@@ -680,8 +685,8 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
         shdom.save_forward_model(forward_dir, medium, solver, measurements)
         # --------------------------------------------------------------------------
 
-        GT_USE += ' --use_forward_albedo'
-        GT_USE += ' --use_forward_phase'
+        # GT_USE += ' --use_forward_albedo'
+        # GT_USE += ' --use_forward_phase'
         OTHER_PARAMS += ' --extinction ' + str(inverse_options['extinction'])
 
     optimizer_path = inverse_options['microphysics_optimizer'] if inverse_options['MICROPHYSICS'] else \
@@ -762,4 +767,7 @@ if __name__ == '__main__':
     #         satellites_images_indices), num_workers)
     # with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
     #     future_to_url = {executor.submit(main, cloud_indices_chunks[i]) for i in np.arange(num_workers)}
-    main(['6004'])
+    # main(['6001','6002','6003'])
+    main(['28440','55080','53760'])
+
+    # main(['6004'])

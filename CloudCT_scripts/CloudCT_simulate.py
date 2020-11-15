@@ -3,7 +3,6 @@ import gc
 import logging
 import matplotlib.pyplot as plt
 import yaml
-import sys
 
 from shdom import CloudCT_setup, plank
 from shdom.CloudCT_Utils import *
@@ -87,6 +86,8 @@ def main():
 
     atmosphere = CloudCT_setup.Prepare_Medium(CloudFieldFile=run_params['CloudFieldFile'],
                                               AirFieldFile=AirFieldFile,
+                                              air_num_points=run_params['forward_options']['air_num_points'],
+                                              air_max_alt=run_params['forward_options']['air_max_alt'],
                                               MieTablesPath=MieTablesPath,
                                         wavelengths_micron=wavelengths_micron,
                                               wavelength_averaging=wavelength_averaging)
@@ -286,25 +287,8 @@ def main():
 
         # See the simulated images:
         if forward_options['SEE_IMAGES']:
-            if(run_params['inverse_options']['use_forward_mask']):
-
-                CloudCT_measurements.show_measurments(title_content=run_params['sun_zenith'])
-
-            else:
-
-                # In a case of use_forward_mask = False which means that the 3D mask will be
-                # calculated by Space Carving, we will visualize the images after radiance trashold on radiances images.
-
-                radiance_threshold_dict = dict()
-                radiance_threshold_dict[0] = sum(vis_imager_config)*\
-                    [run_params['inverse_options']['radiance_threshold'][0]]
-
-                if USESWIR:
-                    radiance_threshold_dict[1] = sum(swir_imager_config)*\
-                        [run_params['inverse_options']['radiance_threshold'][1]]
-
-                CloudCT_measurements.show_measurments(title_content=run_params['sun_zenith'],
-                                                      radiance_threshold_dict = radiance_threshold_dict)
+            CloudCT_measurements.show_measurments(title_content=run_params['sun_zenith'],
+                                                  radiance_threshold_dict=run_params['radiance_threshold'])
             plt.show()
 
         # ---------SAVE EVERYTHING FOR THIS SETUP -------
@@ -353,62 +337,6 @@ def main():
             visualize_results(forward_dir=forward_dir, log_name=log_name, wavelength_micron=wavelengths_micron[0])
 
         logger.debug("Inverse phase complete")
-
-
-    elif run_params['DOCOSTEVAL']:
-        # just calculate the cost function in different initialization modes:
-        inverse_options = run_params['inverse_options']
-        # ---------what perameter to initialize----------------------------
-        run_type = inverse_options['recover_type'] if inverse_options['MICROPHYSICS'] else 'extinction'
-        log_name = 'cost_' + log_name_base + '-' + time.strftime("%d-%b-%Y-%H:%M:%S")
-        log_dir = os.path.join(forward_dir, 'logs', log_name)
-        if not os.path.exists(log_dir):
-            os.mkdir(log_dir)
-
-        reff_tracker_path = os.path.join(log_dir,'reff.txt')
-        lwc_tracker_path = os.path.join(log_dir,'lwc.txt')
-        cost_tracker_path = os.path.join(log_dir,'cost.txt')
-
-        if(os.path.exists(reff_tracker_path)):
-            os.remove(reff_tracker_path)
-        if(os.path.exists(lwc_tracker_path)):
-            os.remove(lwc_tracker_path)
-        if(os.path.exists(cost_tracker_path)):
-            os.remove(cost_tracker_path)
-
-        reff_list = np.linspace(3,15,16)
-        lwc_list = np.linspace(0.1,1.6,16)
-
-        for reff in reff_list:
-            for lwc in lwc_list:
-                print('(reff,lwc) =  ({}, {})'.format(reff,lwc))
-                with open(lwc_tracker_path, 'a') as file_object:
-                    file_object.write('{}\n'.format(lwc))
-
-                with open(reff_tracker_path, 'a') as file_object:
-                    file_object.write('{}\n'.format(reff))
-
-                # the cost is calculated inside the ptimize_microphysics_lbfgs.py:
-                run_params['inverse_options']['reff'] = reff
-                run_params['inverse_options']['lwc'] = lwc
-
-                cmd = create_inverse_command(run_params=run_params, inverse_options=inverse_options,
-                                             vizual_options=vizual_options,
-                                             forward_dir=forward_dir, AirFieldFile=AirFieldFile,
-                                             run_type=run_type, log_name=log_name)
-
-                cmd = cmd + ' --calc_only_cost'
-                _ = subprocess.call(cmd, shell=True)
-
-        logger.debug("Calculation of costs is complete")
-
-
-
-
-
-
-    else:
-        print('Forward is finished')
 
     logger.debug("--------------- End of Simulation ---------------")
 
@@ -545,7 +473,7 @@ def setup_imager(imager_options, run_params, MieTablesPath, simple_type):
 
     imager_config = run_params['SATS_NUMBER_SETUP'] * [False]
     for index in imager_options['true_indices']:
-        imager_config[index] = True
+        imager_config[index] = [True]
 
     return imager, wavelegth_range, imager_pixel_footprint, imager_config
 
@@ -626,6 +554,9 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
 
     OTHER_PARAMS = OTHER_PARAMS + ' --radiance_threshold ' + " ".join(
         map(str, run_params['radiance_threshold'])) if run_type != 'reff_and_lwc' else OTHER_PARAMS
+
+    OTHER_PARAMS = OTHER_PARAMS + ' --air_num_points '+str(run_params['forward_options']['air_num_points'])
+    OTHER_PARAMS = OTHER_PARAMS + ' --air_max_alt '+str(run_params['forward_options']['air_max_alt'])
 
     if inverse_options['MICROPHYSICS']:
         # -----------------------------------------------

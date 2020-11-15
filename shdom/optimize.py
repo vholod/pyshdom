@@ -6,7 +6,6 @@ import time, os, copy, shutil
 from scipy.optimize import minimize
 from scipy.optimize import basinhopping
 import scipy.io as sio
-import copy
 
 import shdom
 from shdom import GridData, core, float_round
@@ -1165,7 +1164,6 @@ class MediumEstimator(shdom.Medium):
         images: np.array(shape=(rte_solver._nstokes, projection.npix), dtype=np.float32)
             The rendered (synthetic) images.
         """
-        c = 0
         if isinstance(projection.npix, list):
             total_pixs = np.sum(projection.npix)
             rays_per_pixel = []
@@ -1176,12 +1174,12 @@ class MediumEstimator(shdom.Medium):
         else:
             total_pixs = projection.npix
             rays_per_pixel = np.repeat(projection.samples_per_pixel, total_pixs)
-            c = c + 1
+            
     
         rays_weights = projection.weight # pixel/ray weight of contibution to gradient due to samples per pixel introdution, interduced by vadim.
-        
 
-        #print('--> rays per pixel {}\n, total_pixs {}'.format(rays_per_pixel, total_pixs))
+
+        #print('--> {}, {}'.format(projection.phi[10], projection.mu[10]))
 
         gradient, loss, images = core.gradient_l2(
             weights=self._stokes_weights[:rte_solver._nstokes],
@@ -1280,65 +1278,8 @@ class MediumEstimator(shdom.Medium):
             radiance=rte_solver._radiance,
             total_ext=rte_solver._total_ext[:rte_solver._npts]
         )
-        #print("-------")
-        #print('{} - total pixels is {}'.format(c,total_pixs))        
-        #print('{} - loss is {}'.format(c,loss))
         return gradient, loss, images
 
-    def compute_cost(self, rte_solvers, measurements, n_jobs):
-        """
-        Vadim added to compute only the cost of the current state.
-        If n_jobs>1 than parallel gradient computation is used with pixels are distributed amongst all workers
-        
-        Parameters
-        ----------
-        rte_solvers: shdom.RteSolverArray
-            A solver array with all the associated parameters and the solution to the RTE
-        measurements: shdom.Measurements or shdom.CloudCT_setup.SpaceMultiView_Measurements
-            A measurements object storing the acquired images and sensor geometry
-        n_jobs: int,
-            The number of jobs to divide the gradient computation into.
-
-        Returns
-        -------
-        loss: np.float64
-            The total loss accumulated over all pixels.
-        """   
-        loss = 0
-        if(isinstance(measurements,shdom.CloudCT_setup.SpaceMultiView_Measurements)):
-            # relating to CloudCT multi-view setup with different imagers.
-            CloudCT_geometry_and_imagers = measurements.setup
-            images_dict = measurements.images.copy() # if the measurments of type cloudct...., the images in grayscale.
-            
-            imagers_channels = measurements.get_channels_of_imagers() # A list, it is the central wavelength of al imagers. 
-            for imager_index, wavelength in enumerate(imagers_channels):
-                acquired_images = images_dict[imager_index]
-                CloudCT_projection = CloudCT_geometry_and_imagers[imager_index]
-                
-                if(measurements.sensor_type == 'RadianceSensor'):
-                    sensor=shdom.RadianceSensor()  
-                    
-                elif(measurements.sensor_type == 'StokesSensor'):
-                    sensor=shdom.StokesSensor()
-                else:
-                    raise Exception('Unsupported')
-                
-                camera = shdom.Camera(sensor, CloudCT_projection)
-                images_per_imager = camera.render(rte_solvers[imager_index], n_jobs=n_jobs)  
-                                  
-                for (i_measured,i) in zip(acquired_images,images_per_imager):
-                    loss += 0.5*np.sum(np.power((i_measured.ravel() - i.ravel()),2))
-                
-                            
-                            
-        else:
-            raise Exception('Unsupported')
-            #projection = measurements.camera.projection
-            #sensor = measurements.camera.sensor
-            #pixels = measurements.pixels            
-         
-        return loss   
-        
     def compute_gradient(self, rte_solvers, measurements, n_jobs):
         """
         Compute the gradient with respect to the current state.
@@ -1381,9 +1322,9 @@ class MediumEstimator(shdom.Medium):
                 acquired_images = images_dict[imager_index]
                 CloudCT_projection = CloudCT_geometry_and_imagers[imager_index]
                 # resample rays per pixels to imitate random sampling of the rays per pixel:
-                #if any(np.array(CloudCT_projection.samples_per_pixel)>1):
+                if any(np.array(CloudCT_projection.samples_per_pixel)>1):
                     #CloudCT_projection.resample_rays_per_pixel()
-                    
+                    pass
                 # chack consistensy in the wavelengths:
                 assert wavelength == CloudCT_projection.imager.centeral_wavelength_in_microns,\
                        "There is not consistency between the wavelengths between the imager and the CLoudCT setup measurements."
@@ -1421,21 +1362,16 @@ class MediumEstimator(shdom.Medium):
                 #n_jobs = 1
                 
                 if n_jobs > 1:          
-                    
-                    # special split for n_jobs != N_views:
-                    n_jobs_projections = CloudCT_projection.split(n_jobs)
-                    special_split = [p.npix for p in n_jobs_projections]
-                    test_split = [int(p.nrays/p.samples_per_pixel) for p in n_jobs_projections]
-                    assert special_split == test_split , 'wrong rays counting or spliting'
-                    n_jobs_split_pixels = np.split(pixels, np.cumsum(special_split[:-1]))
-                    
+                    #if any(np.array(CloudCT_projection.samples_per_pixel)>1):
+                        #n_jobs = CloudCT_projection.num_projections
+                        
                     output = Parallel(n_jobs=n_jobs, backend="threading", verbose=0)(
                         delayed(self.core_grad, check_pickle=False)(
                             rte_solver=rte_solvers[loop_imager_index],
                             projection=projection,
                             pixels=loop_pixels
                         ) for loop_imager_index, projection, loop_pixels in
-                        zip(np.tile(imager_index,n_jobs) , n_jobs_projections, n_jobs_split_pixels )
+                        zip(np.tile(imager_index,n_jobs) , CloudCT_projection.split(n_jobs), np.array_split(pixels, n_jobs, axis=-2))
                     )
                     
                     #for loop_imager_index, projection, loop_pixels in zip(np.tile(imager_index,n_jobs, CloudCT_projection.split(n_jobs), np.array_split(pixels, n_jobs, axis=-2)):
@@ -1474,30 +1410,12 @@ class MediumEstimator(shdom.Medium):
                                     #for (i_measured,i) in zip(acquired_images,images_per_imager):
                                         #loss_per_imager += 0.5*np.sum(np.power((i_measured.ravel() - i.ravel()),2))
                 
-                #if(imager_index == 1):
-                    #gradient_per_imager = 5*gradient_per_imager
-                    
+                                
                 gradient = np.sum([gradient, gradient_per_imager], axis=0) 
                 loss += loss_per_imager
                 images += images_per_imager
                 
-                #import scipy.io as sio
-                #file_name = '133_state_images.mat'
-                #sio.savemat(file_name, {'images':images_per_imager})
-                print('-------------')                
-                #see images of a state:
-                #fig, ax = plt.subplots(2, 5, figsize=(20, 20))
-                #from mpl_toolkits.axes_grid1 import make_axes_locatable
                 
-                #ax = ax.flatten()
-                #MAXI = np.array(images_per_imager).max()
-                #for index, img in enumerate(images_per_imager):
-                    #im = ax[index].imshow(img,cmap='gray',vmin=0, vmax=MAXI)
-                    #ax[index].set_title("{}".format(index))
-                    #divider = make_axes_locatable(ax[index])
-                    #cax = divider.append_axes("right", size="5%", pad=0.01)
-                    #plt.colorbar(im, cax=cax)                    
-                #plt.show()                
                 
             # Outside the imager_index loop:
             gradient = gradient.reshape(self.grid.shape + tuple([self.num_derivatives])) # An array containing the gradient of the cost function with respect to the parameters. the shape is of the internal shdom grid upon which the gradient was computed.
@@ -2347,9 +2265,6 @@ class LocalOptimizer(object):
         -----
         This function also saves the current synthetic images for visualization purpose
         """
-        #if(self.iteration % 5 == 0):
-            #state = 5*state
-            
         self.set_state(state)
         gradient, loss, images, debug_gradients = self.medium.compute_gradient(
             rte_solvers=self.rte_solver,
@@ -2359,42 +2274,20 @@ class LocalOptimizer(object):
         print(state, gradient, loss)
         self._loss = loss
         self._images = images
-        
-        
         # vadim save gradients for each iteration for debug:
-        SAVE_GRADIENTS_DB = False
+        SAVE_GRADIENTS_DB = True
         if(SAVE_GRADIENTS_DB):
-            gredient_save_dir = self.writer.dir + '_gradients'  
-            
+            gredient_save_dir = self.writer.dir + '_gradients'            
             if not os.path.exists(gredient_save_dir):
                 os.mkdir(gredient_save_dir)
                 
             scatterers = self.medium.estimators.keys()
-            
             for scatterer_name in scatterers:
                 scatterer = self.medium.get_scatterer(name=scatterer_name)
-                file_name = 'iteration_{}.txt'.format(self.iteration) 
-                file_name  = os.path.join(self.writer.dir,file_name)
-                
-                #lwc = scatterer.lwc.resample(scatterer.grid)
-                #reff = scatterer.reff.resample(scatterer.grid)
-                #veff = scatterer.veff.resample(scatterer.grid)               
-                #droplets = shdom.MicrophysicalScatterer(lwc, reff, veff)
-                
-                #scatterer_copy = copy.deepcopy(scatterer)
-                #scatterer_copy.lwc = scatterer.lwc.resample(scatterer.grid)
-                #scatterer_copy.reff = scatterer.reff.resample(scatterer.grid)
-                #scatterer_copy.veff = scatterer.veff.resample(scatterer.grid)                
-                #scatterer_copy.save_to_csv(file_name, comment_line='from some minimization process')
-                
                 for index,parameter_name in enumerate(scatterer.estimators.keys()):
-                    filename = 'gradient_of_{}_at_iteration_{}.mat'.format(parameter_name,self.iteration) 
+                    filename = 'gradient_of_{}_at_iteration_{}.mat'.format(parameter_name,self.iteration)                    
                     grad_save = debug_gradients[index]
-                    estimator = scatterer.estimators[parameter_name]
                     sio.savemat(os.path.join(gredient_save_dir,filename), {'data':grad_save})
-                    
-                    filename = '{}_at_iteration_{}.mat'.format(parameter_name,self.iteration)                                        
-                    sio.savemat(os.path.join(gredient_save_dir,filename), {'data':estimator})
             
         return loss, gradient
             

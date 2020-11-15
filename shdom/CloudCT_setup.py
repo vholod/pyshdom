@@ -141,7 +141,7 @@ class SpaceMultiView_Measurements(object):
                 images_list_per_imager = [images_list_per_imager]
               
             if(IF_REDUCE_EXPOSURE):
-                projections.imager.adjust_exposure_time(images_list_per_imager, C = 0.9)# C = 0.9 - the imager will reach 90 procent of the full well.
+                projections.imager.adjust_exposure_time(images_list_per_imager)
                  
             self._Images_per_imager[imager_index], radiance_to_graylevel_scale = projections.imager.convert_radiance_to_graylevel(images_list_per_imager,IF_APPLY_NOISE=IF_APPLY_NOISE,IF_SCALE_IDEALLY=IF_SCALE_IDEALLY)
             # the lines below does the following: It scale back the grayscale values to radiances but it does that after nosie addition.
@@ -210,10 +210,9 @@ class SpaceMultiView_Measurements(object):
                     
                     # show all
                     for projection_index, (ax, name) in enumerate(zip(grid, projections.projection_names)):
-                        image = images[projection_index].copy()
-                        image[image<=radiance_thresholds[projection_index]] = 0
-                        image *= self._radiance_to_graylevel_scales[imager_index] # to set the images in the grayscale level..
-
+                        image = images[projection_index].copy()\
+                            *self._radiance_to_graylevel_scales[imager_index] # to set the images in the grayscale level..
+                        image[image<=radiance_thresholds] = 0
                         
                         ax.set_axis_off()
                         im = ax.imshow(image,cmap='gray',vmin=0, vmax=MAXI)
@@ -521,12 +520,18 @@ def StringOfPearls(SATS_NUMBER = 10,orbit_altitude = 500):
     
     
     # where to set the sateliites?
+    # [-0.07172572 -0.05738058 -0.04303543 -0.02869029 -0.01434514  0.,  0.01434514  0.02869029  0.04303543  0.05738058]
     theta_config = np.arange(-0.5*SATS_NUMBER,0.5*SATS_NUMBER)*Dtheta
     theta_config = theta_config[::-1] # put sat1 to be the rigthest
     X_config = r_orbit*np.sin(theta_config)
     Z_config = r_orbit*np.cos(theta_config) - r_earth
     Y_config = np.zeros_like(X_config)
     sat_positions = np.vstack([X_config, Y_config , Z_config]) # path.shape = (3,#sats) in km.
+
+    X_path = sat_positions[0,:].squeeze()
+    Z_path = sat_positions[2,:].squeeze()
+    offNadirAngles = np.rad2deg(np.arctan(X_path / Z_path))  # from the ground.
+    print(f"offNadirAngles: {offNadirAngles}")
 
     # find near nadir view:
     # since in this setup y=0:
@@ -558,7 +563,12 @@ def Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500 ,SAT_LOOKATS=None, Imager_confi
     
     """
     sat_positions, near_nadir_view_index = StringOfPearls(SATS_NUMBER = SATS_NUMBER, orbit_altitude = ORBIT_ALTITUDE)
-    
+
+    X_path = sat_positions[:, 0]
+    Z_path = sat_positions[:, 2]
+    offNadirAngles = np.rad2deg(np.arctan(X_path / Z_path))  # from the ground.
+    print(offNadirAngles)
+
     assert imager is not None, "You must provide the Imager object!"
     
     if Imager_config is None:
@@ -630,8 +640,7 @@ def old_Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500, CAM_FOV = 0.1, CAM_RES = (
     MV.update_solar_irradiances(solar_flux_list)
     MV.set_commonCameraIntrinsics(FOV,cnx,cny)     
     MV.update_views()
-    #MV.resample_rays_per_pixel()
-
+    
     # visualization params:
     scale = 500
     axisWidth = 0.02
@@ -645,7 +654,7 @@ def old_Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500, CAM_FOV = 0.1, CAM_RES = (
         
     return MV, near_nadir_view_index
 
-def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, MieTablesPath=None, 
+def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None,air_num_points= 20,air_max_alt= 5 ,MieTablesPath=None,
                    wavelengths_micron=None,wavelength_averaging=False, mie_options = None):
     """
     Prepare the medium for the CloudCT simulation:
@@ -684,8 +693,8 @@ def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, MieTablesPath=None,
         print("You did not provied the air field for the simulation. The atmospher will not include Molecular Rayleigh scattering.")
 
     # user may tune:
-    air_num_points = 20 # Number of altitude grid points for the air volume
-    air_max_alt = 5 # in km ,Maximum altitude for the air volume
+    # air_num_points = 20 # Number of altitude grid points for the air volume
+    # air_max_alt = 5 # in km ,Maximum altitude for the air volume
     # ----------------------------------------------------------------
     # Rayleigh scattering for air molecules
     if(AirFieldFile is not None):
