@@ -539,22 +539,22 @@ class Projection(object):
         )
         return projection
 
-    # def split(self, n_parts):
-    #     x_split = np.array_split(self.x, n_parts)
-    #     y_split = np.array_split(self.y, n_parts)
-    #     z_split = np.array_split(self.z, n_parts)
-    #     mu_split = np.array_split(self.mu, n_parts)
-    #     phi_split = np.array_split(self.phi, n_parts)
-    #
-    #     projections = [
-    #         Projection(x, y, z, mu, phi) for
-    #         x, y, z, mu, phi in
-    #         zip(x_split, y_split, z_split, mu_split, phi_split)
-    #     ]
-    #     return projections
-
-
     def split(self, n_parts):
+        x_split = np.array_split(self.x, n_parts)
+        y_split = np.array_split(self.y, n_parts)
+        z_split = np.array_split(self.z, n_parts)
+        mu_split = np.array_split(self.mu, n_parts)
+        phi_split = np.array_split(self.phi, n_parts)
+    #
+        projections = [
+            Projection(x, y, z, mu, phi) for
+            x, y, z, mu, phi in
+            zip(x_split, y_split, z_split, mu_split, phi_split)
+        ]
+        return projections
+
+
+    def old_split(self, n_parts):
         """
         Split the projection geometry.
         
@@ -668,6 +668,18 @@ class Projection(object):
     def z(self):
         return self._z
     
+    @x.setter
+    def x(self,val):
+        self._x = val
+       
+    @y.setter
+    def y(self,val):
+        self._y = val
+        
+    @z.setter
+    def z(self,val):
+        self._z = val
+        
     @property
     def mu(self):
         return self._mu

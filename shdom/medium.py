@@ -750,6 +750,146 @@ class Medium(object):
             triangles = [[0,1,2],[0,3,2],[1,2,5],[1,4,5],[2,5,6],[2,3,6],[4,7,6],[4,5,6],[0,3,6],[0,7,6],[0,1,4],[0,7,4]];
             obj = mlab.triangular_mesh( xm, ym, zm, triangles,color = (0.0, 0.17, 0.72),opacity=0.3,figure=figh)
                 
+    
+    def pad_scatterer(self, name, axis=0, right = True, values=None):
+        """
+        Pad the medium be values in direction of axis.
+        If right is true, pad from right (+), else from left (-).
+        """
+
+        scatterer = self.scatterers[name]
+        # -----------------------------
+        grid = scatterer.grid
+        xgrid = grid.x
+        ygrid = grid.y
+        zgrid = grid.z
+        
+        dx = grid.dx
+        dy = grid.dy
+        
+        nz = grid.nz
+        nx = grid.nx
+        ny = grid.ny 
+        
+        # The _max is one d_ befor the last corner (|_|_|_|_|_|_|_->|_|).
+        x_min = grid.bounding_box.xmin
+        x_max = grid.bounding_box.xmax
+        
+        y_min = grid.bounding_box.ymin
+        y_max = grid.bounding_box.ymax
+        
+        z_min = grid.bounding_box.zmin
+        z_max = grid.bounding_box.zmax        
+        
+        Lz = z_max - z_min
+        dz = Lz/(nz-1)
+        # ------------------------------------
+        
+        if(np.isscalar(values)):
+            values_size = 1
+            value = values
+        else:
+            values_size = values.size
+            value = values[0]
+            
+        if axis == 0:
+            if(right):
+                npad = ((0, values_size), (0, 0), (0, 0))
+                x_max = x_max + dx*values_size
+                xgrid = np.linspace(x_min, x_max, nx+values_size) 
+            else:
+                npad = ((values_size, 0), (0, 0), (0, 0))
+                x_min = x_min - dx*values_size
+                xgrid = np.linspace(x_min, x_max, nx+values_size) 
+            
+            nx += values_size
+            
+        elif axis == 1:
+            if(right):
+                npad = ((0, 0), (0, values_size), (0, 0))
+                y_max = y_max + dy*values_size
+                ygrid = np.linspace(y_min, y_max, ny+values_size) 
+            else:
+                npad = ((0, 0), (values_size, 0), (0, 0))  
+                y_min = y_min - dy*values_size
+                ygrid = np.linspace(y_min, y_max, ny+values_size) 
+                
+            ny += values_size
+            
+        elif axis == 2:
+            if(right):
+                npad = ((0, 0), (0, 0), (0, values_size))
+                z_max = z_max + dz*values_size
+                zgrid = np.linspace(z_min, z_max, nz+values_size)                 
+            else:
+                npad = ((0, 0), (0, 0), (values_size, 0)) 
+                z_min = z_min - dz*values_size
+                zgrid = np.linspace(z_min, z_max, nz+values_size) 
+                
+            nz += values_size
+          
+        # ----------------------------------------------------------
+        # ----------------------------------------------------------
+        # ----------------------------------------------------------
+        
+        if(scatterer.lwc.type is '3D'):
+            lwc = np.pad(scatterer.lwc.data, pad_width=npad, mode='constant', constant_values=value)
+        elif(scatterer.lwc.type is '1D'):
+            npad1d = npad[2] # [npad[i] for i in range(3) if any(npad[i])][0]    
+            lwc = np.pad(scatterer.lwc.data, pad_width=npad1d, mode='constant', constant_values=value)
+            lwc = np.tile(lwc[np.newaxis, np.newaxis, :], (nx, ny, 1))
+        else:
+            if not scatterer.lwc.type is 'Homogeneous':
+                raise Exception('Non implemented') 
+            else:
+                lwc = np.full((nx, ny, nz), scatterer.lwc.data)            
+    
+        if(scatterer.reff.type is '3D'):
+            reff = np.pad(scatterer.reff.data, pad_width=npad, mode='constant', constant_values=value)
+        elif(scatterer.reff.type is '1D'):
+            npad1d = npad[2] # 
+            reff = np.pad(scatterer.reff.data, pad_width=npad1d, mode='constant', constant_values=value)
+            reff = np.tile(reff[np.newaxis, np.newaxis, :], (nx, ny, 1))
+            
+        else:
+            if not scatterer.reff.type is 'Homogeneous':
+                raise Exception('Non implemented') 
+            else:
+                reff = np.full((nx, ny, nz), scatterer.reff.data)            
+        
+        if(scatterer.veff.type is '3D'):
+            veff = np.pad(scatterer.veff.data, pad_width=npad, mode='constant', constant_values=value)
+        elif(scatterer.veff.type is '1D'):
+            npad1d = npad[2] 
+            veff = np.pad(scatterer.veff.data, pad_width=npad1d, mode='constant', constant_values=value)
+            veff = np.tile(veff[np.newaxis, np.newaxis, :], (nx, ny, 1))
+            
+        else:
+            if not scatterer.veff.type is 'Homogeneous':
+                raise Exception('Non implemented') 
+            else:
+                veff = np.full((nx, ny, nz), scatterer.veff.data)
+        
+           
+        # set new scatterer:
+        scatterer.grid.x = xgrid  - x_min
+        scatterer.grid.y = ygrid  - y_min
+        scatterer.grid.z = zgrid  
+        
+        lwc = shdom.GridData(scatterer.grid, lwc).squeeze_dims()
+        reff = shdom.GridData(scatterer.grid, reff).squeeze_dims()
+        veff = shdom.GridData(scatterer.grid, veff).squeeze_dims()
+        self.scatterers[name] = shdom.MicrophysicalScatterer(lwc, reff, veff)
+        self.scatterers[name].add_mie(scatterer.mie)
+        
+
+        # update grid:
+        new_grid = shdom.Grid()
+        for name_, scatterer_ in self.scatterers.items():
+            if name_ is not name:
+                new_grid = scatterer_.grid + new_grid
+        
+        self.set_grid(new_grid + scatterer.grid)
         
     def add_scatterer(self, scatterer, name=None):
         """
