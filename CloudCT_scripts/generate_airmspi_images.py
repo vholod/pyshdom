@@ -45,15 +45,18 @@ for file_name in glob.glob("/home/yaelsc/Data/AirMSPI/clouds_airmspi/cloud*.txt"
         atmosphere.add_scatterer(droplets, name='cloud')
         atmosphere.add_scatterer(air, name='air')
 
-        numerical_params = shdom.NumericalParameters(num_mu_bins=16, num_phi_bins=32, adapt_grid_factor=5,
+        numerical_params = shdom.NumericalParameters(num_mu_bins=8, num_phi_bins=16, adapt_grid_factor=5,
                                                      split_accuracy=0.1,
                                                      max_total_mb=300000.0, num_sh_term_factor=5)
-        scene_params = shdom.SceneParameters(wavelength=mie.wavelength, source=shdom.SolarSource(azimuth=0, zenith=132.7))
+        scene_params = shdom.SceneParameters(
+            surface=shdom.LambertianSurface(albedo=0.05),
+            wavelength=mie.wavelength,
+            source=shdom.SolarSource(azimuth=0, zenith=132.7))
 
         rte_solver = shdom.RteSolver(scene_params, numerical_params)
         rte_solver.set_medium(atmosphere)
 
-        rte_solver.init_solution()
+        # rte_solver.init_solution()
         rte_solver.solve(maxiter=150)
 
         zenith_list = [70.5, 60, 45.6, 26.1, 0, 26.1, 45.6, 60, 70.5]
