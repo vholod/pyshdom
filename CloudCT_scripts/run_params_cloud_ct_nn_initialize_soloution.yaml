@@ -222,7 +222,7 @@ inverse_options:
 
   # optimization:
   globalopt: False  # Global optimization with basin-hopping. For more info: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html.
-  maxiter: 1000  # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
+  maxiter: 10  # Maximum number of L-BFGS iterations. For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
   maxls: 30  # Maximum number of line search steps (per iteration). For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html.
   disp: True  # Display optimization progression.
   gtol: 1e-16  # Stop criteria for the maximum projected gradient. # For more info: https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html

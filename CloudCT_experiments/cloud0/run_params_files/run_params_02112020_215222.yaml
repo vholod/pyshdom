@@ -1,0 +1,169 @@
+AirFieldFile: ../ancillary_data/AFGL_summer_mid_lat.txt
+CloudFieldFile: /home/yaelsc/Data/bigger_clouds/clouds/cloud{CLOUD_INDEX}.txt
+DOFORWARD: false
+DOINVERSE: true
+GSD: 0.05
+IFTUNE_CAM: true
+Rsat: 600
+SATS_NUMBER_INVERSE: 32
+SATS_NUMBER_SETUP: 32
+USE_SIMPLE_IMAGER: true
+forward_options:
+  SEE_IMAGES: false
+  adapt_grid_factor: 5
+  max_total_mb: 100000.0
+  num_mu: 8
+  num_phi: 16
+  rte_solver_max_iter: 100
+  solar_fluxes:
+  - 1
+  - 1
+  solution_accuracy: 0.0001
+  split_accuracies:
+  - 0.1
+  - 0.1
+  surface_albedos:
+  - 0.05
+  - 0.05
+  temp: 5900
+inverse_options:
+  MICROPHYSICS: false
+  SEE_IMAGES: false
+  SEE_SETUP: false
+  VIS_RESULTS3D: true
+  add_rayleigh: true
+  cloudct_use: false
+  disp: true
+  extinction: 0.01
+  extinction_optimizer: optimize_extinction_lbfgs.py
+  ftol: 1e-16
+  globalopt: false
+  gtol: 1e-16
+  if_initialize_solution: false
+  if_save_final3d: true
+  if_save_gt_and_carver_masks: true
+  init: Homogeneous
+  loss_type: l2
+  lwc: 0.01
+  lwc_scaling_val: 15
+  maxiter: 10
+  maxls: 30
+  microphysics_optimizer: optimize_microphysics_lbfgs.py
+  recover_type: lwc
+  reff: 12
+  reff_scaling_val: 0.01
+  scripts_path: ../scripts
+  stokes_weights:
+  - 1.0
+  - 0.0
+  - 0.0
+  - 0.0
+  use_forward_albedo: false
+  use_forward_grid: true
+  use_forward_mask: false
+  use_forward_phase: false
+  veff: 0.19
+mie_options:
+  end_reff: 25.0
+  end_veff: 0.4
+  num_reff: 100
+  num_veff: 117
+  radius_cutoff: 65.0
+  start_reff: 4
+  start_veff: 0.01
+  wavelength_resolution: 0.001
+n_jobs: 20
+neural_network:
+  betas_path: /home/yaelsc/Data/bigger_clouds/betas
+  clouds_path: /home/yaelsc/Data/bigger_clouds/clouds/cloud*.txt
+  satellites_images_path: /home/yaelsc/Data/bigger_clouds/satellites_images
+  times_path: /home/yaelsc/Data/bigger_clouds/times_betas
+radiance_threshold:
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+- 0.02
+solar_fluxes_val: 1.0
+split_accuracies_val: 0.1
+sun_azimuth: 45
+sun_zenith: 150
+surface_albedos_val: 0.05
+swir_options:
+  ImportConfigPath: ../notebooks/Hypothetic_SWIR_camera_config_50m_nadir_resolution.json
+  rays_per_pixel: 1
+  rigid_sampling: true
+  temperature: 15
+  true_indices: []
+temperature: 15
+vis_options:
+  ImportConfigPath: ../notebooks/Gecko_config.json
+  rays_per_pixel: 1
+  rigid_sampling: true
+  temperature: 15
+  true_indices:
+  - 0
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
+  - 7
+  - 8
+  - 9
+  - 10
+  - 11
+  - 12
+  - 13
+  - 14
+  - 15
+  - 16
+  - 17
+  - 18
+  - 19
+  - 20
+  - 21
+  - 22
+  - 23
+  - 24
+  - 25
+  - 26
+  - 27
+  - 28
+  - 29
+  - 30
+  - 31
+vizual_options:
+  CENCEL_AIR: false
+  VISSETUP: false
+  axisLenght: 5000
+  axisWidth: 0.02
+  scale: 500
