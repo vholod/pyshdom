@@ -273,7 +273,7 @@ class AirMSPIMeasurements(shdom.Measurements):
         self.set_images()
         # self._pixels = self.images_to_pixels(self.images)
         self.set_sun_params()
-        # self.calc_albedo(n_jobs=72)
+        #self.calc_albedo(n_jobs=72)
         # self.calc_wind(n_jobs=72)
         self.check_glint_angle()
 
@@ -378,16 +378,16 @@ class AirMSPIMeasurements(shdom.Measurements):
 
         I[I<0] = 0
 
-        cloud_base_pos = [flat_earth_pos[0] + 0.8 * np.tan(theta) * np.cos(phi),
-                          flat_earth_pos[1] + 0.8 * np.tan(theta) * np.sin(phi)]
+        cloud_base_pos = [flat_earth_pos[0] + self.cloud_base_h * np.tan(theta) * np.cos(phi),
+                          flat_earth_pos[1] + self.cloud_base_h * np.tan(theta) * np.sin(phi)]
         cloud_com_x, cloud_com_y = self.center_of_mass(I,cloud_base_pos[0], cloud_base_pos[1])
 
-        bb_x = cloud_base_pos[0] - cloud_com_x
-        bb_y = cloud_base_pos[1] - cloud_com_y
+        bb_x = cloud_base_pos[0]# - cloud_com_x
+        bb_y = cloud_base_pos[1]# - cloud_com_y
         self.set_cloud_bounding_box(bb_x, bb_y)
 
-        xTranslation = (airmspi_flight_altitude) * np.tan(theta) * np.cos(phi) - cloud_com_x # X - North
-        yTranslation = (airmspi_flight_altitude) * np.tan(theta) * np.sin(phi) - cloud_com_y # Y - East
+        xTranslation = (airmspi_flight_altitude) * np.tan(theta) * np.cos(phi)# - cloud_com_x # X - North
+        yTranslation = (airmspi_flight_altitude) * np.tan(theta) * np.sin(phi)# - cloud_com_y # Y - East
 
         x = (flat_earth_pos[0] + xTranslation)
         y = (flat_earth_pos[1] + yTranslation)
