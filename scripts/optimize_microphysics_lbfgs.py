@@ -2,6 +2,7 @@ import os, time
 import numpy as np
 import shdom
 import scipy.io as sio
+import copy
 
 from optimize_extinction_lbfgs import OptimizationScript as ExtinctionOptimizationScript
 
@@ -79,7 +80,11 @@ class OptimizationScript(ExtinctionOptimizationScript):
         parser.add_argument('--veff_scaling',
                             default=1.0,
                             type=np.float32,
-                            help='(default value: %(default)s) Pre-conditioning scale factor for effective variance estimation')        
+                            help='(default value: %(default)s) Pre-conditioning scale factor for effective variance estimation')  
+        parser.add_argument('--force_1d_reff',
+                            action='store_true',
+                            help='Use it if you want to retrieve the effective radius in 1D layers.')        
+        
         return parser
 
     def get_medium_estimator(self, measurements, ground_truth):
@@ -101,7 +106,14 @@ class OptimizationScript(ExtinctionOptimizationScript):
         # Define the grid for reconstruction
         if self.args.use_forward_grid:
             lwc_grid = ground_truth.lwc.grid
-            reff_grid = ground_truth.reff.grid
+            if(self.args.force_1d_reff):
+                # force 1D layerd grid of reff
+                new_bounding_box = copy.deepcopy(ground_truth.reff.grid.bounding_box)
+                reff_grid = shdom.Grid(bounding_box = new_bounding_box,
+                                               z = ground_truth.lwc.grid.z)
+            else:
+                reff_grid = ground_truth.reff.grid
+                
             veff_grid = ground_truth.reff.grid
         else:
             lwc_grid = reff_grid = veff_grid = self.cloud_generator.get_grid()
@@ -235,10 +247,11 @@ class OptimizationScript(ExtinctionOptimizationScript):
         if self.args.add_rayleigh:
             air = self.air_generator.get_scatterer(cloud_estimator.wavelength)
             medium_estimator.set_grid(cloud_estimator.grid + air.grid)
-            medium_estimator.add_scatterer(cloud_estimator, self.scatterer_name)            
             medium_estimator.add_scatterer(air, 'air')
         else:
             medium_estimator.set_grid(cloud_estimator.grid)
+            
+        medium_estimator.add_scatterer(cloud_estimator, self.scatterer_name)            
 
         return medium_estimator
 
@@ -279,7 +292,6 @@ class OptimizationScript(ExtinctionOptimizationScript):
         # Get micro-physical medium ground-truth
         ground_truth = medium.get_scatterer(self.scatterer_name)
 
-        # ------------- DELETE ABOVE-------------------
         
         return ground_truth, rte_solver, measurements
 

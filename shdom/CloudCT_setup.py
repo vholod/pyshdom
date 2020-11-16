@@ -770,13 +770,15 @@ def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, air_num_points = 20
         atmospheric_grid = droplets.grid + air.grid
     else:
         atmospheric_grid = droplets.grid
-        
+      
     # atmospheric_grid = droplets.grid # in a case I don't ant the air in the simulation.
     atmosphere = shdom.Medium(atmospheric_grid)
-    atmosphere.add_scatterer(droplets, name='cloud')
+    #atmosphere.add_scatterer(droplets, name='cloud') # where to pu it?
     if(AirFieldFile is not None):
         atmosphere.add_scatterer(air, name='air')    
     
+    atmosphere.add_scatterer(droplets, name='cloud')
+          
     return atmosphere
     
 

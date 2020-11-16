@@ -862,7 +862,6 @@ class Monotonous(CloudGenerator):
             grid = self.get_grid()
 
         lwc = self.args.lwc
-        dlwc = 0.2
         if lwc is not None:
             if grid.type == '1D':
                 Z = grid.z - grid.z[2]
@@ -892,7 +891,6 @@ class Monotonous(CloudGenerator):
             A GridData object containing the effective radius [microns] on a grid
         """
         reff = self.args.reff
-        dreff = 3
         if grid is None:
             grid = self.get_grid()
         if grid.type == '1D':

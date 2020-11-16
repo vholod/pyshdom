@@ -568,11 +568,41 @@ class Projection(object):
             total_rays = self.nrays 
             total_pixs = self.npix
             
+        
         N_total = total_rays # total samples whitch I need to split into n_parts
-        if(isinstance(self, shdom.sensor.PerspectiveProjection)):
+        if(isinstance(self,shdom.sensor.PerspectiveProjection)):
             N_views = 1
         else:
             N_views = self.num_projections
+        
+        if(isinstance(self, shdom.sensor.PerspectiveProjection)):
+        
+            NP = int(total_rays/n_parts)
+            while(not(NP % self.samples_per_pixel == 0)):
+                NP = NP + 1
+            NP = int(NP)
+        
+            R = [NP] * (n_parts - 1)
+            NF = int(total_rays - sum(R))
+            R.append(NF)
+        
+            smaller_split = R
+            assert sum(smaller_split) == total_rays, 'wrong rays counting'
+            # ------------------------------------------
+            x_split = np.split(self.x, np.cumsum(smaller_split[:-1]))
+            y_split = np.split(self.y, np.cumsum(smaller_split[:-1]))
+            z_split = np.split(self.z, np.cumsum(smaller_split[:-1]))
+            phi_split = np.split(self.phi, np.cumsum(smaller_split[:-1]))
+            mu_split = np.split(self.mu, np.cumsum(smaller_split[:-1]))
+            weight_split = np.split(self.weight, np.cumsum(smaller_split[:-1]))
+            rays_per_pixel = [self.samples_per_pixel]* n_parts
+        
+            projections = [
+                        Projection(x, y, z, mu, phi, weight, ray_per_pixel) for 
+                        x, y, z, mu, phi, weight, ray_per_pixel in zip(x_split, y_split, z_split, mu_split, phi_split,weight_split,rays_per_pixel)
+                    ]
+            return projections        
+        
         
         
         

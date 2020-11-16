@@ -1474,6 +1474,7 @@ class MediumEstimator(shdom.Medium):
                 #loss_per_imager = output[1]
                 loss_per_imager = np.sum(list(map(lambda x: x[1], output)))
                 gradient_per_njob = list(map(lambda x: x[0], output))
+                #print(CloudCT_projection.view_geometric_scaling)
                 #gradient_per_njob = [ i*g for i,g in zip(CloudCT_projection.view_geometric_scaling,gradient_per_njob)]
                 gradient_per_imager = np.sum(gradient_per_njob, axis=0)    
                 images_per_imager = sensor.inverse_make_images(np.concatenate(list(map(lambda x: x[2], output)), axis=-1),
@@ -3031,3 +3032,43 @@ class RandomStep(object):
     def __call__(self, x):
         x += np.random.uniform(-self.stepsize, self.stepsize)
         return np.clip(x, self.min_bound, self.max_bound)
+        
+        
+#--------------TESTs----------------------
+## mediume:
+#path = "/home/vhold/CloudCT/pyshdom/synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt"
+## Generate a Microphysical medium
+#droplets = shdom.MicrophysicalScatterer()
+#droplets.load_from_csv('../synthetic_cloud_fields/jpl_les/rico32x37x26.txt', veff=0.1)
+#droplets.load_from_csv(path)
+#droplets.add_mie(self.medium.estimators['cloud'].mie)
+#
+## Rayleigh scattering for air molecules up to 20 km
+#df = pd.read_csv('../ancillary_data/AFGL_summer_mid_lat.txt', comment='#', sep=' ')
+#altitudes = df['Altitude(km)'].to_numpy(dtype=np.float32)
+#temperatures = df['Temperature(k)'].to_numpy(dtype=np.float32)
+#temperature_profile = shdom.GridData(shdom.Grid(z=altitudes), temperatures)
+#air_grid = shdom.Grid(z=np.linspace(0, 100, 80))
+#rayleigh = shdom.Rayleigh(wavelength=0.672)
+#rayleigh.set_profile(temperature_profile.resample(air_grid))
+#air = rayleigh.get_scatterer()
+#atmospheric_grid = droplets.grid + air.grid # Add two grids by finding the common grid which maintains the higher resolution grid.
+#atmosphere = shdom.Medium(atmospheric_grid)
+#atmosphere.add_scatterer(droplets, name='cloud')
+#atmosphere.add_scatterer(air, name='air')
+##atmosphere.show_scatterer(name='cloud')
+#
+#
+## ---------RTE SOLVE ----------------------------
+#self.medium.set_state(state)
+##self.medium.show_scatterer(name='cloud')
+## -----------test below     
+##self.medium.estimators['cloud'].lwc = atmosphere.scatterers['cloud'].lwc
+##self.medium.estimators['cloud'].reff = atmosphere.scatterers['cloud'].reff
+##self.medium.estimators['cloud'].veff = atmosphere.scatterers['cloud'].veff
+##self.medium.estimators['cloud'].grid = atmosphere.scatterers['cloud'].grid
+##self.medium.scatterers['air'] = atmosphere.scatterers['air']
+## -----------test above  
+#self.rte_solver.set_medium(self.medium)
+##self.rte_solver.set_medium(atmosphere)
+        

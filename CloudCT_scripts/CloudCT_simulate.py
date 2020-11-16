@@ -82,7 +82,11 @@ def main():
         
     # inverse_dir, where to save everything that is related to invers model:
     inverse_dir = forward_dir  # TODO not in use
-    log_name_base = f"active_sats_{SATS_NUMBER_SETUP}_{cloud_name}"
+    #log_name_base = f"active_sats_{SATS_NUMBER_SETUP}_{cloud_name}"
+    lwc_scaling_val = run_params['inverse_options']['lwc_scaling_val']
+    reff_scaling_val = run_params['inverse_options']['reff_scaling_val']
+    log_name_base = f"prec_lwc_{lwc_scaling_val}_prec_reff_{reff_scaling_val}_{cloud_name}"
+    log_name_base = 'force_1d_reff_' + log_name_base if run_params['inverse_options']['force_1d_reff'] else log_name_base    
     if (not run_params['inverse_options']['use_forward_mask']):
         log_name_base = 'space_curv_' + log_name_base
     # Write intermediate TensorBoardX results into log_name.
@@ -409,7 +413,8 @@ def main():
         cmd = create_inverse_command(run_params=run_params, inverse_options=inverse_options,
                                      vizual_options=vizual_options,
                                      forward_dir=forward_dir, AirFieldFile=AirFieldFile,
-                                     run_type=run_type, log_name=log_name, radiance_threshold_dict=radiance_threshold_dict)
+                                     run_type=run_type, log_name=log_name, radiance_threshold_dict=radiance_threshold_dict,
+                                     force_1d_reff = inverse_options['force_1d_reff'])
 
         dump_run_params(run_params=run_params, dump_dir=forward_dir)
 
@@ -651,7 +656,7 @@ def dump_run_params(run_params, dump_dir):
 
 
 def create_inverse_command(run_params, inverse_options, vizual_options,
-                           forward_dir, AirFieldFile, run_type, log_name, radiance_threshold_dict):
+                           forward_dir, AirFieldFile, run_type, log_name, radiance_threshold_dict, force_1d_reff=False):
     """
     TODO
     Args:
@@ -682,6 +687,8 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
     GT_USE = GT_USE + ' --save_gt_and_carver_masks' if inverse_options['if_save_gt_and_carver_masks'] else GT_USE
     GT_USE = GT_USE + ' --save_final3d' if inverse_options['if_save_final3d'] else GT_USE
     GT_USE = GT_USE + ' --python_space_curve' if run_params['inverse_options']['CloudCT_space_curve'] else GT_USE
+    GT_USE = GT_USE + ' --force_1d_reff' if force_1d_reff else GT_USE
+    
     # The mie_base_path is defined at the beginning of this script.
     # (use_forward_mask, use_forward_grid, use_forward_albedo, use_forward_phase):
     # Use the ground-truth things. This is an inverse crime which is
@@ -706,8 +713,10 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
     OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if inverse_options['globalopt'] else OTHER_PARAMS
 
     OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if not run_params['forward_options']['CENCEL_AIR'] else OTHER_PARAMS
-    OTHER_PARAMS = OTHER_PARAMS + ' --air_num_points ' + str(run_params['forward_options']['air_num_points'])
-    OTHER_PARAMS = OTHER_PARAMS + ' --air_max_alt ' + str(run_params['forward_options']['air_max_alt'])
+    
+    if(not run_params['forward_options']['CENCEL_AIR']):
+        OTHER_PARAMS = OTHER_PARAMS + ' --air_max_alt ' + str(run_params['forward_options']['air_max_alt'])
+        OTHER_PARAMS = OTHER_PARAMS + ' --air_num_points ' + str(run_params['forward_options']['air_num_points'])
 
     if not run_params['inverse_options']['use_forward_mask']:
         """

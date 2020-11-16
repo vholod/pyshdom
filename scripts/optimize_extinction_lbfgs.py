@@ -271,12 +271,13 @@ class OptimizationScript(object):
         if self.args.add_rayleigh:
             air = self.air_generator.get_scatterer(wavelength)
             medium_estimator.set_grid(cloud_estimator.grid + air.grid)
+                        
             medium_estimator.add_scatterer(air, 'air')
         else:
             medium_estimator.set_grid(cloud_estimator.grid)
 
         medium_estimator.add_scatterer(cloud_estimator, self.scatterer_name)
-
+        
         return medium_estimator
 
     def get_summary_writer(self, measurements, ground_truth):
