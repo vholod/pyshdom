@@ -13,9 +13,9 @@ mie = shdom.MiePolydisperse()
 mie.read_table(file_path="../mie_tables/polydisperse/Water_660nm.scat")
 surface_albedo = 0.05
 
-for file_index, file_name in enumerate(glob.glob("/home/vhold/Yael_shdom/pyshdom/rigth_clouds/cloud*.txt")):
+for file_index, file_name in enumerate(glob.glob("/home/yaelsc/Data/AirMSPI/clouds/cloud*.txt")):
     start_process_time = time.time()
-    cloud_index = file_name.split("/home/vhold/Yael_shdom/pyshdom/rigth_clouds/cloud")[-1].split(".txt")[0]
+    cloud_index = file_name.split("/home/yaelsc/Data/AirMSPI/clouds/cloud")[-1].split(".txt")[0]
     try:
 
         print(cloud_index)
@@ -81,10 +81,10 @@ for file_index, file_name in enumerate(glob.glob("/home/vhold/Yael_shdom/pyshdom
                 #[1540, 1884, 792, 1036], [1604, 1944, 828, 1076], [1660, 2012, 884, 1120], [1728, 2084, 936, 1172],
                 #[1792, 2152, 980, 1224]]
 
-        rois = 9*[[1540, 1784, 792, 1036]]
+        rois = 9*[[1540, 1720, 772, 952]]
 
         valid_wavelength = [660]
-        data_dir = '../raw_data'
+        data_dir = '/home/yaelsc/Data/AirMSPI/raw_data'
         M.load_from_hdf(data_dir,region_of_interest=rois,valid_wavelength=valid_wavelength)
         camera = M.camera
 
@@ -103,19 +103,18 @@ for file_index, file_name in enumerate(glob.glob("/home/vhold/Yael_shdom/pyshdom
         camera = shdom.Camera(shdom.RadianceSensor(), new_projections)
         #--------------------------------------------------
 
-        images = camera.render(rte_solver, n_jobs=40)
+        images = camera.render(rte_solver, n_jobs=20)
 
-        result = {'satellites_images': images,
-                  'file_name': file_name}
-        filename = '../satellites_images/satellites_images_{cloud_index}.mat'
-        sio.savemat(filename, result)
+        # result = {'satellites_images': images,
+        #           'file_name': file_name}
+        # filename = f'/home/yaelsc/Data/AirMSPI/fixed_satellites_images/satellites_images_{cloud_index}.mat'
+        # sio.savemat(filename, result)
 
-        #plt.figure()
         f, axarr = plt.subplots(1, len(images), figsize=(20, 20))
         for ax, image in zip(axarr, images):
             ax.imshow(image, cmap='gray')
-            ax.invert_xaxis()
-            ax.invert_yaxis()
+            # ax.invert_xaxis()
+            # ax.invert_yaxis()
             ax.axis('off')
         plt.show()
 
