@@ -120,6 +120,12 @@ class OptimizationScript(object):
                             choices=['l2', 'normcorr'],
                             default='l2',
                             help='Different loss functions for optimization. Currently only l2 is supported.')
+        parser.add_argument('--smoothness_const',
+                            default=0,
+                            type=np.float32,
+                            help='Scale the regularization term for optimization. Currently only for the reff parameter.')
+        
+        
         return parser
 
     def medium_args(self, parser):
@@ -385,7 +391,7 @@ class OptimizationScript(object):
             'gtol': self.args.gtol,
             'ftol': self.args.ftol
         }
-        optimizer = shdom.LocalOptimizer('L-BFGS-B', options=options, n_jobs=self.args.n_jobs)
+        optimizer = shdom.LocalOptimizer('L-BFGS-B', options=options, n_jobs=self.args.n_jobs, smoothness_ratio = self.args.smoothness_const)
         optimizer.set_measurements(measurements)
         optimizer.set_rte_solver(rte_solver)
         optimizer.set_medium_estimator(medium_estimator)

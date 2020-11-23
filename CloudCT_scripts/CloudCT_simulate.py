@@ -16,7 +16,7 @@ def main():
     logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
-    run_params = load_run_params(params_path="run_params.yaml")
+    run_params = load_run_params(params_path="run_params_rico.yaml")
     #run_params = load_run_params(params_path="run_params_vis.yaml")
 
     
@@ -87,6 +87,9 @@ def main():
     reff_scaling_val = run_params['inverse_options']['reff_scaling_val']
     log_name_base = f"prec_lwc_{lwc_scaling_val}_prec_reff_{reff_scaling_val}_{cloud_name}"
     log_name_base = 'force_1d_reff_' + log_name_base if run_params['inverse_options']['force_1d_reff'] else log_name_base    
+    
+    log_name_base = 'reff_smoothness_with_' + str(run_params['inverse_options']['reff_smoothness_const']) + log_name_base
+    
     if (not run_params['inverse_options']['use_forward_mask']):
         log_name_base = 'space_curv_' + log_name_base
     # Write intermediate TensorBoardX results into log_name.
@@ -398,13 +401,7 @@ def main():
             CloudCT_measurements.show_measurments()
             plt.show()
             
-            # ----------------------------------------------------------
-            # ------------ make solver test-----------------------------
-            solver.set_medium(medium)
-            solver.solve(maxiter=100,init_solution=True)
-            # ------------ end solver test------------------------------
-            # ----------------------------------------------------------
-
+            
         # ---------what to optimize----------------------------
         run_type = inverse_options['recover_type'] if inverse_options['MICROPHYSICS'] else 'extinction'
 
@@ -424,6 +421,8 @@ def main():
         log2load = os.path.join(forward_dir,'logs',log_name+'USER_CHOOSE_TIME')
         logger.debug(f'tensorboard command: tensorboard --logdir {log2load} --bind_all')
 
+        print('inverse command:')
+        print(cmd)
         _ = subprocess.call(cmd, shell=True)
 
         # Time to show the results in 3D visualization:
@@ -713,6 +712,7 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
     OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if inverse_options['globalopt'] else OTHER_PARAMS
 
     OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if not run_params['forward_options']['CENCEL_AIR'] else OTHER_PARAMS
+    OTHER_PARAMS += ' --smoothness_const ' + str(inverse_options['reff_smoothness_const'])
     
     if(not run_params['forward_options']['CENCEL_AIR']):
         OTHER_PARAMS = OTHER_PARAMS + ' --air_max_alt ' + str(run_params['forward_options']['air_max_alt'])

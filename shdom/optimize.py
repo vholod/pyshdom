@@ -3,7 +3,7 @@ Optimization and related objects to monitor and log the optimization process.
 """
 import numpy as np
 import time, os, copy, shutil
-from scipy.optimize import minimize
+from scipy.optimize import minimize, least_squares
 from scipy.optimize import basinhopping
 import scipy.io as sio
 import copy
@@ -86,7 +86,95 @@ class GridPhaseEstimator(shdom.GridPhase):
     def __init__(self, legendre_table, index):
         super().__init__(legendre_table, index)
 
-   
+
+    
+class TheoreticProfile(object):
+    """
+    Used to fit "good estimation" layerd (1D) profile to estimator.
+    The "good estimation" is considered as reasonabal estimation to the microphysics.
+    Parameters:
+    parameters: int
+       Number of the model parameters
+    altitudes: np array
+        array of altitudes
+    data_fun: function
+        The function that will be used in the fitting, the pure theoretic one.
+    every_iter: - int
+          It will be used in fitting a 1D profile every X iterations.
+    ---------
+    
+    """ 
+    def __init__(self, parameters, altitudes , data_fun , every_iter = 1e10, profile_name = 'reff'):
+        self._data_fun = data_fun
+        self._every_iter = every_iter
+        self._N_parameters = parameters
+        self._altitudes = altitudes
+        self._init_parameters = np.ones([self._N_parameters])
+        self._profile_name = profile_name
+        
+    def init_parameters(self,parameters_values):
+        if(isinstance(parameters_values,list)):
+            parameters_values = np.array(parameters_values)
+        self._init_parameters = parameters_values
+        self._N_parameters = parameters_values.size
+        
+    def tif_fun(self, x, z, y):
+        """
+        x - model parameters.
+        """
+        f = self._data_fun(x,z)
+        return f - y
+    
+    def play_generate_noisy_data(self):
+        """
+        Only to play and test this class.
+        """
+        true_parameters = np.array([16,3,0.44]) # 20*np.random.rand(self._N_parametersne)
+        noise = 1
+        n_outliers = 5
+        y = self._data_fun(true_parameters,self._altitudes)
+        rnd = np.random.RandomState(0)
+        error = noise * rnd.randn(self._altitudes.size)
+        outliers = rnd.randint(0, self._altitudes.size, n_outliers)
+        error[outliers] *= 3
+        true_profil = y    
+        test_profil = y + error
+        return test_profil, true_profil
+    
+    def standard_least_squares(self,profil):
+        """
+        profil to fit to
+        """
+        res = least_squares(self.tif_fun, self._init_parameters, args=(self._altitudes,profil))
+        y = self._data_fun(res.x, self._altitudes)
+        return res.x, y
+
+    def robust_least_squares(self,profil):
+        """
+        profil to fit to
+        """
+        res = least_squares(self.tif_fun, self._init_parameters, loss='soft_l1', f_scale=0.1, args=(self._altitudes,profil))
+        y = self._data_fun(res.x, self._altitudes)
+        return res.x, y    
+    
+    def IS_ITERATION_TO_FIT(self,iteration):
+        if(iteration > 0 and (iteration % self._every_iter == 0)):
+            return True
+        else:
+            return False
+    
+    @property
+    def profile_name(self):
+        return self._profile_name
+    
+    @property
+    def altitudes(self):
+        return self._altitudes    
+                     
+    @altitudes.setter
+    def altitudes(self,val):
+        self._altitudes = val
+    
 class GridDataEstimator(shdom.GridData):
     """
     A GridDataEstimator defines unknown shdom.GridData to be estimated.
@@ -107,8 +195,16 @@ class GridDataEstimator(shdom.GridData):
         self._mask = None
         self._num_parameters = self.init_num_parameters()
         self._precondition_scale_factor = precondition_scale_factor
-              
-    def set_state(self, state):
+        self._theoretic_profile = None # in case of fitting estimated/theoretic 1d profile to the estimator.
+    
+    def add_theoretic_profile(self,profile):
+        """
+        Adding theoretic profile (good estimation of the microphysics) to the estimator.
+        It will be used in fitting a 1D profile every X iterations.
+        """
+        self._theoretic_profile = profile
+        
+    def set_state(self, state, optimization_iteration = None):
         """
         Set the estimator state.
 
@@ -123,10 +219,30 @@ class GridDataEstimator(shdom.GridData):
         If the estimator has a mask, data point outside of the mask are left uneffected.
         """
         state = state / self.precondition_scale_factor
+        # Here the state already is scaled back.
         if self.mask is None:
             self._data = np.reshape(state, self.shape)
         else:
             self._data[self.mask.data] = state
+            
+            if(self._theoretic_profile is not None):
+                assert optimization_iteration is not None, "To use profile fitting you must provied optimization iteration"
+                if(self._theoretic_profile.IS_ITERATION_TO_FIT(optimization_iteration)):
+                    
+                    if(self.grid.type == '1D'):
+                        data = self._data[self.mask.data]
+                    elif(self.grid.type == '3D'):
+                        masked_mean = np.ma.masked_equal(self._data, 0).mean(axis=0).mean(axis=0)
+                        data = masked_mean.data   
+                        raise Exception('Still unsupported for grid type 3D')
+                    else:
+                        raise Exception('To fit an estimated curve the grid must be either 1D or 3D')
+                    
+                    print("Iteration #{}: fitting estimated profile of {}".format(optimization_iteration,self._theoretic_profile.profile_name))
+                    parameters, data = self._theoretic_profile.robust_least_squares(data)
+                    self._data[self.mask.data] = data
+                
+            
 
     def get_state(self):
         """
@@ -248,6 +364,10 @@ class GridDataEstimator(shdom.GridData):
     def max_bound(self):
         return self._max_bound
     
+    @property
+    def theoretic_profile(self):
+        return self._theoretic_profile
+    
     
 class ScattererEstimator(object):
     """
@@ -321,7 +441,7 @@ class ScattererEstimator(object):
             estimator.set_mask(mask)
         self._num_parameters = self.init_num_parameters()
        
-    def set_state(self, state):
+    def set_state(self, state, optimization_iteration = None):
         """
         Set the estimator state by setting all the internal estimators states.
 
@@ -332,7 +452,7 @@ class ScattererEstimator(object):
         """
         states = np.split(state, np.cumsum(self.num_parameters[:-1]))
         for estimator, state in zip(self.estimators.values(), states):
-            estimator.set_state(state)        
+            estimator.set_state(state, optimization_iteration)        
 
     def get_state(self):
         """
@@ -857,7 +977,7 @@ class MediumEstimator(shdom.Medium):
                 np.full(total_num_estimators, self.num_scatterers, dtype=np.int32)))
             self._num_derivatives += total_num_estimators
 
-    def set_state(self, state):
+    def set_state(self, state, optimization_iteration = None):
         """
         Set the estimator state by setting all the internal estimators states.
 
@@ -868,7 +988,7 @@ class MediumEstimator(shdom.Medium):
         """
         states = np.split(state, np.cumsum(self.num_parameters[:-1]))
         for (name, estimator), state in zip(self.estimators.items(), states):
-            estimator.set_state(state)
+            estimator.set_state(state, optimization_iteration)
             self.scatterers[name] = estimator
 
     def get_state(self):
@@ -2444,7 +2564,7 @@ class LocalOptimizer(object):
     For documentation:
         https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html
     """
-    def __init__(self, method, options={}, n_jobs=1, init_solution=True):
+    def __init__(self, method, options={}, n_jobs=1, init_solution=True, smoothness_ratio = 0.1):
         self._medium = None
         self._rte_solver = None
         self._measurements = None
@@ -2458,6 +2578,7 @@ class LocalOptimizer(object):
             raise NotImplementedError('Optimization method [{}] not implemented'.format(method))
         self._method = method
         self._options = options
+        self._smoothness_ratio = smoothness_ratio
         
     def set_measurements(self, measurements):
         """
@@ -2531,7 +2652,37 @@ class LocalOptimizer(object):
         #if(self.iteration % 5 == 0):
             #state = 5*state
             
-        self.set_state(state)
+        self.set_state(state,self.iteration)
+        # ----------------------------------------------------------------
+        # ------- extract reff state in its geometry (1D or 3D):----------
+        # ----------------------------------------------------------------
+        """
+        Use regularization type = Laplacian.
+        
+        """
+        from scipy.ndimage.filters import laplace as laplacian
+        regularization_grad = 0
+        regularization_cost = 0
+        cloud_estimator = self.medium.estimators['cloud']
+        if 'reff' in cloud_estimator.estimators.keys():
+            states_indexes = np.split(np.arange(state.size), np.cumsum(cloud_estimator.num_parameters[:-1]))
+            reff_estimator = cloud_estimator.estimators['reff']
+            reff_data = reff_estimator.data
+            regularization_grad = np.zeros_like(state)
+            
+            if reff_estimator.grid.type == '1D':
+                reff_data_1d = reff_data[reff_estimator.mask.data]
+            elif reff_estimator.grid.type == '3D':
+                # masked mean
+                masked_mean = np.ma.masked_equal(reff_data, 0).mean(axis=0).mean(axis=0)
+                reff_data_1d = masked_mean.data                  
+            else:
+                raise Exception('Unsupported grid type.')
+            
+            regularization_grad[states_indexes[1]] = self.smoothness_ratio *2* laplacian(laplacian(reff_data_1d))
+            regularization_cost = self.smoothness_ratio * np.linalg.norm(laplacian(reff_data_1d))**2
+        # ----------------------------------------------------------------
+        
         gradient, loss, images, debug_gradients = self.medium.compute_gradient(
             rte_solvers=self.rte_solver,
             measurements=self.measurements,
@@ -2580,7 +2731,9 @@ class LocalOptimizer(object):
                     
                     filename = '{}_at_iteration_{}.mat'.format(parameter_name,self.iteration)                                        
                     sio.savemat(os.path.join(gredient_save_dir,filename), {'data':estimator})
-            
+        
+        loss += regularization_cost
+        gradient += regularization_grad
         return loss, gradient
             
     def callback(self, state):
@@ -2659,7 +2812,7 @@ class LocalOptimizer(object):
         """
         return self.medium.get_state()
     
-    def set_state(self, state):
+    def set_state(self, state, optimization_iteration = None):
         """
         Set the state of the optimization. This means:
           1. Setting the MediumEstimator state
@@ -2673,7 +2826,7 @@ class LocalOptimizer(object):
             The state of the medium estimator
         """
         
-        self.medium.set_state(state)
+        self.medium.set_state(state, optimization_iteration)
         self.rte_solver.set_medium(self.medium)
         if self._init_solution is False:
             self.rte_solver.make_direct()
@@ -2710,6 +2863,10 @@ class LocalOptimizer(object):
     @property
     def method(self):
         return self._method
+
+    @property
+    def smoothness_ratio(self):
+        return self._smoothness_ratio
 
     @property
     def options(self):
@@ -3071,4 +3228,3 @@ class RandomStep(object):
 ## -----------test above  
 #self.rte_solver.set_medium(self.medium)
 ##self.rte_solver.set_medium(atmosphere)
-        

@@ -52,6 +52,8 @@ swir_options:
 # -------------   Cloud & Air Field files  ---------
 # --------------------------------------------------
 CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt' # 15.2, 06
+#lwc_scaling_val: 15
+#reff_scaling_val: 0.05 The best for rico for trivial initialization
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt' # lwc: 0.4 reff: 7.8
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt' # lwc: 0.8 reff: 6.2
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt' # reff: 7.8 , lwc: 0.5
@@ -140,7 +142,6 @@ mie_options:
 # -------------------------------------------------
 vizual_options:
   VISSETUP: False
-  CENCEL_AIR: False # just for debugging, in runtime  must be false.
   scale: 500
   axisWidth: 0.02
   axisLenght: 5000
@@ -151,6 +152,12 @@ vizual_options:
 # -------------------------------------------------
 forward_options:
 
+
+# Rayleigh part:
+  CENCEL_AIR: False # just for debugging, in runtime  must be false.
+  air_num_points: 80  # Number of altitude grid points for the air volume
+  air_max_alt: 100  # in km ,Maximum altitude for the air volume
+  
   SEE_IMAGES: False
 
   temp: 5900  # K,  units of W/(m^2))
@@ -196,7 +203,7 @@ uncertainty_options:
 # ----------------  inverse parameters  -----------
 # -------------------------------------------------
 inverse_options:
-
+  reff_smoothness_const: 0.001
   # --------------------------------------------------
   # -------------   Radiance Threshold  ------------
   # --------------------------------------------------
@@ -224,13 +231,20 @@ inverse_options:
   recover_type: 'reff_and_lwc' #reff_and_lwc' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
 
   # Initialization and Medium parameters:
-  lwc: 0.6 # 1  # init lwc of the generator
-  reff: 15.2 # 7 # init reff of the generator
+  #lwc: 0.6 # 1  # init lwc of the generator
+  #reff: 15.2 # 7 # init reff of the generator
+  
+  lwc: 0.01 # 1  # init lwc of the generator
+  reff: 12
+  
   veff: 0.1 # init veff of the generator
 
   # Scaling params when recovering reff and lwc:
+  #lwc_scaling_val: 15
+  #reff_scaling_val: 0.01
+  
   lwc_scaling_val: 15
-  reff_scaling_val: 0.01
+  reff_scaling_val: 0.05
   
   
   # if not microphysics:
@@ -242,14 +256,15 @@ inverse_options:
   stokes_weights: [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V]
 
   # INIT
-  #init: 'Homogeneous' # init_generator = 'Homogeneous' it is the CloudGenerator from shdom.generate.py
-  init: 'LesFile'
-  LesFile_path: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
+  init: 'Homogeneous' # init_generator = 'Homogeneous' it is the CloudGenerator from shdom.generate.py
+  #init: 'LesFile'
+  #LesFile_path: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
   #init: 'Monotonous'
   #mono_in: 'reff'
   
   
   # GT_USE
+  force_1d_reff: True
   use_const_veff: False
   add_rayleigh: True
   use_forward_mask: True

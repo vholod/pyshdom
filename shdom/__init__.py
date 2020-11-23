@@ -513,8 +513,12 @@ class GridData(object):
         2. A 1D grid sampled onto a 3D grid tiles the data along the horizonal axes and reamples along the vertical axis.
         3. A 3D grid sampled onto 1D grid reamples along the vertical axis and averages along the horizontal axes
         """
+        IF_MEAN_INSIDE_MASK = True
+
+        
         if self.grid == grid:
-            return self   
+            return self 
+        
         
         else:
             if self.type =='Homogeneous':
@@ -542,7 +546,12 @@ class GridData(object):
                                 data = self._nearest_interpolator1d(grid.z)
                         else:
                             data = self.data
-                        data = np.mean(np.mean(data, axis=0), axis=0)
+                            
+                        if(IF_MEAN_INSIDE_MASK):
+                            masked_mean = np.ma.masked_equal(data, 0).mean(axis=0).mean(axis=0)
+                            data = masked_mean.data                            
+                        else:
+                            data = np.mean(np.mean(data, axis=0), axis=0)                            
                 else:
                     if method == 'linear':
                         data = self._linear_interpolator3d(np.stack(np.meshgrid(grid.x, grid.y, grid.z, indexing='ij'), axis=-1))

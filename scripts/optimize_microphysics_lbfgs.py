@@ -84,7 +84,10 @@ class OptimizationScript(ExtinctionOptimizationScript):
         parser.add_argument('--force_1d_reff',
                             action='store_true',
                             help='Use it if you want to retrieve the effective radius in 1D layers.')        
-        
+        parser.add_argument('--keep_curve',
+                            default=0,
+                            type=np.int32,
+                            help='(default value: %(default)s) When keep_curve >0, there will be reff profile fitting every keep_curve iterations')          
         return parser
 
     def get_medium_estimator(self, measurements, ground_truth):
@@ -196,11 +199,13 @@ class OptimizationScript(ExtinctionOptimizationScript):
                 
                 if(self.cloud_generator.args.init == 'Monotonous'):
                 
+  
                     reff = shdom.GridDataEstimator(self.cloud_generator.get_reff(grid = reff_grid, min_reff = ground_truth.min_reff),
                                                min_bound=ground_truth.min_reff,
                                                max_bound=ground_truth.max_reff,
                                                precondition_scale_factor=self.args.reff_scaling)
-                
+        
+                        
                 else:
                     
                     reff = shdom.GridDataEstimator(self.cloud_generator.get_reff(grid = reff_grid),
@@ -208,6 +213,29 @@ class OptimizationScript(ExtinctionOptimizationScript):
                                                max_bound=ground_truth.max_reff,
                                                precondition_scale_factor=self.args.reff_scaling)
 
+                    
+                # still in not LesFile option:
+                if(self.args.keep_curve > 0):
+                    # if in evrey keep_curve iteration we must to fit theoretic curve:
+                    def theoretic_data(x,z):
+                        """
+                        x - model parameters.
+                        """
+                        Z = z - x[2]
+                        Z[Z<0] = 0
+                        reff_theo = (x[0]*Z**(1./3.)) + x[1]
+                        return reff_theo
+                    
+                    altitudes = reff_grid.z
+                    # make the mask to fit only the profile:
+                    profile_mask = np.mean(np.mean(mask.data, axis=0), axis=0)
+                    profile_mask = profile_mask.astype('bool')
+                    masked_altitudes = altitudes[profile_mask]
+                    x0 = np.array([7,2.5,masked_altitudes.min()]) # initial model parameters.
+                    profile = shdom.TheoreticProfile(parameters = 3, altitudes = masked_altitudes, data_fun = theoretic_data, every_iter = self.args.keep_curve)                        
+                    profile.init_parameters(x0) 
+                    reff.add_theoretic_profile(profile)
+                    
                     
         reff.apply_mask(mask)
         if not self.args.use_forward_mask:
