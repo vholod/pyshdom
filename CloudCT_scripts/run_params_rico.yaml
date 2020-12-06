@@ -88,8 +88,8 @@ GSD: 0.02
 # --------------------------------------------------
 # -------------   Sun Azimuth & Zenith  ------------
 # --------------------------------------------------
-sun_azimuth: 0  # azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
-sun_zenith: 180  # zenith: Solar beam zenith angle in range (90,180]
+sun_azimuth: 90  # azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
+sun_zenith: 165  # zenith: Solar beam zenith angle in range (90,180]
 
 
 # --------------------------------------------------
@@ -203,7 +203,12 @@ uncertainty_options:
 # ----------------  inverse parameters  -----------
 # -------------------------------------------------
 inverse_options:
-  reff_smoothness_const: 0.001
+
+  erode_edges_init: False
+  precond_grad: False
+  force_1d_reff: False
+  reff_smoothness_const: 0.0 # good 0.000001 # sloud be less than  0.00001
+  
   # --------------------------------------------------
   # -------------   Radiance Threshold  ------------
   # --------------------------------------------------
@@ -231,11 +236,11 @@ inverse_options:
   recover_type: 'reff_and_lwc' #reff_and_lwc' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
 
   # Initialization and Medium parameters:
-  #lwc: 0.6 # 1  # init lwc of the generator
-  #reff: 15.2 # 7 # init reff of the generator
+  lwc: 0.6 # 1  # init lwc of the generator
+  reff: 15.2 # should be 15.2 # init reff of the generator
   
-  lwc: 0.01 # 1  # init lwc of the generator
-  reff: 12
+  #lwc: 0.01 # 1  # init lwc of the generator
+  #reff: 12
   
   veff: 0.1 # init veff of the generator
 
@@ -244,7 +249,7 @@ inverse_options:
   #reff_scaling_val: 0.01
   
   lwc_scaling_val: 15
-  reff_scaling_val: 0.05
+  reff_scaling_val: 0.01
   
   
   # if not microphysics:
@@ -256,15 +261,14 @@ inverse_options:
   stokes_weights: [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V]
 
   # INIT
-  init: 'Homogeneous' # init_generator = 'Homogeneous' it is the CloudGenerator from shdom.generate.py
+  #init: 'Homogeneous' # init_generator = 'Homogeneous' it is the CloudGenerator from shdom.generate.py
   #init: 'LesFile'
   #LesFile_path: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
-  #init: 'Monotonous'
+  init: 'Monotonous'
   #mono_in: 'reff'
   
   
   # GT_USE
-  force_1d_reff: True
   use_const_veff: False
   add_rayleigh: True
   use_forward_mask: True

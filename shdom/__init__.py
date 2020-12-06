@@ -30,6 +30,7 @@ from scipy.interpolate import interp1d, RegularGridInterpolator
 import warnings
 import numpy as np
 import os
+from scipy import ndimage
 
 def float_round(x):
     """Round a float or np.float32 to a 3 digits float"""
@@ -407,12 +408,13 @@ class GridData(object):
     data: np.array
         data contains a scalar field.
     """    
-    def __init__(self, grid, data):
+    def __init__(self, grid, data, scaling = None):
         self._type = grid.type
         self._grid = grid
         self._data = data
         self._shape = self._data.shape[:3]
         self._ndim = self._data.ndim    
+        self._scaling = scaling
         if self.type == 'Homogeneous' and self.ndim != 0:
             raise AttributeError('Grid is Homogeneous but data dimension is:{}'.format(self.ndim))
         if self.type == '1D' and self.ndim != 1:
@@ -514,7 +516,7 @@ class GridData(object):
         3. A 3D grid sampled onto 1D grid reamples along the vertical axis and averages along the horizontal axes
         """
         IF_MEAN_INSIDE_MASK = True
-
+        SCALE_REFF_GRAD_BY_LWC = False
         
         if self.grid == grid:
             return self 
@@ -548,8 +550,16 @@ class GridData(object):
                             data = self.data
                             
                         if(IF_MEAN_INSIDE_MASK):
-                            masked_mean = np.ma.masked_equal(data, 0).mean(axis=0).mean(axis=0)
-                            data = masked_mean.data                            
+                            if self._scaling is not None and SCALE_REFF_GRAD_BY_LWC:
+                                # Yoav Suggestion to do weigthed mean of the reff in the layer where the weigth sre the lwc values.
+                                assert self._scaling.shape ==data.shape, "The scaling and data must be with the same shapes."
+                                data *= self._scaling
+                                S1 = np.ma.masked_equal(data, 0).sum(axis=0).sum(axis=0).data
+                                S2 = np.ma.masked_equal(self._scaling, 0).sum(axis=0).sum(axis=0).data
+                                data = S1/S2
+                            else:    
+                                masked_mean = np.ma.masked_equal(data, 0).mean(axis=0).mean(axis=0)
+                                data = masked_mean.data                          
                         else:
                             data = np.mean(np.mean(data, axis=0), axis=0)                            
                 else:
@@ -559,6 +569,8 @@ class GridData(object):
                         data = self._nearest_interpolator3d(np.stack(np.meshgrid(grid.x, grid.y, grid.z, indexing='ij'), axis=-1)) 
         return GridData(grid, data.astype(self.data.dtype))
 
+    
+            
     def apply_mask(self, mask):
         """
         Zero data points outside of a masked region.

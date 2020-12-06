@@ -53,10 +53,11 @@ swir_options:
 # --------------------------------------------------
 #CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt' # 15.2, 06
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt' # lwc: 0.4 reff: 7.8
-#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt' # lwc: 0.8 reff: 6.2
+CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt' # lwc: 0.8 reff: 6.2
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt' # or _1d_reff , reff: 7.8 , lwc: 0.5
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt' # reff: 9.4 lwc: 0.6 
-CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440_const_veff.txt' # lwc: 0.4, reff: 6.2
+#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt' # lwc: 0.4, reff: 6.2
+#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440_1d_reff_const_veff.txt'
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821' # 
 
 
@@ -86,8 +87,8 @@ GSD: 0.02
 # --------------------------------------------------
 # -------------   Sun Azimuth & Zenith  ------------
 # --------------------------------------------------
-sun_azimuth: 0  # azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
-sun_zenith: 180  # zenith: Solar beam zenith angle in range (90,180]
+sun_azimuth: 90  # azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
+sun_zenith: 165  # zenith: Solar beam zenith angle in range (90,180]
 
 
 # --------------------------------------------------
@@ -156,7 +157,7 @@ forward_options:
   air_max_alt: 100  # in km ,Maximum altitude for the air volume 
   # ------------------------------------------------------------
   
-  SEE_IMAGES: True
+  SEE_IMAGES: False
 
   temp: 5900  # K,  units of W/(m^2))
 
@@ -202,7 +203,10 @@ uncertainty_options:
 # -------------------------------------------------
 inverse_options:
 
-  force_1d_reff: True
+  erode_edges_init: False
+  precond_grad: False
+  force_1d_reff: False
+  reff_smoothness_const: 0.0 # good 0.000001 # sloud be less than  0.00001
   # --------------------------------------------------
   # -------------   Radiance Threshold  ------------
   # --------------------------------------------------
@@ -230,15 +234,15 @@ inverse_options:
   recover_type: 'reff_and_lwc' #reff_and_lwc' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
 
   # Initialization and Medium parameters:
-  lwc: 0.5 # 1  # init lwc of the generator
-  reff: 7 # 7 # init reff of the generator
+  lwc: 1.3 # 1  # init lwc of the generator
+  reff: 10.2 # 7 # init reff of the generator
   veff: 0.1 # init veff of the generator
 
   # Scaling params when recovering reff and lwc:
-  #lwc_scaling_val: 10
-  #reff_scaling_val: 0.1
-  lwc_scaling_val: 15
-  reff_scaling_val: 0.01
+  lwc_scaling_val: 10
+  reff_scaling_val: 0.1
+  #lwc_scaling_val: 15
+  #reff_scaling_val: 0.01
   
   # if not microphysics:
   extinction: 0.01  # init extinction of the generator
@@ -251,7 +255,7 @@ inverse_options:
   # INIT
   #init: 'Homogeneous' # init_generator = 'Homogeneous' it is the CloudGenerator from shdom.generate.py
   #init: 'LesFile'
-  #LesFile_path: '../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt'
+  #LesFile_path: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt' # lwc: 0.4, reff: 6.2
   init: 'Monotonous'
   #mono_in: 'reff'
   

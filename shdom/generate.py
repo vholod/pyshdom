@@ -533,6 +533,186 @@ class SingleVoxel(CloudGenerator):
         return shdom.GridData(grid, veff_data)
 
 
+class DoubleVoxel(CloudGenerator):
+    """
+    Define a Medium with a single voxel in center of the grid, and another voxel that is one next to the other on
+    X plane and on the same Y,Z plane. Value of veff is the same, reff is + 1 and lwc is + 0.1
+    .
+    It is useful for developing and debugging of derivatives and sensitivity analysis.
+
+    Parameters
+    ----------
+    args: arguments from argparse.ArgumentParser()
+        Arguments required for this generator.
+    """
+    def __init__(self, args):
+        super(DoubleVoxel, self).__init__(args)
+
+    @classmethod
+    def update_parser(self, parser):
+        """
+        Update the argument parser with parameters relevant to this generator.
+
+        Parameters
+        ----------
+        parser: argparse.ArgumentParser()
+            The main parser to update.
+
+        Returns
+        -------
+        parser: argparse.ArgumentParser()
+            The updated parser.
+        """
+        parser.add_argument('--nx',
+                            default=10,
+                            type=int,
+                            help='(default value: %(default)s) Number of grid cell in x (North) direction')
+        parser.add_argument('--ny',
+                            default=10,
+                            type=int,
+                            help='(default value: %(default)s) Number of grid cell in y (East) direction')
+        parser.add_argument('--nz',
+                            default=10,
+                            type=int,
+                            help='(default value: %(default)s) Number of grid cell in z (Up) direction')
+        parser.add_argument('--domain_size',
+                            default=1.0,
+                            type=float,
+                            help='(default value: %(default)s) Cubic domain size [km]')
+        parser.add_argument('--extinction',
+                            default=10.0,
+                            type=np.float32,
+                            help='(default value: %(default)s) Extinction of the center voxel [km^-1]')
+        parser.add_argument('--lwc',
+                            default=None,
+                            type=np.float32,
+                            help='(default value: %(default)s) Liquid water content of the center voxel [g/m^3]. If specified, extinction argument is ignored.')
+        parser.add_argument('--reff',
+                            default=10.0,
+                            type=np.float32,
+                            help='(default value: %(default)s) Effective radius of the center voxel [micron]')
+        parser.add_argument('--veff',
+                            default=0.1,
+                            type=np.float32,
+                            help='(default value: %(default)s) Effective variance of the center voxel')
+        return parser
+
+    def get_grid(self):
+        """
+        Retrieve the scatterer grid.
+
+        Returns
+        -------
+        grid: shdom.Grid
+            A Grid object for this scatterer
+        """
+        bb = shdom.BoundingBox(0.0, 0.0, 0.0, self.args.domain_size, self.args.domain_size, self.args.domain_size)
+        return shdom.Grid(bounding_box=bb, nx=self.args.nx, ny=self.args.ny, nz=self.args.nz)
+
+    def get_extinction(self, wavelength=None, grid=None):
+        """
+        Retrieve the optical extinction at a single wavelength on a grid.
+
+        Parameters
+        ----------
+        wavelength: float
+            Wavelength in microns. A Mie table at this wavelength should be added prior (see add_mie method).
+        grid: shdom.Grid, optional
+            A shdom.Grid object. If None is specified than a grid is created from Arguments given to the generator (get_grid method)
+
+        Returns
+        -------
+        extinction: shdom.GridData
+            A GridData object containing the optical extinction on a grid
+
+        Notes
+        -----
+        If the LWC is specified then the extinction is derived using (lwc,reff,veff). If not the extinction needs to be directly specified.
+        The input wavelength is rounded to three decimals.
+        """
+        if grid is None:
+            grid = self.get_grid()
+
+        if self.args.lwc is None:
+            ext_data = np.zeros(shape=(grid.nx, grid.ny, grid.nz), dtype=np.float32)
+            ext_data[int(grid.nx/2), int(grid.ny/2), int(grid.nz/2)] = self.args.extinction
+            extinction = shdom.GridData(grid, ext_data)
+        else:
+            assert wavelength is not None, 'No wavelength provided'
+            lwc = self.get_lwc(grid)
+            reff = self.get_reff(grid)
+            veff = self.get_veff(grid)
+            extinction = self.mie[float_round(wavelength)].get_extinction(lwc, reff, veff)
+        return extinction
+
+    def get_lwc(self, grid=None):
+        """
+        Retrieve the liquid water content on a grid.
+
+        Parameters
+        ----------
+        grid: shdom.Grid, optional
+            A shdom.Grid object. If None is specified than a grid is created from Arguments given to the generator (get_grid method)
+
+        Returns
+        -------
+        lwc: shdom.GridData
+            A GridData object containing liquid water content (g/m^3) on a 3D grid.
+        """
+        if grid is None:
+            grid = self.get_grid()
+
+        lwc = self.args.lwc
+        if lwc is not None:
+            lwc_data = np.zeros(shape=(grid.nx, grid.ny, grid.nz), dtype=np.float32)
+            lwc_data[int(grid.nx/2), int(grid.ny/2), int(grid.nz/2)] = self.args.lwc
+            lwc_data[int(grid.nx/2)+1, int(grid.ny/2), int(grid.nz/2)] = self.args.lwc+0.1
+            lwc = shdom.GridData(grid, lwc_data)
+        return lwc
+
+    def get_reff(self, grid=None):
+        """
+        Retrieve the effective radius on a grid.
+
+        Parameters
+        ----------
+        grid: shdom.Grid, optional
+            A shdom.Grid object. If None is specified than a grid is created from Arguments given to the generator (get_grid method)
+
+        Returns
+        -------
+        reff: shdom.GridData
+            A GridData object containing the effective radius [microns] on a grid
+        """
+        if grid is None:
+            grid = self.get_grid()
+        reff_data = np.zeros(shape=(grid.nx, grid.ny, grid.nz), dtype=np.float32)
+        reff_data[int(grid.nx/2), int(grid.ny/2), int(grid.nz/2)] = self.args.reff
+        reff_data[int(grid.nx/2)+1, int(grid.ny/2), int(grid.nz/2)] = self.args.reff+1
+        return shdom.GridData(grid, reff_data)
+
+    def get_veff(self, grid=None):
+        """
+        Retrieve the effective variance on a grid.
+
+        Parameters
+        ----------
+        grid: shdom.Grid, optional
+            A shdom.Grid object. If None is specified than a grid is created from Arguments given to the generator (get_grid method)
+
+        Returns
+        -------
+        veff: shdom.GridData
+            A GridData object containing the effective variance on a grid
+        """
+        if grid is None:
+            grid = self.get_grid()
+        veff_data = np.zeros(shape=(grid.nx, grid.ny, grid.nz), dtype=np.float32)
+        veff_data[int(grid.nx/2), int(grid.ny/2), int(grid.nz/2)] = self.args.veff
+        veff_data[int(grid.nx/2)+1, int(grid.ny/2), int(grid.nz/2)] = self.args.veff
+        return shdom.GridData(grid, veff_data)
+
+
 class Homogeneous(CloudGenerator):
     """
     Define a homogeneous Medium.
@@ -721,6 +901,221 @@ class Homogeneous(CloudGenerator):
         elif grid.type == '3D':
             veff_data = np.full(shape=(grid.nx, grid.ny, grid.nz), fill_value=self.args.veff, dtype=np.float32)
         return shdom.GridData(grid, veff_data)
+
+class LOOP(CloudGenerator):
+    """
+    Define a Clopud of Monotonous linear inclination in Reff and/or LWC.
+
+    Parameters
+    ----------
+    args: arguments from argparse.ArgumentParser()
+        Arguments required for this generator.
+    """
+    def __init__(self, args):
+        super(LOOP, self).__init__(args)
+
+    @classmethod
+    def update_parser(self, parser):
+        """
+        Update the argument parser with parameters relevant to this generator.
+
+        Parameters
+        ----------
+        parser: argparse.ArgumentParser()
+            The main parser to update.
+
+        Returns
+        -------
+        parser: argparse.ArgumentParser()
+            The updated parser.
+        """
+        parser.add_argument('--nx',
+                            default=10,
+                            type=int,
+                            help='(default value: %(default)s) Number of grid cell in x (North) direction')
+        parser.add_argument('--ny',
+                            default=10,
+                            type=int,
+                            help='(default value: %(default)s) Number of grid cell in y (East) direction')
+        parser.add_argument('--nz',
+                            default=10,
+                            type=int,
+                            help='(default value: %(default)s) Number of grid cell in z (Up) direction')
+        parser.add_argument('--domain_size',
+                            default=1.0,
+                            type=float,
+                            help='(default value: %(default)s) Cubic domain size [km]')
+        parser.add_argument('--extinction',
+                            default=1.0,
+                            type=np.float32,
+                            help='(default value: %(default)s) Extinction [km^-1]')
+        parser.add_argument('--CloudFieldFile',
+                            default=None,
+                            type=str,
+                            help='(default value: %(default)s) Ground truth cloud')
+        parser.add_argument('--new_path',
+                            default=None,
+                            type=str,
+                            help='(default value: %(default)s) directory data from loop in mat files')
+        parser.add_argument('--keep_reff_curve',
+                            action= 'store_true',
+                            help='for reff that is forced to stay like curve')
+        parser.add_argument('--veff',
+                            default=0.1,
+                            type=np.float32,
+                            help='(default value: %(default)s) Effective variance')        
+        return parser
+
+    def get_cloudfield(self):
+        '''
+        Retrieve the groundtruth.
+
+        Returns
+        -------
+
+        '''
+
+    def get_grid(self):
+        """
+        Retrieve the scatterer grid.
+
+        Returns
+        -------
+        grid: shdom.Grid
+            A Grid object for this scatterer
+        """
+        bb = shdom.BoundingBox(0.0, 0.0, 0.0, self.args.domain_size, self.args.domain_size, self.args.domain_size)
+        return shdom.Grid(bounding_box=bb, nx=self.args.nx, ny=self.args.ny, nz=self.args.nz)
+
+    def get_extinction(self, wavelength=None, grid=None):
+        """
+        Retrieve the optical extinction at a single wavelength on a grid.
+
+        Parameters
+        ----------
+        wavelength: float
+            Wavelength in microns. A Mie table at this wavelength should be added prior (see add_mie method).
+        grid: shdom.Grid, optional
+            A shdom.Grid object. If None is specified than a grid is created from Arguments given to the generator (get_grid method)
+
+        Returns
+        -------
+        extinction: shdom.GridData
+            A GridData object containing the optical extinction on a grid
+
+        Notes
+        -----
+        If the LWC is specified then the extinction is derived using (lwc,reff,veff). If not the extinction needs to be directly specified.
+        The input wavelength is rounded to three decimals.
+        """
+        if grid is None:
+            grid = self.get_grid()
+
+        if self.args.lwc is None:
+            if grid.type == 'Homogeneous':
+                ext_data = self.args.extinction
+            elif grid.type == '1D':
+                ext_data = np.full(shape=(grid.nz), fill_value=self.args.extinction, dtype=np.float32)
+            elif grid.type == '3D':
+                ext_data = np.full(shape=(grid.nx, grid.ny, grid.nz), fill_value=self.args.extinction, dtype=np.float32)
+            extinction = shdom.GridData(grid, ext_data)
+        else:
+            assert wavelength is not None, 'No wavelength provided'
+            lwc = self.get_lwc(grid)
+            reff = self.get_reff(grid)
+            veff = self.get_veff(grid)
+            extinction = self.mie[float_round(wavelength)].get_extinction(lwc, reff, veff)
+        return extinction
+
+
+    def get_lwc(self, grid=None):
+        """
+        Retrieve the liquid water content.
+        Parameters
+        ----------
+        grid: shdom.Grid, optional
+            A shdom.Grid object. If None is specified than a grid is created from Arguments given to the generator (get_grid method)
+        Returns
+        -------
+        lwc: shdom.GridData
+            A GridData object containing liquid water content (g/m^3) on a 3D grid.
+        """
+        if grid is None:
+            grid = self.get_grid()
+        path = self.args.new_path + '/FINAL_3D_lwc.mat'
+        lwc_data = scipy.io.loadmat(path)['lwc']
+        lwc = shdom.GridData(grid, lwc_data)
+        return lwc
+
+
+    def get_reff(self, grid=None):
+        """
+        Retrieve the effective radius on a grid.
+        Parameters
+        ----------
+        grid: shdom.Grid, optional
+            A shdom.Grid object. If None is specified than a grid is created from Arguments given to the generator (get_grid method)
+        Returns
+        -------
+        reff: shdom.GridData
+            A GridData object containing the effective radius [microns] on a grid
+        """
+
+        if grid is None:
+            grid = self.get_grid()
+        path = self.args.new_path + '/FINAL_3D_reff.mat'
+        reff_data = np.squeeze(scipy.io.loadmat(path)['reff'])
+
+        if self.args.keep_reff_curve:
+
+            Z = grid.z - grid.z[2]
+            Z[Z < 0] = 0
+            min_check = np.sum(reff_data)
+            for reff_check in np.arange(4, 12, 0.5):
+                for min_reff_check in  np.arange(0, 6, 0.5):
+                    reff_data_check = (reff_check * Z ** (1. / 3.)) + min_reff_check
+                    check = np.sum(abs(reff_data[reff_data > 0] - reff_data_check[reff_data > 0]))
+                    if check < min_check:
+                        best_reff = reff_check
+                        best_min_reff = min_reff_check
+                        min_check = check
+            min_value = 2.5
+            max_value = 25
+            if grid.type == '1D':
+                best_curve = (best_reff * Z ** (1. / 3.)) + best_min_reff
+            elif grid.type == '3D':
+                best_curve = (best_reff * Z ** (1. / 3.)) + best_min_reff
+                best_curve = np.tile(best_curve[np.newaxis, np.newaxis, :], (grid.nx, grid.ny, 1))
+
+            reff_data = np.squeeze(0.7*reff_data+0.3*best_curve)
+            reff_data[reff_data<min_value] = min_value
+            reff_data[reff_data>max_value]= max_value
+        reff = shdom.GridData(grid, reff_data)
+        return reff
+
+    def get_veff(self, grid=None):
+        """
+        Retrieve the effective variance on a grid.
+        Parameters
+        ----------
+        grid: shdom.Grid, optional
+            A shdom.Grid object. If None is specified than a grid is created from Arguments given to the generator (get_grid method)
+        Returns
+        -------
+        veff: shdom.GridData
+            A GridData object containing the effective variance on a grid
+        """
+        if grid is None:
+            grid = self.get_grid()
+        if grid.type == 'Homogeneous':
+            veff_data = self.args.veff
+        elif grid.type == '1D':
+            veff_data = np.full(shape=(grid.nz), fill_value=self.args.veff, dtype=np.float32)
+        elif grid.type == '3D':
+            veff_data = np.full(shape=(grid.nx, grid.ny, grid.nz), fill_value=self.args.veff, dtype=np.float32)
+        return shdom.GridData(grid, veff_data)
+
+
 
 
 class Monotonous(CloudGenerator):

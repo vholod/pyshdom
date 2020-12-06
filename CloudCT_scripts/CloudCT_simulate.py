@@ -17,9 +17,9 @@ def main():
     logger.debug("--------------- New Simulation ---------------")
 
     run_params = load_run_params(params_path="run_params_rico.yaml")
-    #run_params = load_run_params(params_path="run_params_vis.yaml")
+    #run_params = load_run_params(params_path="run_params.yaml")
 
-    
+    #run_params['inverse_options']['reff_smoothness_const'] = reff_smoothness_const 
     # run_params['sun_zenith'] = sun_zenith # if you need to set the angle from main's input
     # logger.debug(f"New Run with sun zenith {run_params['sun_zenith']} (overrides yaml)")
     
@@ -89,6 +89,7 @@ def main():
     log_name_base = 'force_1d_reff_' + log_name_base if run_params['inverse_options']['force_1d_reff'] else log_name_base    
     
     log_name_base = 'reff_smoothness_with_' + str(run_params['inverse_options']['reff_smoothness_const']) + log_name_base
+    log_name_base = log_name_base + '_precond_grad_' if run_params['inverse_options']['precond_grad'] else log_name_base
     
     if (not run_params['inverse_options']['use_forward_mask']):
         log_name_base = 'space_curv_' + log_name_base
@@ -151,7 +152,7 @@ def main():
     # so the FOV is also tuned:
     # -- TUNE FOV, CNY,CNX:
     if run_params['IFTUNE_CAM']:
-        L *= 1.8 # 1.6
+        L *= 2 # 1.6
         fov = 2 * np.rad2deg(np.arctan(0.5 * L / (run_params['Rsat'])))
         vis_cnx = vis_cny = int(np.floor(L / vis_pixel_footprint))
         if USESWIR:
@@ -302,6 +303,11 @@ def main():
                                                    IF_CALIBRATION_UNCERTAINTY = run_params['use_cal_uncertainty'],
                                                    uncertainty_options = run_params['uncertainty_options'])                                                   
         
+        if not run_params['inverse_options']['use_forward_mask']:
+            print("Calculating the mask by space curving for:")
+            print("\t 1. Initialization with Monotonous profile.")
+            print("\t 2. Optimization.")
+            print("\t 3. Fitting of  Monotonous profile.")
         # Calculate irradiance of the spesific wavelength:
         # use plank function:
         Cosain = np.cos(np.deg2rad((180 - run_params['sun_zenith'])))
@@ -436,6 +442,7 @@ def main():
     elif run_params['DOCOSTEVAL']:
         # just calculate the cost function in different initialization modes:
         inverse_options = run_params['inverse_options']
+        CloudFieldFile = run_params['CloudFieldFile']
         # ---------what perameter to initialize----------------------------
         run_type = inverse_options['recover_type'] if inverse_options['MICROPHYSICS'] else 'extinction'
         log_name = 'cost_' + log_name_base + '-' + time.strftime("%d-%b-%Y-%H:%M:%S")
@@ -463,7 +470,7 @@ def main():
 
         for reff in reff_list:
             for lwc in lwc_list:
-                print('(reff,lwc) =  ({}, {})'.format(reff,lwc))
+                print('{}: (reff,lwc) =  ({}, {})'.format(CloudFieldFile,reff,lwc))
                 with open(lwc_tracker_path, 'a') as file_object:
                     file_object.write('{}\n'.format(lwc))
                 
@@ -709,6 +716,8 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
                    ' --maxls ' + str(inverse_options['maxls']) + \
                    ' --maxiter ' + str(inverse_options['maxiter'])
 
+    OTHER_PARAMS = OTHER_PARAMS + ' --erode_edges_init' if inverse_options['erode_edges_init'] else OTHER_PARAMS
+    OTHER_PARAMS = OTHER_PARAMS + ' --precond_grad' if inverse_options['precond_grad'] else OTHER_PARAMS
     OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if inverse_options['globalopt'] else OTHER_PARAMS
 
     OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if not run_params['forward_options']['CENCEL_AIR'] else OTHER_PARAMS
@@ -952,8 +961,191 @@ def compare_forward_models(path1,path2):
             plt.colorbar(im3, cax=cax) 
         
     plt.show()
+
+def CALCULATE_COST_ON_MANY_CLOUDS():
+    """
+    Makse sure that the run_params has:
+    DOFORWARD: True
+    DOINVERSE: False
+    DOCOSTEVAL: True 
+    
+    And main has the CloudFieldFile as input parameter.
+    
+    """
+    # prepare clouds for cost evaluation:
+    CloudFieldFiles = []
+    CloudFieldFiles.append('../synthetic_cloud_fields/jpl_les/rico32x37x26.txt')
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt') 
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt') 
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt') 
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt') 
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821') 
+
+    for CloudFieldFile in CloudFieldFiles:
+        main(CloudFieldFile)    
+
+
+def run_many_cases():
+    
+    CloudFieldFiles = []
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt') 
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt') 
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt') 
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt') 
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821') 
+
+    Init_dict = {}
+    Init_dict['23040'] = {'lwc':0.5,'reff':7.8}
+    Init_dict['43200'] = {'lwc':1.3,'reff':10.2}
+    Init_dict['55080'] = {'lwc':0.8,'reff':11.8}
+    
+    Init_dict['53760'] = {'lwc':0.8,'reff':11.8}
+    Init_dict['28440'] = {'lwc':0.8,'reff':11.0}
+    Init_dict['4821'] =  {'lwc':1.6,'reff':12.6}
+    
+    Prefix = "Init_same_as_swir_vis_But_with_swir_"
+    
+    for CloudFieldFile in CloudFieldFiles:
+        CloudFieldName = CloudFieldFile.split('/')[-1].split('.')[0]
+        CloudFieldName = CloudFieldName.split('_')[-1]
+        
+        print(CloudFieldName)
+        print('init lwc {}, init reff {}'.format(Init_dict[str(CloudFieldName)]['lwc'],
+                                                 Init_dict[str(CloudFieldName)]['reff']))
+        print(10*'-')
+    
+        main(CloudFieldFile = CloudFieldFile, Init_dict = Init_dict[str(CloudFieldName)], Prefix = Prefix)
+    
+    # -------------------------------
+    
+def SHOW_INIT_PROFILES(N=16):
+    SHOW_FITTING_ERROR = False
+    from mpl_toolkits import mplot3d
+    from collections import namedtuple
+    
+    #PATH_TO_LOOK_FOR_COST_LOGS = '../CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_620-670nm_active_sats_10_GSD_20m_and_SWIR_1628-1658nm_active_sats_10_GSD_50m_LES_cloud_field_BOMEX/logs/'
+    PATH_TO_LOOK_FOR_COST_LOGS = '../CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_620-670nm_active_sats_10_GSD_20m_LES_cloud_field_BOMEX/logs/'
+    
+    
+    TEMPLATE = 'cost_reff_smoothness_with_0.0prec_lwc_10_prec_reff_0.1_'
+    
+    # prepare clouds for cost evaluation:
+    CloudFieldFiles = []
+    #CloudFieldFiles.append('../synthetic_cloud_fields/jpl_les/rico32x37x26.txt')
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt') 
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt') 
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt') 
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt') 
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821') 
+
+    for CloudFieldFile in CloudFieldFiles:
+        CloudFieldName = CloudFieldFile.split('/')[-1]
+        # the date of the log is still missing here.
+        FULL_PATH_WITHOUT_DATE = os.path.join(PATH_TO_LOOK_FOR_COST_LOGS,TEMPLATE+CloudFieldName+'*')
+        logs_files_of_certain_cloud = glob.glob(FULL_PATH_WITHOUT_DATE)
+        if len(logs_files_of_certain_cloud) > 1:
+            print("There are few cost logs of cloud {}".format(CloudFieldName))
+            print('The function is taking the last one in list. Make sure this is the updated one or erase the old logs.')
+            log_dir = logs_files_of_certain_cloud[-1]
+        else:
+            log_dir = logs_files_of_certain_cloud[0]
+            
+        # -----------------------------------------------------------------------
+        # ---------------START LOADIN AND PROCESSING-----------------------------
+        # -----------------------------------------------------------------------
+        reff = np.loadtxt(os.path.join(log_dir,'reff.txt'))
+        lwc = np.loadtxt(os.path.join(log_dir,'lwc.txt'))
+        cost = np.loadtxt(os.path.join(log_dir,'cost.txt'))
+        
+        
+        REFF = reff.reshape(N,N)
+        LWC = lwc.reshape(N,N)
+        COST = cost.reshape(N,N)
+        
+        if(SHOW_FITTING_ERROR):
+            
+            fig = plt.figure(figsize=(12,8))
+            ax = plt.axes(projection='3d')
+            ax.plot_surface(REFF, LWC, COST, rstride=1, cstride=1,
+                            cmap='jet', edgecolor='none')
+            
+            ax.set_title(CloudFieldName.replace('.txt',''))
+            ax.view_init(elev=21., azim=28.)
+            
+            plt.xlabel('reff', fontsize=18)
+            plt.ylabel('lwc', fontsize=18)
+        
+        min_index = np.argmin(cost)
+        print("{}:".format(CloudFieldName))
+        print("Best point is {} at (reff, lwc) = ({}, {})".format(cost[min_index], reff[min_index],lwc[min_index]))      
+        alfa_reff = float_round(reff[min_index])
+        alfa_lwc = float_round(lwc[min_index] )     
+        # -----------------------------------------------------------------------
+        # ---------------SHOW THE PROFILES TO EVALUATE---------------------------
+        # -----------------------------------------------------------------------  
+        gt_droplets = shdom.MicrophysicalScatterer()
+        gt_droplets.load_from_csv(CloudFieldFile)
+        
+        # --------- mimic the init with optimal parameters:
+        lwc_grid = gt_droplets.lwc.grid
+        reff_grid = gt_droplets.reff.grid
+        veff_grid = gt_droplets.veff.grid
+        
+        Arg = namedtuple('Arg',
+                ['lwc',
+               'reff',
+               'veff'])
+        
+        arg = Arg( 
+               lwc=lwc[min_index], 
+               reff=reff[min_index], 
+               veff=0.1, 
+               )
+        MonotonousGenerator = shdom.generate.Monotonous(arg)
+        reff = MonotonousGenerator.get_reff(grid = reff_grid, min_reff = 2.5)
+        if veff_grid.type == 'Homogeneous':
+            veff = gt_droplets.veff
+        else:
+            veff = MonotonousGenerator.get_veff(grid = veff_grid)
+        lwc =  MonotonousGenerator.get_lwc(grid=lwc_grid, min_lwc= 1.5e-5)
+        optimat_droplets = shdom.MicrophysicalScatterer(lwc=lwc,reff=reff,veff=veff)
+        
+        fig, ax = plt.subplots(1,2,figsize=(12,20))
+        
+        title = '{} \n'.format(CloudFieldName.replace('.txt','')) + \
+            r'$\alpha_{reff}$ = '+'{}\n'.format(alfa_reff) + \
+            r'$\alpha_{lwc}$ = '+'{}'.format(alfa_lwc) 
+        
+        fig.suptitle(title, fontsize=14)
+        
+        mask = gt_droplets.get_mask(threshold=0.0).data
+        
+        for i, parameter_name in enumerate(['lwc','reff']):
+            gt_param = getattr(gt_droplets,parameter_name).data
+            gt_param[np.bitwise_not(mask)] = np.nan
+            gt_param = np.nan_to_num(np.nanmean(gt_param,axis=(0,1)))  
+            
+            optimal_param = getattr(optimat_droplets,parameter_name).data
+            optimal_param[np.bitwise_not(mask)] = np.nan
+            optimal_param = np.nan_to_num(np.nanmean(optimal_param,axis=(0,1)))              
+                        
+            ax[i].set_title('{}'.format(parameter_name), fontsize=16)
+            ax[i].plot(optimal_param, gt_droplets.grid.z, label='Optimal profile')
+            ax[i].plot(gt_param, gt_droplets.grid.z, label='True profile')
+            ax[i].legend()
+            ax[i].set_ylabel('Altitude [km]', fontsize=14)            
+    
+    plt.show()
+    # ------------------------------- 
+    
     
 if __name__ == '__main__':
+    
+    #reff_smoothness_consts = [0.01, 0.1, 10, 100, 1000, 1e4, 1e5, 1e6]
+    #for reff_smoothness_const in reff_smoothness_consts:
     
     main()
     

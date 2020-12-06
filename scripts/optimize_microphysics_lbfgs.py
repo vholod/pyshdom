@@ -87,7 +87,14 @@ class OptimizationScript(ExtinctionOptimizationScript):
         parser.add_argument('--keep_curve',
                             default=0,
                             type=np.int32,
-                            help='(default value: %(default)s) When keep_curve >0, there will be reff profile fitting every keep_curve iterations')          
+                            help='(default value: %(default)s) When keep_curve >0, there will be reff profile fitting every keep_curve iterations')   
+        parser.add_argument('--precond_grad',
+                            action='store_true',
+                            help='Use it if you want to scale the gradient by inverse of the parameter preconditioning')   
+        parser.add_argument('--erode_edges_init',
+                            action='store_true',
+                            help='Use it if you want to erode the edges in the initialization stage')                  
+        
         return parser
 
     def get_medium_estimator(self, measurements, ground_truth):
@@ -179,6 +186,10 @@ class OptimizationScript(ExtinctionOptimizationScript):
                     
                     
         lwc.apply_mask(mask)
+        if self.args.erode_edges_init:
+            lwc.erode_edges(mask)
+        lwc.precond_grad = self.args.precond_grad
+        
         if not self.args.use_forward_mask:
             if(self.cloud_generator.args.init == 'Monotonous'):
                 print('Here implement 20% reduction in the masked profile. ')
@@ -200,7 +211,7 @@ class OptimizationScript(ExtinctionOptimizationScript):
                 if(self.cloud_generator.args.init == 'Monotonous'):
                 
   
-                    reff = shdom.GridDataEstimator(self.cloud_generator.get_reff(grid = reff_grid, min_reff = ground_truth.min_reff),
+                    reff = shdom.GridDataEstimator(self.cloud_generator.get_reff(grid = reff_grid, min_reff = 2.5), # was min_reff = ground_truth.min_reff
                                                min_bound=ground_truth.min_reff,
                                                max_bound=ground_truth.max_reff,
                                                precondition_scale_factor=self.args.reff_scaling)
@@ -238,6 +249,10 @@ class OptimizationScript(ExtinctionOptimizationScript):
                     
                     
         reff.apply_mask(mask)
+        if self.args.erode_edges_init:
+            reff.erode_edges(mask,min_val = 2.5)        
+        reff.precond_grad = self.args.precond_grad
+        
         if not self.args.use_forward_mask:
             if(self.cloud_generator.args.init == 'Monotonous'):
                 print('Here implement 20% reduction in the masked profile. ')
@@ -262,6 +277,7 @@ class OptimizationScript(ExtinctionOptimizationScript):
                                                min_bound=ground_truth.min_veff,
                                                precondition_scale_factor=self.args.veff_scaling)
         veff.apply_mask(mask)
+        veff.precond_grad = self.args.precond_grad
 
         # Define a MicrophysicalScattererEstimator object
         cloud_estimator = shdom.MicrophysicalScattererEstimator(ground_truth.mie, lwc, reff, veff)
@@ -354,6 +370,8 @@ class OptimizationScript(ExtinctionOptimizationScript):
             # Compare estimator to ground-truth
             writer.monitor_scatterer_error(estimator_name=self.scatterer_name, ground_truth=ground_truth)
             writer.monitor_scatter_plot(estimator_name=self.scatterer_name, ground_truth=ground_truth, dilute_percent=0.4, parameters=['lwc'])
+            #writer.monitor_scatter_log_plot(estimator_name=self.scatterer_name, ground_truth=ground_truth, dilute_percent=0.4, parameters=['lwc'])
+            
             writer.monitor_scatter_plot(estimator_name=self.scatterer_name, ground_truth=ground_truth, dilute_percent=0.2, parameters=['reff'])
             writer.monitor_horizontal_mean(estimator_name=self.scatterer_name, ground_truth=ground_truth, ground_truth_mask=ground_truth.get_mask(threshold=0.01))
 

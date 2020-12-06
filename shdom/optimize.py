@@ -19,6 +19,7 @@ import tensorboardX as tb
 import matplotlib.pyplot as plt
 import warnings
 from itertools import chain
+from scipy import ndimage
 
 class OpticalScattererDerivative(shdom.OpticalScatterer):
     """
@@ -196,6 +197,33 @@ class GridDataEstimator(shdom.GridData):
         self._num_parameters = self.init_num_parameters()
         self._precondition_scale_factor = precondition_scale_factor
         self._theoretic_profile = None # in case of fitting estimated/theoretic 1d profile to the estimator.
+        self._grad_scale = 1
+        self._precond_grad = False
+        
+    def set_grad_scale(self, grid=None, mask=None, alpha_core=2, alpha_out=0):
+        '''
+        Set grad scale
+        Returns
+        -------
+
+        '''
+
+        if grid is None:
+            grid = self.grid
+            
+        struct = ndimage.generate_binary_structure(3, 5)
+        erodedMask = ndimage.binary_erosion(mask.data.astype(np.int16), structure=struct)
+        
+        scale = (alpha_core*np.multiply(erodedMask, 1, dtype=np.float32) +  alpha_out*np.multiply(mask, 1,
+                                                                                                dtype=np.float32))/2
+        
+        if alpha_out>0:
+            scale = ndimage.gaussian_filter(scale, sigma = 2)*mask
+            
+        if grid.type == '1D':
+            self.grad_scale = np.squeeze(np.mean(np.mean(scale, axis=0), axis=0))
+        elif grid.type == '3D':
+            self.grad_scale = scale    
     
     def add_theoretic_profile(self,profile):
         """
@@ -309,7 +337,7 @@ class GridDataEstimator(shdom.GridData):
         max_bound = self.max_bound * self.precondition_scale_factor if self.max_bound is not None else None
         return [(min_bound, max_bound)] * self.num_parameters
 
-    def project_gradient(self, gradient, grid):
+    def project_gradient(self, gradient, grid, scaling = None):
         """
         Project gradient onto the state representation.
 
@@ -319,17 +347,20 @@ class GridDataEstimator(shdom.GridData):
             The internal shdom grid upon which the gradient was computed.
         gradient: np.array(dtype=np.float64)
             An array containing the gradient of the cost function with respect to the parameters.
-
+        scaling: None or np.array that scales the shdom.GridData
         Returns
         -------
         state_gradient: np.array(dtype=np.float64)
             State gradient representation
         """
         gradient = gradient.squeeze(axis=-1)
-        state_gradient = shdom.GridData(grid, gradient).resample(self.grid)
+        state_gradient = shdom.GridData(grid, gradient, scaling).resample(self.grid)
+        #state_gradient.data *= self._grad_scale
+        
         # vadim try this after Roi suggestion:
         # state_gradient.data /= self.precondition_scale_factor
-        scale_grad = False
+        scale_grad = self._precond_grad
+        
         # ---- consider the above statment
         debug_gradient = state_gradient.data # vadim added to get the gradient in the base grid to debug/visualize it later on.
         if self.mask is None:
@@ -343,7 +374,48 @@ class GridDataEstimator(shdom.GridData):
                 return state_gradient.data[self.mask.data]/self.precondition_scale_factor, debug_gradient
             else:
                 return state_gradient.data[self.mask.data], debug_gradient
-                
+    
+    def erode_edges(self,mask, min_val=0.0, erode_radius = 2, sigma = 0.15):
+        """
+        Erode and filter the data inside the mask.
+
+        Parameters
+        ----------
+        mask: shdom.GridData object
+            A GridData object with boolean data. True is for data points that will be estimated.
+        erode_radius: int
+            Erosion radius of the 3D mask.
+        sigma: int
+            Std of the gaussian to smooth the eroded mask.
+        """
+        if self.type == '3D':
+            mask = mask.resample(self.grid, method='nearest')
+            
+            alpha_out = 1.5 #2 - for uniform
+            alpha_core = 2-alpha_out #0 - for uniform
+        
+            struct = ndimage.generate_binary_structure(3, erode_radius)
+            erodedMask = ndimage.binary_erosion(mask.data.astype(np.int16), structure=struct)
+        
+            scale = (alpha_core*np.multiply(erodedMask, 1, dtype=np.float32) +  alpha_out*np.multiply(mask.data, 1,
+                                                                                                      dtype=np.float32))/2
+            scale = ndimage.gaussian_filter(scale, sigma = sigma)*mask.data
+            scale /= scale.max()
+            
+            self._data *= scale
+            self._data[self._data<min_val] = min_val
+            self._data[self._data<self._min_bound] = self._min_bound + 0.01*self._min_bound
+            self._data[self._data>self._max_bound] = self._max_bound - 0.01*self._max_bound
+            self._data[np.bitwise_not(mask.data)] = 0.0
+            
+    @property
+    def precond_grad(self):
+        return self._precond_grad
+    
+    @precond_grad.setter
+    def precond_grad(self,val):
+        self._precond_grad = val
+    
     @property
     def mask(self):
         return self._mask
@@ -496,8 +568,17 @@ class ScattererEstimator(object):
         gradient = np.split(gradient, self.num_estimators, axis=-1)
         state_gradient = np.empty(shape=(0), dtype=np.float64)
         debug_gradient_3d = []
-        for estimator, gradient in zip(self.estimators.values(), gradient):
-            state_gradient_new, debug_gradient_3d_new = estimator.project_gradient(gradient, grid) # vadim added to get the gradient in the base grid to debug/visualize it later on.
+        
+        for estimator_name, estimator, gradient in zip(self.estimators.keys(), self.estimators.values(), gradient):
+            if (estimator_name == 'reff') and ('lwc' in self.estimators.keys()):
+                # The lwc will scale the reff averaging in case of 1D reff forcing.
+                # The estimator is of type shdom.optimize.GridDataEstimator
+                
+                state_gradient_new, debug_gradient_3d_new = estimator.project_gradient(gradient, grid, scaling = self.estimators['lwc'].data)
+                
+            else:
+                state_gradient_new, debug_gradient_3d_new = estimator.project_gradient(gradient, grid) # vadim added to get the gradient in the base grid to debug/visualize it later on.
+
             state_gradient = np.concatenate((state_gradient, state_gradient_new))
             debug_gradient_3d.append(debug_gradient_3d_new)
         return state_gradient, debug_gradient_3d
@@ -1500,6 +1581,31 @@ class MediumEstimator(shdom.Medium):
             rte_solver._dext, rte_solver._dalb, rte_solver._diphase, \
                 rte_solver._dleg, rte_solver._dphasetab, rte_solver._dnumphase = self.get_derivatives(rte_solver)
 
+
+        IF_SHOW_DERIVATIVES = False
+        if IF_SHOW_DERIVATIVES:
+            
+            
+            names = ['dext', 'dalb', 'diphase']
+            
+            for rte_solver in rte_solvers.solver_list:    
+                
+                DERIVATIVES = [rte_solver._dext, rte_solver._dalb, rte_solver._diphase]
+                
+                wavelength_nm = int(1e3*rte_solver.wavelength)
+                for estimator  in self.estimators.values():
+                    for DERIVATIVE,name  in zip(DERIVATIVES, names):
+                        DERIVATIVE = DERIVATIVE.reshape(self.grid.shape + tuple([self.num_derivatives]))
+                        _ , DERIVATIVE_3d = estimator.project_gradient(DERIVATIVE, self.grid) #  
+                        
+                        
+                        filename = 'lwc_{}_at_{}nm_iter_{}.mat'.format(name,wavelength_nm,iteration)                                        
+                        sio.savemat(filename, {'data':DERIVATIVE_3d[0]})                    
+                                  
+                        filename = 'reff_{}_at_{}nm_iter_{}.mat'.format(name,wavelength_nm,iteration)                                        
+                        sio.savemat(filename, {'data':DERIVATIVE_3d[1]}) 
+                print('-----------------------')
+                    
         if(isinstance(measurements,shdom.CloudCT_setup.SpaceMultiView_Measurements)):
             # relating to CloudCT multi-view setup with different imagers.
             CloudCT_geometry_and_imagers = measurements.setup
@@ -1907,6 +2013,36 @@ class SummaryWriter(object):
         else:
             self._ground_truth = OrderedDict({estimator_name: ground_truth})
 
+    def monitor_scatter_log_plot(self, estimator_name, ground_truth, dilute_percent=0.4, ckpt_period=-1, parameters='all'):
+        """
+        Monitor scatter plot of the parameters
+
+        Parameters
+        ----------
+        estimator_name: str
+            The name of the scatterer to monitor
+        ground_truth: shdom.Scatterer
+            The ground truth medium.
+        dilute_precent: float [0,1]
+            Precentage of (random) points that will be shown on the scatter plot.
+        ckpt_period: float
+           time [seconds] between updates. setting ckpt_period=-1 will log at every iteration.
+        parameters: str,
+           The parameters for which to monitor scatter plots. 'all' monitors all estimated parameters.
+        """
+        kwargs = {
+            'ckpt_period': ckpt_period,
+            'ckpt_time': time.time(),
+            'title': '{}/scatter_plot/{}',
+            'percent': dilute_percent,
+            'parameters': parameters
+        }
+        self.add_callback_fn(self.scatter_plot_log_cbfn, kwargs)
+        if hasattr(self, '_ground_truth'):
+            self._ground_truth[estimator_name] = ground_truth
+        else:
+            self._ground_truth = OrderedDict({estimator_name: ground_truth})
+
     def monitor_horizontal_mean(self, estimator_name, ground_truth, ground_truth_mask=None, ckpt_period=-1):
         """
         Monitor horizontally averaged quantities and compare to ground truth over iterations.
@@ -2183,7 +2319,69 @@ class SummaryWriter(object):
                     global_step=self.optimizer.iteration
                 )
         
+    def scatter_plot_log_cbfn(self, kwargs):
+        """
+        Callback function for monitoring scatter plot of parameters.
+
+        Parameters
+        ----------
+        kwargs: dict,
+            keyword arguments
+        """
+        for scatterer_name, gt_scatterer in self._ground_truth.items():
+    
+            est_scatterer = self.optimizer.medium.get_scatterer(scatterer_name)
+            common_grid = est_scatterer.grid + gt_scatterer.grid
+            a = est_scatterer.get_mask(threshold=0.0).resample(common_grid,method='nearest')
+            b = gt_scatterer.get_mask(threshold=0.0).resample(common_grid,method='nearest')
+            common_mask = shdom.GridData(data=np.bitwise_or(a.data,b.data),grid=common_grid)
+    
+            parameters = est_scatterer.estimators.keys() if kwargs['parameters']=='all' else kwargs['parameters']
+            for parameter_name in parameters:
+                if parameter_name not in est_scatterer.estimators.keys():
+                    continue
+                if parameter_name == 'lwc':
+                    parameter = est_scatterer.estimators[parameter_name]
+                    ground_truth = getattr(gt_scatterer, parameter_name)
         
+                    est_parameter_masked = copy.copy(parameter).resample(common_grid)
+                    est_parameter_masked.apply_mask(common_mask)
+                    est_param = est_parameter_masked.data.ravel()
+        
+                    gt_param_masked = copy.copy(ground_truth).resample(common_grid)
+                    gt_param_masked.apply_mask(common_mask)
+                    gt_param = gt_param_masked.data.ravel()
+        
+                    rho = np.corrcoef(est_param, gt_param)[1, 0]
+                    num_params = gt_param.size
+                    rand_ind = np.unique(np.random.randint(0, num_params, int(kwargs['percent'] * num_params)))
+                    max_val = max(gt_param.max(), est_param.max())
+                    fig, ax = plt.subplots()
+                    ax.set_title(r'{} {}: ${:1.0f}\%$ randomly sampled; $\rho={:1.2f}$'.format(scatterer_name, parameter_name, 100 * kwargs['percent'], rho),
+                                     fontsize=16)
+                    ax.scatter(gt_param[rand_ind], est_param[rand_ind], facecolors='none', edgecolors='r')
+                    ax.plot(ax.get_ylim(), ax.get_ylim(), c='k', ls='--')
+                    
+                    ax.set_yscale('log')
+                    ax.set_xscale('log')
+                    max_val = np.log10(max_val)
+                    
+                    ax.set_xlim([0, 1.1*max_val])
+                    ax.set_ylim([0, 1.1*max_val])
+                    ax.set_ylabel('Estimated', fontsize=14)
+                    ax.set_xlabel('True', fontsize=14)
+                    
+                    ax.xaxis.set_major_locator(plt.MaxNLocator(2))
+                    ax.yaxis.set_major_locator(plt.MaxNLocator(2))
+                    
+                    ax.set_aspect('equal')                    
+        
+                    self.tf_writer.add_figure(
+                            tag=kwargs['title'].format(scatterer_name, parameter_name),
+                            figure=fig,
+                            global_step=self.optimizer.iteration
+                        )
+                    
     def scatter_plot_cbfn(self, kwargs):
         """
         Callback function for monitoring scatter plot of parameters.
@@ -2660,35 +2858,46 @@ class LocalOptimizer(object):
         Use regularization type = Laplacian.
         
         """
-        from scipy.ndimage.filters import laplace as laplacian
-        regularization_grad = 0
+        regularization_grad = np.zeros_like(state)
         regularization_cost = 0
-        cloud_estimator = self.medium.estimators['cloud']
-        if 'reff' in cloud_estimator.estimators.keys():
-            states_indexes = np.split(np.arange(state.size), np.cumsum(cloud_estimator.num_parameters[:-1]))
-            reff_estimator = cloud_estimator.estimators['reff']
-            reff_data = reff_estimator.data
-            regularization_grad = np.zeros_like(state)
+        
+        if self.smoothness_ratio > 0:
             
-            if reff_estimator.grid.type == '1D':
-                reff_data_1d = reff_data[reff_estimator.mask.data]
-            elif reff_estimator.grid.type == '3D':
-                # masked mean
-                masked_mean = np.ma.masked_equal(reff_data, 0).mean(axis=0).mean(axis=0)
-                reff_data_1d = masked_mean.data                  
-            else:
-                raise Exception('Unsupported grid type.')
+            from scipy.ndimage.filters import laplace as laplacian
             
-            regularization_grad[states_indexes[1]] = self.smoothness_ratio *2* laplacian(laplacian(reff_data_1d))
-            regularization_cost = self.smoothness_ratio * np.linalg.norm(laplacian(reff_data_1d))**2
-        # ----------------------------------------------------------------
+            cloud_estimator = self.medium.estimators['cloud']
+            if 'reff' in cloud_estimator.estimators.keys():
+                states_indexes = np.split(np.arange(state.size), np.cumsum(cloud_estimator.num_parameters[:-1]))
+                reff_estimator = cloud_estimator.estimators['reff']
+                reff_data = reff_estimator.data
+                regularization_grad = np.zeros_like(state)
+                
+                if reff_estimator.grid.type == '1D':
+                    reff_data_1d = reff_data[reff_estimator.mask.data]
+                elif reff_estimator.grid.type == '3D':
+                    # masked mean
+                    masked_mean = np.ma.masked_equal(reff_data, 0).mean(axis=0).mean(axis=0)
+                    reff_data_1d = masked_mean.data                  
+                else:
+                    raise Exception('Unsupported grid type.')
+                
+                reff_data_1d*= reff_estimator.precondition_scale_factor
+                regularization_grad[states_indexes[1]] = self.smoothness_ratio *2* laplacian(laplacian(reff_data_1d))
+                regularization_cost = self.smoothness_ratio * np.linalg.norm(laplacian(reff_data_1d))**2
+            # ----------------------------------------------------------------
         
         gradient, loss, images, debug_gradients = self.medium.compute_gradient(
             rte_solvers=self.rte_solver,
             measurements=self.measurements,
             n_jobs=self.n_jobs, iteration = self.iteration
         )
-        print(state, gradient, loss)
+        print('cost:')
+        print(loss, regularization_cost)
+        print(20*'-')
+        print('state, gradient:')
+        print(state, gradient)
+        print(20*'-')
+        
         self._loss = loss
         self._images = images
         
