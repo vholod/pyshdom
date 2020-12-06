@@ -702,7 +702,7 @@ def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, air_num_points = 20
     1. Generate multi-spectral scatterers for both droplets and air molecules.
     
     inputs:
-    CloudFieldFile - file path to the cloud field.
+    CloudFieldFile - file path to the cloud field. If it is None than, a Double voxel atmosphere will be created.
     AirFieldFile - file path to the air field.
     air_num_points - Number of altitude grid points for the air volume
     air_max_alt - in km ,Maximum altitude for the air volume 
@@ -723,9 +723,38 @@ def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, air_num_points = 20
             wavelengths_micron = wavelengths_micron.tolist()
                     
     # Generate multi-spectral scatterers for both droplets and air molecules
-    assert CloudFieldFile is not None, "You must provied the cloud field for the simulation."
-    droplets = shdom.MicrophysicalScatterer()
-    droplets.load_from_csv(CloudFieldFile, veff=0.1)
+    if CloudFieldFile is not None:
+        print("You must provied the cloud field for the simulation. Otherwise double voxel atmosphere will be generated.")
+        from collections import namedtuple
+        Arg = namedtuple('Arg',
+                ['nx',
+               'ny',
+               'nz',
+               'domain_size',
+               'extinction',
+               'lwc',
+               'reff',
+               'veff'])
+        
+        arg = Arg(nx=10, 
+               ny=10, 
+               nz=10, 
+               domain_size=1.0, 
+               extinction=10.0, 
+               lwc=1.0, 
+               reff=10.0, 
+               veff=0.1, 
+               )
+        DoubleVoxelGenerator = shdom.generate.DoubleVoxel(arg)
+        reff = DoubleVoxelGenerator.get_reff()
+        veff = DoubleVoxelGenerator.get_veff()
+        lwc =  DoubleVoxelGenerator.get_lwc()
+        droplets = shdom.MicrophysicalScatterer(lwc=lwc,reff=reff,veff=veff)
+            
+    else:
+        
+        droplets = shdom.MicrophysicalScatterer()
+        droplets.load_from_csv(CloudFieldFile, veff=0.1)
     
     # Air part
     air = shdom.MultispectralScatterer()
