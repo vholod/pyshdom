@@ -6,18 +6,30 @@ import yaml
 import sys
 from itertools import chain
 import scipy.io as sio
+import copy
 
 from shdom import CloudCT_setup, plank
 from shdom.CloudCT_Utils import *
 import random
 
-def main():
+def main(CloudFieldFile = None, Init_dict = None, Prefix = None):
     
     logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
     run_params = load_run_params(params_path="run_params_rico.yaml")
     #run_params = load_run_params(params_path="run_params.yaml")
+
+    if CloudFieldFile is not None:
+        run_params['CloudFieldFile'] = CloudFieldFile
+        
+    if Init_dict is not None:
+        run_params['inverse_options']['lwc'] = Init_dict['lwc']
+        run_params['inverse_options']['reff'] = Init_dict['reff']
+        
+    if Prefix is not None:
+        run_params['Log_Prefix'] = Prefix   
+        
 
     #run_params['inverse_options']['reff_smoothness_const'] = reff_smoothness_const 
     # run_params['sun_zenith'] = sun_zenith # if you need to set the angle from main's input
@@ -119,7 +131,8 @@ def main():
                                               wavelengths_micron=wavelengths_micron,
                                               wavelength_averaging=wavelength_averaging)
 
-    droplets = atmosphere.get_scatterer('cloud')
+    droplets = copy.deepcopy(atmosphere.get_scatterer('cloud'))
+    
 
     # -----------------------------------------------
     # ---------Set relevant camera parameters. ------
@@ -238,6 +251,32 @@ def main():
 
         rte_solvers = shdom.RteSolverArray()
 
+    
+        """
+        If the retrieval does not assume ground truht mask, this is a place to pad the scatterer to be retrieved. 
+        It must be done before the rendering simulation to avoide diviations in images (simulated by forward and on optimization rendering)
+        coused by shdom processing.
+        """
+        if not run_params['inverse_options']['use_forward_mask']:
+            # pad medium all sides by XPAD, YPAD, ZPAD:
+            XPAD = run_params['inverse_options']['XPAD']
+            YPAD = run_params['inverse_options']['YPAD']
+            ZPAD = run_params['inverse_options']['ZPAD']
+            # X DIRECTION
+            values = np.zeros(XPAD)
+            atmosphere.pad_scatterer(name='cloud',axis=0, right = True, values=values)
+            atmosphere.pad_scatterer(name='cloud',axis=0, right = False, values=values)
+            # Y DIRECTION
+            values = np.zeros(YPAD)
+            atmosphere.pad_scatterer(name='cloud',axis=1, right = True, values=values)
+            atmosphere.pad_scatterer(name='cloud',axis=1, right = False, values=values)
+            # Z DIRECTION
+            values = np.zeros(ZPAD)
+            atmosphere.pad_scatterer(name='cloud',axis=2, right = True, values=values)
+            atmosphere.pad_scatterer(name='cloud',axis=2, right = False, values=values)
+            # get the updated droplets:
+            droplets = copy.deepcopy(atmosphere.get_scatterer('cloud'))
+
         # TODO - what if the imagers have the same central wavelengths?
         # iter 0 of wavelength is for vis
         # iter 1 of wavelength is for swir
@@ -288,6 +327,9 @@ def main():
             # - reduce_exposure = False
             # - scale_ideally = True
             # - apply_noise = False
+            #reduce_exposure = False
+            #scale_ideally = True
+            #apply_noise = False            
         else:
             # If we do not use realistic imager, we MUST use IF_SCALE_IDEALLY=True so the images will have values in
             # maximum range.
@@ -302,12 +344,9 @@ def main():
                                                    IF_APPLY_NOISE=apply_noise,
                                                    IF_CALIBRATION_UNCERTAINTY = run_params['use_cal_uncertainty'],
                                                    uncertainty_options = run_params['uncertainty_options'])                                                   
+
+                    
         
-        if not run_params['inverse_options']['use_forward_mask']:
-            print("Calculating the mask by space curving for:")
-            print("\t 1. Initialization with Monotonous profile.")
-            print("\t 2. Optimization.")
-            print("\t 3. Fitting of  Monotonous profile.")
         # Calculate irradiance of the spesific wavelength:
         # use plank function:
         Cosain = np.cos(np.deg2rad((180 - run_params['sun_zenith'])))
@@ -386,6 +425,127 @@ def main():
                                                       radiance_threshold_dict = radiance_threshold_dict)                
             plt.show()
 
+            
+        if not run_params['inverse_options']['use_forward_mask']:
+            print("Calculating the mask by space curving for:")
+            print("\t 1. Initialization with Monotonous profile.")
+            print("\t 2. Optimization.")
+            print("\t 3. Fitting of  Monotonous profile.") 
+            print("\t 4. Overwrite erode_edges_init to be True to avoide large mass in edges and cloud top.") 
+            
+            run_params['inverse_options']['erode_edges_init'] = True
+            
+            # Apply Space curving:
+            space_carver = shdom.SpaceCarver(CloudCT_measurements)
+            if isinstance(rte_solvers, shdom.RteSolverArray):
+                rte_solver = rte_solvers[0]
+            else:
+                rte_solver = rte_solvers
+            PYTHON_SPACE_CURVE = run_params['inverse_options']['CloudCT_space_curve']
+            agreement = run_params['inverse_options']['agreement']
+            radiance_threshold_vis = run_params['inverse_options']['radiance_threshold_vis']
+            radiance_threshold_swir = run_params['inverse_options']['radiance_threshold_swir'] 
+            num_vis = len(run_params['vis_options']['true_indices'])
+            num_swir = len(run_params['swir_options']['true_indices'])
+            
+            # incase radiance_threshold_vis is a number
+            if not isinstance(radiance_threshold_vis, list):
+                radiance_threshold_vis = [radiance_threshold_vis]
+            # Now if it is a list but with only 1 entry
+            if len(radiance_threshold_vis) == 1:
+                radiance_threshold_vis *= num_vis
+            
+            # similarly for swir
+            if not isinstance(radiance_threshold_swir, list):
+                radiance_threshold_swir = [radiance_threshold_swir]    
+            if len(radiance_threshold_swir) == 1:
+                radiance_threshold_swir *= num_swir                
+                
+            thresholds = radiance_threshold_vis + radiance_threshold_swir
+            curved_mask = space_carver.carve(droplets.grid, thresholds=thresholds, agreement=agreement, PYTHON_SPACE_CURVE = PYTHON_SPACE_CURVE)
+            CHECK_CURVED_MASK  = False
+            if CHECK_CURVED_MASK:
+            # make sure thresholds are valide if it is one value or a list etc.
+            # Plot 
+            # show -> check - > delete:
+            # visualize volume:
+                try:
+                    import mayavi.mlab as mlab
+            
+                except:
+                    raise Exception("Make sure you installed mayavi")
+            
+                from scipy import ndimage
+                
+                #-------show images-
+                space_carver_images = space_carver.images
+                f, axarr = plt.subplots(1, len(space_carver_images), figsize=(20, 20))
+                for ax, image, threshold in zip(axarr, space_carver_images, thresholds):
+                    img = image.copy()
+                    img[image < threshold] = 0
+                    ax.imshow(img)
+                    ax.invert_xaxis() 
+                    ax.invert_yaxis() 
+                    ax.axis('off')
+                #-------show carved volume-
+                MAXI = 1
+                if isinstance(wavelengths_micron,list):
+                    wavelength_test = wavelengths_micron[0]
+                else:
+                    wavelength_test = wavelengths_micron
+                    
+                ref_vol = droplets.get_extinction(wavelength = wavelength_test)
+                ref_mask = ref_vol.data > 0.001
+                ref_mask = np.multiply(ref_mask, 1, dtype= np.int16)
+                show_vol = np.multiply(curved_mask.data, 1, dtype= np.int16) 
+                
+                mlab.figure()
+                h = mlab.pipeline.scalar_field(show_vol)
+                v = mlab.pipeline.volume(h,vmin=0.0,vmax=MAXI)
+            
+                ipw_x = mlab.pipeline.image_plane_widget(h, plane_orientation='x_axes',vmin=0.0,vmax=MAXI)
+                ipw_x.ipw.reslice_interpolate = 'nearest_neighbour'
+                ipw_x.ipw.texture_interpolate = False
+                ipw_y = mlab.pipeline.image_plane_widget(h, plane_orientation='y_axes',vmin=0.0,vmax=MAXI)
+                ipw_y.ipw.reslice_interpolate = 'nearest_neighbour'
+                ipw_y.ipw.texture_interpolate = False
+                ipw_z = mlab.pipeline.image_plane_widget(h, plane_orientation='z_axes',vmin=0.0,vmax=MAXI)
+                ipw_z.ipw.reslice_interpolate = 'nearest_neighbour'
+                ipw_z.ipw.texture_interpolate = False
+            
+                color_bar = mlab.colorbar(orientation='vertical', nb_labels=5)
+                mlab.outline(color = (1, 1, 1))  # box around data axes
+                mlab.title('calculated mask')
+                # -----------------------------------------
+                diff_mask = ref_mask - show_vol
+                beta_test_mask = diff_mask == 1
+                beta_test = np.zeros_like(ref_vol.data)
+                beta_test[beta_test_mask] = ref_vol.data[beta_test_mask]
+                
+                mlab.figure()
+                
+                h = mlab.pipeline.scalar_field(diff_mask)
+                v = mlab.pipeline.volume(h,vmin=-1,vmax=1)
+            
+                ipw_x = mlab.pipeline.image_plane_widget(h, plane_orientation='x_axes',vmin=-1,vmax=1)
+                ipw_x.ipw.reslice_interpolate = 'nearest_neighbour'
+                ipw_x.ipw.texture_interpolate = False
+                ipw_y = mlab.pipeline.image_plane_widget(h, plane_orientation='y_axes',vmin=-1,vmax=1)
+                ipw_y.ipw.reslice_interpolate = 'nearest_neighbour'
+                ipw_y.ipw.texture_interpolate = False
+                ipw_z = mlab.pipeline.image_plane_widget(h, plane_orientation='z_axes',vmin=-1,vmax=1)
+                ipw_z.ipw.reslice_interpolate = 'nearest_neighbour'
+                ipw_z.ipw.texture_interpolate = False
+            
+                color_bar = mlab.colorbar(orientation='vertical', nb_labels=5)
+                mlab.outline(color = (1, 1, 1))  # box around data axes
+                mlab.title('diff')
+                # -----------------------------------------
+                # -----------------------------------------
+                
+                mlab.show()            
+                 
+              
 
         # ---------SAVE EVERYTHING FOR THIS SETUP -------
         medium = atmosphere
@@ -412,6 +572,7 @@ def main():
         run_type = inverse_options['recover_type'] if inverse_options['MICROPHYSICS'] else 'extinction'
 
         log_name = run_type + "_only_" + log_name_base
+        log_name = run_params['Log_Prefix'] + log_name
 
         cmd = create_inverse_command(run_params=run_params, inverse_options=inverse_options,
                                      vizual_options=vizual_options,

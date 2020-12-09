@@ -20,6 +20,8 @@ import matplotlib.pyplot as plt
 import warnings
 from itertools import chain
 from scipy import ndimage
+from scipy.ndimage.filters import laplace as laplacian
+
 
 class OpticalScattererDerivative(shdom.OpticalScatterer):
     """
@@ -1983,6 +1985,7 @@ class SummaryWriter(object):
         else:
             self._ground_truth = OrderedDict({estimator_name: ground_truth})
 
+
     def monitor_scatter_plot(self, estimator_name, ground_truth, dilute_percent=0.4, ckpt_period=-1, parameters='all'):
         """
         Monitor scatter plot of the parameters
@@ -2008,6 +2011,36 @@ class SummaryWriter(object):
             'parameters': parameters
         }
         self.add_callback_fn(self.scatter_plot_cbfn, kwargs)
+        if hasattr(self, '_ground_truth'):
+            self._ground_truth[estimator_name] = ground_truth
+        else:
+            self._ground_truth = OrderedDict({estimator_name: ground_truth})
+
+
+    def monitor_slices_plot(self, estimator_name, ground_truth, ckpt_period=-1, parameters='all'):
+        """
+        Monitor slices plot of the parameters
+
+        Parameters
+        ----------
+        estimator_name: str
+            The name of the scatterer to monitor
+        ground_truth: shdom.Scatterer
+            The ground truth medium.
+        dilute_precent: float [0,1]
+            Precentage of (random) points that will be shown on the scatter plot.
+        ckpt_period: float
+           time [seconds] between updates. setting ckpt_period=-1 will log at every iteration.
+        parameters: str,
+           The parameters for which to monitor scatter plots. 'all' monitors all estimated parameters.
+        """
+        kwargs = {
+            'ckpt_period': ckpt_period,
+            'ckpt_time': time.time(),
+            'title': '{}/3D_slices/{}',
+            'parameters': parameters
+        }
+        self.add_callback_fn(self.slices_plot_cbfn, kwargs)
         if hasattr(self, '_ground_truth'):
             self._ground_truth[estimator_name] = ground_truth
         else:
@@ -2382,6 +2415,95 @@ class SummaryWriter(object):
                             global_step=self.optimizer.iteration
                         )
                     
+    def slices_plot_cbfn(self, kwargs): 
+        """
+        Callback function for monitoring in 3D.
+
+        Parameters
+        ----------
+        kwargs: dict,
+            keyword arguments
+        """
+        def show_volume_slices(volume,X, Y, Z, SLICE_X = 0, SLICE_Y = 0, SLICE_Z = 0):
+            # visualize volume:
+            MAXI = volume.max()
+            h = mlab.pipeline.scalar_field(X, Y, Z, volume)
+            v = mlab.pipeline.volume(h,vmin=0.0,vmax=MAXI)
+        
+            ipw_x = mlab.pipeline.image_plane_widget(h, plane_orientation='x_axes',vmin=0.0,vmax=MAXI)
+            ipw_x.ipw.slice_position = SLICE_X
+            ipw_x.ipw.reslice_interpolate = 'nearest_neighbour'
+            ipw_x.ipw.texture_interpolate = False
+            ipw_y = mlab.pipeline.image_plane_widget(h, plane_orientation='y_axes',vmin=0.0,vmax=MAXI)
+            ipw_y.ipw.slice_position = SLICE_Y
+            ipw_y.ipw.reslice_interpolate = 'nearest_neighbour'
+            ipw_y.ipw.texture_interpolate = False
+            ipw_z = mlab.pipeline.image_plane_widget(h, plane_orientation='z_axes',vmin=0.0,vmax=MAXI)
+            ipw_z.ipw.slice_position = SLICE_Z
+            ipw_z.ipw.reslice_interpolate = 'nearest_neighbour'
+            ipw_z.ipw.texture_interpolate = False
+        
+            color_bar = mlab.colorbar(orientation='vertical', nb_labels=5)
+            
+            mlab.view(40, 50)
+            
+            mlab.outline(color = (1, 1, 1))  # box around data axes
+            
+        for scatterer_name, gt_scatterer in self._ground_truth.items():
+    
+            est_scatterer = self.optimizer.medium.get_scatterer(scatterer_name)
+            common_grid = est_scatterer.grid + gt_scatterer.grid
+            a = est_scatterer.get_mask(threshold=0.0).resample(common_grid,method='nearest')
+            b = gt_scatterer.get_mask(threshold=0.0).resample(common_grid,method='nearest')
+            common_mask = shdom.GridData(data=np.bitwise_or(a.data,b.data),grid=common_grid)
+    
+            parameters = est_scatterer.estimators.keys() if kwargs['parameters']=='all' else kwargs['parameters']
+            for parameter_name in parameters:
+                if parameter_name not in est_scatterer.estimators.keys():
+                    continue
+                parameter = est_scatterer.estimators[parameter_name]
+                ground_truth = getattr(gt_scatterer, parameter_name)
+    
+                est_parameter_masked = copy.copy(parameter).resample(common_grid)
+                est_parameter_masked.apply_mask(common_mask)
+                est_param_3d = est_parameter_masked.data
+    
+                gt_param_masked = copy.copy(ground_truth).resample(common_grid)
+                gt_param_masked.apply_mask(common_mask)
+                gt_param_3d = gt_param_masked.data
+    
+                fig, ax = plt.subplots(ncols=2)
+                
+                x = common_grid.x
+                y = common_grid.y
+                z = common_grid.z
+                X,Y,Z = np.meshgrid(x,y,z,indexing='ij')
+                
+                SLICE_X = x[gt_param_3d.sum(axis = (1,2)).argmax()]
+                SLICE_Y = y[gt_param_3d.sum(axis = (0,2)).argmax()]
+                SLICE_Z = z[gt_param_3d.sum(axis = (0,1)).argmax()]
+                # gt:
+                show_volume_slices(gt_param_3d, X, Y, Z, SLICE_X, SLICE_Y, SLICE_Z)
+                mlab.title('True')
+                frame_gt = mlab.screenshot(antialiased=True) 
+                # estimated:
+                show_volume_slices(est_param_3d, X, Y, Z, SLICE_X, SLICE_Y, SLICE_Z)
+                mlab.title('Estimated')
+                frame_est = mlab.screenshot(antialiased=True) 
+                
+                ax[0].set_title('True',fontsize=16)
+                ax[0].imshow(frame_gt)
+                
+                ax[1].set_title('Estimated',fontsize=16)
+                ax[1].imshow(frame_est)     
+    
+                self.tf_writer.add_figure(
+                        tag=kwargs['title'].format(scatterer_name, parameter_name),
+                        figure=fig,
+                        global_step=self.optimizer.iteration
+                    )
+                
+        
     def scatter_plot_cbfn(self, kwargs):
         """
         Callback function for monitoring scatter plot of parameters.
@@ -2419,14 +2541,26 @@ class SummaryWriter(object):
                 rand_ind = np.unique(np.random.randint(0, num_params, int(kwargs['percent'] * num_params)))
                 max_val = max(gt_param.max(), est_param.max())
                 fig, ax = plt.subplots()
+                
+                # ---- to add the colors to spots:
+                x = common_grid.x
+                y = common_grid.y
+                z = common_grid.z
+                X,Y,Z = np.meshgrid(x,y,z,indexing='ij')
+                Z = Z.ravel()
                 ax.set_title(r'{} {}: ${:1.0f}\%$ randomly sampled; $\rho={:1.2f}$'.format(scatterer_name, parameter_name, 100 * kwargs['percent'], rho),
                                  fontsize=16)
-                ax.scatter(gt_param[rand_ind], est_param[rand_ind], facecolors='none', edgecolors='b')
+                #ax.scatter(gt_param[rand_ind], est_param[rand_ind], facecolors='none', edgecolors='b')
+                im = ax.scatter(gt_param[rand_ind], est_param[rand_ind], s = 15, c = Z[rand_ind])
                 ax.set_xlim([0, 1.1*max_val])
                 ax.set_ylim([0, 1.1*max_val])
                 ax.plot(ax.get_xlim(), ax.get_ylim(), c='r', ls='--')
                 ax.set_ylabel('Estimated', fontsize=14)
                 ax.set_xlabel('True', fontsize=14)
+                # colorbar:
+                divider = make_axes_locatable(ax)
+                cax = divider.append_axes("right", size="5%", pad=0.1)
+                plt.colorbar(im, cax=cax)                
     
                 self.tf_writer.add_figure(
                         tag=kwargs['title'].format(scatterer_name, parameter_name),
@@ -2678,6 +2812,10 @@ class SpaceCarver(object):
             show_vol = volume > agreement
             show_vol = np.multiply(show_vol, 1, dtype= np.int16) 
             
+            # I was testing holes with the following two lines:
+            #show_vol = np.zeros_like(volume)
+            #show_vol[inds[:,0],inds[:,1],inds[:,2]] = volume[inds[:,0],inds[:,1],inds[:,2]]    
+                
             h = mlab.pipeline.scalar_field(show_vol)
             v = mlab.pipeline.volume(h,vmin=0.0,vmax=MAXI)
         
@@ -2707,6 +2845,10 @@ class SpaceCarver(object):
     @property
     def grid(self):
         return self._grid
+    
+    @property
+    def images(self):
+    	return self._images
     
     def CloudCT_space_carve(self,projection,grid):
         """
@@ -2825,8 +2967,172 @@ class LocalOptimizer(object):
         """
         self._writer = writer
         if writer is not None:
-            self._writer.attach_optimizer(self)        
+            self._writer.attach_optimizer(self)   
+	    
+	    
+	    
+    def Layer_smoother(self,state,smoothness_ratio):
+	"""
+	Vadim added on 9/12/2020
+	Calculate regularization (Laplacian in x, y axes) cost and gradient.
+
+	Parameters
+	----------
+	state: np.array(shape=(self.num_parameters, dtype=np.float64)
+	    The current state vector
+
+	Returns
+	-------
+	loss: np.float64
+	    The total loss accumulated over all pixels
+	gradient: np.array(shape=(self.num_parameters), dtype=np.float64)
+	    The gradient of the objective function with respect to the state parameters
+
+	"""
+
+	# ----------------------------------------------------------------
+	# ------- extract reff state in its geometry (1D or 3D):----------
+	# ----------------------------------------------------------------
+	"""
+	Use regularization type = Laplacian.
+
+	"""
+	regularization_grad = np.zeros_like(state)
+	regularization_cost = 0
+
+	cloud_estimator = self.medium.estimators['cloud']
+	if 'reff' not in cloud_estimator.estimators.keys():
+	    return regularization_cost, regularization_grad
+
+	# ----------------------------------------------------------------
+	# ------- extract reff state in its geometry (1D or 3D):----------
+	# ----------------------------------------------------------------        
+	states_indexes = np.split(np.arange(state.size), np.cumsum(cloud_estimator.num_parameters[:-1]))
+	reff_estimator = cloud_estimator.estimators['reff']
+	lwc_estimator = cloud_estimator.estimators['lwc']
+	reff_data = reff_estimator.data.copy()
+	lwc_data = lwc_estimator.data.copy()
+
+	if reff_estimator.grid.type == '1D':
+	    print("No Layer smoothing: The grid is 1D!") 
+	    reff_data_1d = reff_data[reff_estimator.mask.data]
+	    return regularization_cost, regularization_grad
+	# ----------------------------------------------------------------
+	# ------- functions:----------------------------------------------
+	# ---------------------------------------------------------------- 
+	# smoothness_ratio and reff_data are known to that function
+	def f2d(X,mask,scale):
+	    X = np.reshape(X,reff_data.shape[:2])
+	    scale = np.reshape(scale,reff_data.shape[:2])
+
+	    dilated_layer = ndimage.grey_dilation(X, size=(6,6))
+	    dilated_layer[mask] = X[mask]
+
+	    norm = np.linalg.norm(scale*laplacian(dilated_layer)*mask)**2
+
+	    return smoothness_ratio*norm        
+
+	def g2d(X,mask,scale):
+	    X = np.reshape(X,reff_data.shape[:2])
+	    scale = np.reshape(scale,reff_data.shape[:2])
+
+	    dilated_layer = ndimage.grey_dilation(X, size=(6,6))
+	    dilated_layer[mask] = X[mask]
+
+	    grad = 2 * smoothness_ratio * laplacian((scale**2)*laplacian(dilated_layer)*mask)*mask
+
+	    return grad.flatten()
+
+	def f(X,mask_3d,scale_3d=None):
+	    # X is flatten vector, it should be 3d matrix
+	    # mask is 3D bool matrix
+	    X = np.reshape(X,mask_3d.shape)
+	    if scale_3d is None:
+		scale_3d = np.ones_like(mask_3d)
+
+	    loss = 0
+	    for altitude_index in range(mask_3d.shape[2]):
+		mask = mask_3d[:,:,altitude_index].copy()
+		scale = scale_3d[:,:,altitude_index].copy()
+		loss_layer = f2d(X[:,:,altitude_index].flatten(),mask,scale.flatten())
+		loss += loss_layer
+
+	    print('regularization loss is {}'.format(loss))
+
+	    return loss
+
+	def g(X,mask_3d,scale_3d=None):
+	    # X is flatten vector, it should be 3d matrix
+	    # mask is 3D bool matrix
+	    X = np.reshape(X,mask_3d.shape)
+	    if scale_3d is None:
+		scale_3d = np.ones_like(mask_3d)
+
+	    gradient = np.zeros_like(reff_data)
+
+	    for altitude_index in range(mask_3d.shape[2]):
+		mask = mask_3d[:,:,altitude_index].copy()
+		scale = scale_3d[:,:,altitude_index].copy()
+		gradient[:,:,altitude_index] = g2d(X[:,:,altitude_index].flatten(),mask,scale.flatten()).reshape(mask_3d.shape[:2])
+
+	    return gradient.flatten()  
+
+
+	# ---------------------------------------------------------------------------------
+	# ---------------------------------------------------------------------------------
+	# ---------------------------------------------------------------------------------
+	mask = reff_estimator.mask.data
+	# At this point the mask and data is 3D.
+	assert reff_estimator.grid.type == '3D', "Unsupported grid type {}".format(reff_estimator.grid.type)        
+	# Preconditioning:
+	reff_data*= reff_estimator.precondition_scale_factor
+	#lwc_data*= lwc_estimator.precondition_scale_factor # I don't know if that is necessary
+	lwc_scale = lwc_data/lwc_data.max()
+	data_smooth = reff_data
+	# use lwc_scale (operator M) to scale the gradient:
+	# cost (MLx)'(MLx) = |MLx|^2, where x is a layer of the state.
+	# gradient 2*(L'M'MLx)
+	regularization_cost = f(data_smooth.flatten(),mask,lwc_scale.flatten())
+	grad_3d = g(data_smooth.flatten(),mask,lwc_scale.flatten()).reshape(reff_data.shape)
+	regularization_grad[states_indexes[1]] = grad_3d[mask]
+
+	return regularization_cost, regularization_grad
+
+    
+    def profile_smoother(self,state,smoothness_ratio):
+	"""
+	Vadin added on 12/12/2020 - Not in use yet.
+	
+	"""
+	regularization_grad = np.zeros_like(state)
+	regularization_cost = 0
+    
+	if self.smoothness_ratio > 0:
         
+	    cloud_estimator = self.medium.estimators['cloud']
+	    if 'reff' in cloud_estimator.estimators.keys():
+		states_indexes = np.split(np.arange(state.size), np.cumsum(cloud_estimator.num_parameters[:-1]))
+		reff_estimator = cloud_estimator.estimators['reff']
+		reff_data = reff_estimator.data.copy()
+		regularization_grad = np.zeros_like(state)
+    
+		if reff_estimator.grid.type == '1D':
+		    reff_data_1d = reff_data[reff_estimator.mask.data].copy()
+		elif reff_estimator.grid.type == '3D':
+		    # masked mean
+		    masked_mean = np.ma.masked_equal(reff_data, 0).mean(axis=0).mean(axis=0)
+		    reff_data_1d = masked_mean.data                  
+		else:
+		    raise Exception('Unsupported grid type.')
+    
+		reff_data_1d*= reff_estimator.precondition_scale_factor
+		regularization_grad[states_indexes[1]] = self.smoothness_ratio *2* laplacian(laplacian(reff_data_1d))
+		regularization_cost = self.smoothness_ratio * np.linalg.norm(laplacian(reff_data_1d))**2
+	
+	return regularization_cost, regularization_grad
+	# ----------------------------------------------------------------
+	
+	
     def objective_fun(self, state):
         """
         The objective function (cost) and gradient at the current state.
@@ -2858,33 +3164,7 @@ class LocalOptimizer(object):
         Use regularization type = Laplacian.
         
         """
-        regularization_grad = np.zeros_like(state)
-        regularization_cost = 0
-        
-        if self.smoothness_ratio > 0:
-            
-            from scipy.ndimage.filters import laplace as laplacian
-            
-            cloud_estimator = self.medium.estimators['cloud']
-            if 'reff' in cloud_estimator.estimators.keys():
-                states_indexes = np.split(np.arange(state.size), np.cumsum(cloud_estimator.num_parameters[:-1]))
-                reff_estimator = cloud_estimator.estimators['reff']
-                reff_data = reff_estimator.data
-                regularization_grad = np.zeros_like(state)
-                
-                if reff_estimator.grid.type == '1D':
-                    reff_data_1d = reff_data[reff_estimator.mask.data]
-                elif reff_estimator.grid.type == '3D':
-                    # masked mean
-                    masked_mean = np.ma.masked_equal(reff_data, 0).mean(axis=0).mean(axis=0)
-                    reff_data_1d = masked_mean.data                  
-                else:
-                    raise Exception('Unsupported grid type.')
-                
-                reff_data_1d*= reff_estimator.precondition_scale_factor
-                regularization_grad[states_indexes[1]] = self.smoothness_ratio *2* laplacian(laplacian(reff_data_1d))
-                regularization_cost = self.smoothness_ratio * np.linalg.norm(laplacian(reff_data_1d))**2
-            # ----------------------------------------------------------------
+	regularization_cost, regularization_grad = self.Layer_smoother(state,self.smoothness_ratio)  
         
         gradient, loss, images, debug_gradients = self.medium.compute_gradient(
             rte_solvers=self.rte_solver,

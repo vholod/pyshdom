@@ -9,6 +9,9 @@
 # --------------------------------------------------
 # -------------   Simulation flags  ----------------
 # --------------------------------------------------
+Log_Prefix: ''
+
+
 
 DOFORWARD: True
 DOINVERSE: True
@@ -53,12 +56,12 @@ swir_options:
 # --------------------------------------------------
 #CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt' # 15.2, 06
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt' # lwc: 0.4 reff: 7.8
-CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt' # lwc: 0.8 reff: 6.2
+#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt' # lwc: 0.8 reff: 6.2
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt' # or _1d_reff , reff: 7.8 , lwc: 0.5
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt' # reff: 9.4 lwc: 0.6 
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt' # lwc: 0.4, reff: 6.2
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440_1d_reff_const_veff.txt'
-#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821' # 
+CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821' # 
 
 
 
@@ -212,7 +215,7 @@ inverse_options:
   # --------------------------------------------------
   CloudCT_space_curve: True # do space curve implemented by CloudCT
   radiance_threshold_vis: [0.023] # Threshold is either a scalar or a list of length of measurements.
-  radiance_threshold_swir: [0.023]
+  radiance_threshold_swir: [0.017]
   # Shubi added but I need to accept:
   # radiance_threshold: 0.023 # Threshold is either a scalar or a list of length of measurements.
   # default_radiance_threshold: [0.02, 0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02]
@@ -259,6 +262,11 @@ inverse_options:
   init: 'Monotonous'
   #mono_in: 'reff'
   
+  # droplets scatterer padding width.
+  XPAD: 5 # pad in both sides in x axis
+  YPAD: 5
+  ZPAD: 5
+  agreement: 0.9 # Space curving agreement among views
   
   # GT_USE
   use_const_veff: True

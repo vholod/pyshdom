@@ -9,6 +9,11 @@
 # --------------------------------------------------
 # -------------   Simulation flags  ----------------
 # --------------------------------------------------
+Log_Prefix: ''
+
+
+
+
 
 DOFORWARD: True
 DOINVERSE: True
@@ -33,7 +38,7 @@ vis_options:
   ImportConfigPath: '../CloudCT_notebooks/Gecko_config_20mGDS.json'
   #ImportConfigPath: '../CloudCT_notebooks/VIS_835-885_config_20mGDS.json'
   temperature: *temperature # celsius
-  true_indices: [0,1,2,3,5,7,8,9]  # where imagers are located
+  true_indices: [0,1,2,3,4,5,6,7,8,9]  # where imagers are located
   rays_per_pixel: 1
   rigid_sampling: True # True
 
@@ -43,7 +48,7 @@ vis_options:
 swir_options:
   ImportConfigPath: '../CloudCT_notebooks/Hypothetic_SWIR_camera_config_50m_nadir_resolution.json'
   temperature: *temperature # celsius
-  true_indices: [4,6]   # where imagers are located, if true_indices: [], no swir imager will be simulated
+  true_indices: []   # where imagers are located, if true_indices: [], no swir imager will be simulated
   rays_per_pixel: 16
   rigid_sampling: True # True
 
@@ -118,8 +123,8 @@ surface_albedos_val: 0.05
 # -------------------------------------------------
 mie_options:
 
-  start_reff: 2.5 #4 # Starting effective radius [Micron]
-  end_reff: 25.0
+  start_reff: 1.5 #4 # Starting effective radius [Micron]
+  end_reff: 20
   num_reff: 100
   start_veff: 0.01
   end_veff: 0.53 #0.4 # return it to 0.4
@@ -207,7 +212,7 @@ inverse_options:
   erode_edges_init: False
   precond_grad: False
   force_1d_reff: False
-  reff_smoothness_const: 0.0 # good 0.000001 # sloud be less than  0.00001
+  reff_smoothness_const: 0.0 # good 0.00001 and 0.000001 is better
   
   # --------------------------------------------------
   # -------------   Radiance Threshold  ------------
@@ -237,7 +242,7 @@ inverse_options:
 
   # Initialization and Medium parameters:
   lwc: 0.6 # 1  # init lwc of the generator
-  reff: 15.2 # should be 15.2 # init reff of the generator
+  reff: 14.2 # should be 15.2 # init reff of the generator
   
   #lwc: 0.01 # 1  # init lwc of the generator
   #reff: 12
@@ -267,9 +272,14 @@ inverse_options:
   init: 'Monotonous'
   #mono_in: 'reff'
   
+  # droplets scatterer padding width.
+  XPAD: 5 # pad in both sides in x axis
+  YPAD: 5
+  ZPAD: 5
+  agreement: 0.9 # Space curving agreement among views
   
   # GT_USE
-  use_const_veff: False
+  use_const_veff: True
   add_rayleigh: True
   use_forward_mask: True
   use_forward_grid: True

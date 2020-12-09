@@ -124,7 +124,7 @@ class OptimizationScript(ExtinctionOptimizationScript):
             else:
                 reff_grid = ground_truth.reff.grid
                 
-            veff_grid = ground_truth.reff.grid
+            veff_grid = ground_truth.veff.grid
         else:
             lwc_grid = reff_grid = veff_grid = self.cloud_generator.get_grid()
         grid = lwc_grid + reff_grid + veff_grid
@@ -371,6 +371,8 @@ class OptimizationScript(ExtinctionOptimizationScript):
             writer.monitor_scatterer_error(estimator_name=self.scatterer_name, ground_truth=ground_truth)
             writer.monitor_scatter_plot(estimator_name=self.scatterer_name, ground_truth=ground_truth, dilute_percent=0.4, parameters=['lwc'])
             #writer.monitor_scatter_log_plot(estimator_name=self.scatterer_name, ground_truth=ground_truth, dilute_percent=0.4, parameters=['lwc'])
+            #writer.monitor_slices_plot(estimator_name=self.scatterer_name, ground_truth=ground_truth, ckpt_period=-1, parameters=['lwc'])
+            #writer.monitor_slices_plot(estimator_name=self.scatterer_name, ground_truth=ground_truth, ckpt_period=-1, parameters=['reff'])
             
             writer.monitor_scatter_plot(estimator_name=self.scatterer_name, ground_truth=ground_truth, dilute_percent=0.2, parameters=['reff'])
             writer.monitor_horizontal_mean(estimator_name=self.scatterer_name, ground_truth=ground_truth, ground_truth_mask=ground_truth.get_mask(threshold=0.01))

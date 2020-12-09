@@ -791,6 +791,10 @@ class Medium(object):
         scatterer.grid.y = ygrid  - y_min
         scatterer.grid.z = zgrid  
         
+        assert scatterer.grid.bounding_box.xmax == scatterer.grid.xmax, "Bounding_box is not updated"
+        assert scatterer.grid.bounding_box.ymax == scatterer.grid.ymax, "Bounding_box is not updated"
+        assert scatterer.grid.bounding_box.zmax == scatterer.grid.zmax, "Bounding_box is not updated"
+        
         lwc = shdom.GridData(scatterer.grid, lwc).squeeze_dims()
         reff = shdom.GridData(scatterer.grid, reff).squeeze_dims()
         veff = shdom.GridData(scatterer.grid, veff).squeeze_dims()

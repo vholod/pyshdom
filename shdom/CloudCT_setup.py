@@ -723,7 +723,7 @@ def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, air_num_points = 20
             wavelengths_micron = wavelengths_micron.tolist()
                     
     # Generate multi-spectral scatterers for both droplets and air molecules
-    if CloudFieldFile is not None:
+    if CloudFieldFile is None:
         print("You must provied the cloud field for the simulation. Otherwise double voxel atmosphere will be generated.")
         from collections import namedtuple
         Arg = namedtuple('Arg',

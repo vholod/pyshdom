@@ -30,7 +30,6 @@ from scipy.interpolate import interp1d, RegularGridInterpolator
 import warnings
 import numpy as np
 import os
-from scipy import ndimage
 
 def float_round(x):
     """Round a float or np.float32 to a 3 digits float"""
@@ -308,6 +307,9 @@ class Grid(object):
         self._dx = spacing[0]  
         self._nx = len(val)
         self._xmin, self._xmax = val[0], val[-1]
+        if self._bounding_box is not None:
+            if hasattr(self, 'zmin') and hasattr(self, 'zmax') and hasattr(self, 'ymin') and hasattr(self, 'ymax'):
+                self._bounding_box = BoundingBox(self.xmin, self.ymin, self.zmin, self.xmax, self.ymax, self.zmax)
     
     @property
     def y(self):
@@ -323,7 +325,10 @@ class Grid(object):
         self._dy = spacing[0] 
         self._ny = len(val)
         self._ymin, self._ymax = val[0], val[-1]
-
+        if self._bounding_box is not None:
+            if hasattr(self, 'xmin') and hasattr(self, 'xmax') and hasattr(self, 'zmin') and hasattr(self, 'zmax'):
+                self._bounding_box = BoundingBox(self.xmin, self.ymin, self.zmin, self.xmax, self.ymax, self.zmax)
+            
     @property
     def z(self):
         return self._z                 
@@ -334,6 +339,9 @@ class Grid(object):
         self._z = val
         self._nz = len(val)
         self._zmin, self._zmax = val[0], val[-1]
+        if self._bounding_box is not None:
+            if hasattr(self, 'xmin') and hasattr(self, 'xmax') and hasattr(self, 'ymin') and hasattr(self, 'ymax'):
+                self._bounding_box = BoundingBox(self.xmin, self.ymin, self.zmin, self.xmax, self.ymax, self.zmax)        
 
     @property 
     def nx(self):
@@ -407,13 +415,15 @@ class GridData(object):
         A Grid object of type '1D' or '3D'.
     data: np.array
         data contains a scalar field.
+    scaling: np.array 
+        Has same shape as data and used to scale the data. Usualy it is None and there is no scaling.
     """    
     def __init__(self, grid, data, scaling = None):
         self._type = grid.type
         self._grid = grid
         self._data = data
         self._shape = self._data.shape[:3]
-        self._ndim = self._data.ndim    
+        self._ndim = self._data.ndim  
         self._scaling = scaling
         if self.type == 'Homogeneous' and self.ndim != 0:
             raise AttributeError('Grid is Homogeneous but data dimension is:{}'.format(self.ndim))
@@ -517,6 +527,7 @@ class GridData(object):
         """
         IF_MEAN_INSIDE_MASK = True
         SCALE_REFF_GRAD_BY_LWC = False
+
         
         if self.grid == grid:
             return self 
@@ -561,7 +572,7 @@ class GridData(object):
                                 masked_mean = np.ma.masked_equal(data, 0).mean(axis=0).mean(axis=0)
                                 data = masked_mean.data                          
                         else:
-                            data = np.mean(np.mean(data, axis=0), axis=0)                            
+                            data = np.mean(np.mean(data, axis=0), axis=0)                               
                 else:
                     if method == 'linear':
                         data = self._linear_interpolator3d(np.stack(np.meshgrid(grid.x, grid.y, grid.z, indexing='ij'), axis=-1))
@@ -569,8 +580,6 @@ class GridData(object):
                         data = self._nearest_interpolator3d(np.stack(np.meshgrid(grid.x, grid.y, grid.z, indexing='ij'), axis=-1)) 
         return GridData(grid, data.astype(self.data.dtype))
 
-    
-            
     def apply_mask(self, mask):
         """
         Zero data points outside of a masked region.
