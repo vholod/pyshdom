@@ -7,6 +7,7 @@ import argparse
 import shdom
 import copy
 from collections import OrderedDict
+import scipy.io as sio
 
 import scipy.stats as st
 import numpy.fft as fft
@@ -1414,6 +1415,147 @@ class InitParam_FromMatFile(CloudGenerator):
     def get_param(self, grid=None):   
         pass
         
+class FromMatFile(CloudGenerator):
+    """
+    It will initialize one parameter fro a mat file.
+    For example, 'lwc' from some lwc.mat file.
+    """
+    def __init__(self, args):
+        super(FromMatFile, self).__init__(args)
+        self._param_name = None
+        
+    @classmethod
+    def update_parser(self, parser):
+        """
+        Update the argument parser with parameters relevant to this generator.
+
+        Parameters
+        ----------
+        parser: argparse.ArgumentParser()
+            The main parser to update.
+
+        Returns
+        -------
+        parser: argparse.ArgumentParser()
+            The updated parser.
+        """
+        parser.add_argument('--nx',
+                            default=10,
+                            type=int,
+                            help='(default value: %(default)s) Number of grid cell in x (North) direction')
+        parser.add_argument('--ny',
+                            default=10,
+                            type=int,
+                            help='(default value: %(default)s) Number of grid cell in y (East) direction')
+        parser.add_argument('--nz',
+                            default=10,
+                            type=int,
+                            help='(default value: %(default)s) Number of grid cell in z (Up) direction')
+        parser.add_argument('--domain_size',
+                            default=1.0,
+                            type=float,
+                            help='(default value: %(default)s) Cubic domain size [km]')
+        parser.add_argument('--extinction',
+                            default=1.0,
+                            type=np.float32,
+                            help='(default value: %(default)s) Extinction [km^-1]')
+        parser.add_argument('--path',
+                            default=None,
+                            type=str,
+                            help='(default value: %(default)s) directory data from loop in mat files')
+        parser.add_argument('--veff',
+                            default=0.1,
+                            type=np.float32,
+                            help='(default value: %(default)s) Effective variance')        
+        return parser
+    
+    def get_grid(self):
+        """
+        Retrieve the scatterer grid.
+
+        Returns
+        -------
+        grid: shdom.Grid
+            A Grid object for this scatterer
+        """
+        bb = shdom.BoundingBox(0.0, 0.0, 0.0, self.args.domain_size, self.args.domain_size, self.args.domain_size)
+        return shdom.Grid(bounding_box=bb, nx=self.args.nx, ny=self.args.ny, nz=self.args.nz)
+    
+    def get_parameter(self, grid=None , parameter = None):
+        """
+        Retrieve the content of parameter.
+        Parameters
+        ----------
+        grid: shdom.Grid, optional
+            A shdom.Grid object. If None is specified than a grid is created from Arguments given to the generator (get_grid method)
+        Returns
+        -------
+        Parameter_GridData: shdom.GridData
+            A GridData object can be lwc (g/m^3), reff (micron) or unitless veff on a 3D grid.
+        """
+        assert (parameter == 'lwc' or parameter == 'reff' or parameter == 'veff'), "Unknown parameter."
+        if grid is None:
+            grid = self.get_grid()
+        path = self.args.path
+        parameter_data = sio.loadmat(path)[parameter]
+        assert grid.nx == parameter_data.shape[0], "Inconsistency between the defined grid and loaded mat file structure."
+        assert grid.ny == parameter_data.shape[1], "Inconsistency between the defined grid and loaded mat file structure."
+        assert grid.nz == parameter_data.shape[2], "Inconsistency between the defined grid and loaded mat file structure."
+        
+        Parameter_GridData = shdom.GridData(grid, parameter_data)
+        return Parameter_GridData
+    
+    def get_lwc(self, grid=None):
+        """
+        Retrieve the liquid water content.
+        Parameters
+        ----------
+        grid: shdom.Grid, optional
+            A shdom.Grid object. If None is specified than a grid is created from Arguments given to the generator (get_grid method)
+        Returns
+        -------
+        lwc: shdom.GridData
+            A GridData object containing liquid water content (g/m^3) on a 3D grid.
+        """
+        if grid is None:
+            grid = self.get_grid()
+        lwc  = self.get_parameter( grid=grid , parameter = 'lwc')
+        return lwc
+    
+    def get_reff(self, grid=None):
+        """
+        Retrieve the effective radius on a grid.
+        Parameters
+        ----------
+        grid: shdom.Grid, optional
+            A shdom.Grid object. If None is specified than a grid is created from Arguments given to the generator (get_grid method)
+        Returns
+        -------
+        reff: shdom.GridData
+            A GridData object containing the effective radius [microns] on a grid
+        """
+        if grid is None:
+            grid = self.get_grid()
+        reff  = self.get_parameter( grid=grid , parameter = 'reff')
+        return reff
+    
+    def get_veff(self, grid=None):
+        """
+        Retrieve the effective variance on a grid.
+        Parameters
+        ----------
+        grid: shdom.Grid, optional
+            A shdom.Grid object. If None is specified than a grid is created from Arguments given to the generator (get_grid method)
+        Returns
+        -------
+        veff: shdom.GridData
+            A GridData object containing the effective variance on a grid
+        """
+        if grid is None:
+            grid = self.get_grid()
+        veff  = self.get_parameter( grid=grid , parameter = 'veff')
+        return veff
+
         
 class GaussianFieldGenerator(object):
     """

@@ -163,9 +163,9 @@ class OptimizationScript(ExtinctionOptimizationScript):
         elif self.args.const_lwc:
             lwc = self.cloud_generator.get_lwc(lwc_grid)
         else:
-            if(isinstance(self.cloud_generator,shdom.generate.LesFile)):
+            if(isinstance(self.cloud_generator,shdom.generate.LesFile) or isinstance(self.cloud_generator,shdom.generate.FromMatFile)):
                 
-                lwc = shdom.GridDataEstimator(self.cloud_generator.get_lwc(),
+                lwc = shdom.GridDataEstimator(self.cloud_generator.get_lwc(grid=lwc_grid),
                                               min_bound=1e-5,
                                               max_bound=2.0,
                                               precondition_scale_factor=self.args.lwc_scaling)                
@@ -199,9 +199,9 @@ class OptimizationScript(ExtinctionOptimizationScript):
         elif self.args.const_reff:
             reff = self.cloud_generator.get_reff(reff_grid)
         else:
-            if(isinstance(self.cloud_generator,shdom.generate.LesFile)):
+            if(isinstance(self.cloud_generator,shdom.generate.LesFile) or isinstance(self.cloud_generator,shdom.generate.FromMatFile)):
                 
-                reff = shdom.GridDataEstimator(self.cloud_generator.get_reff(),
+                reff = shdom.GridDataEstimator(self.cloud_generator.get_reff(grid=reff_grid),
                                                min_bound=ground_truth.min_reff,
                                                max_bound=ground_truth.max_reff,
                                                precondition_scale_factor=self.args.reff_scaling)
@@ -262,9 +262,9 @@ class OptimizationScript(ExtinctionOptimizationScript):
         elif self.args.const_veff:
             veff = self.cloud_generator.get_veff(veff_grid)
         else:
-            if(isinstance(self.cloud_generator,shdom.generate.LesFile)):
+            if(isinstance(self.cloud_generator,shdom.generate.LesFile) or isinstance(self.cloud_generator,shdom.generate.FromMatFile)):
             
-                veff = shdom.GridDataEstimator(self.cloud_generator.get_veff(),
+                veff = shdom.GridDataEstimator(self.cloud_generator.get_veff(grid=veff_grid),
                                                max_bound=ground_truth.max_veff,
                                                min_bound=ground_truth.min_veff,
                                                precondition_scale_factor=self.args.veff_scaling)
@@ -276,6 +276,7 @@ class OptimizationScript(ExtinctionOptimizationScript):
                                                max_bound=ground_truth.max_veff,
                                                min_bound=ground_truth.min_veff,
                                                precondition_scale_factor=self.args.veff_scaling)
+                
         veff.apply_mask(mask)
         veff.precond_grad = self.args.precond_grad
 

@@ -12,13 +12,13 @@ from shdom import CloudCT_setup, plank
 from shdom.CloudCT_Utils import *
 import random
 
-def main(CloudFieldFile = None, Init_dict = None, Prefix = None):
+def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, mat_path = None):
     
     logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
-    run_params = load_run_params(params_path="run_params_rico.yaml")
-    #run_params = load_run_params(params_path="run_params.yaml")
+    #run_params = load_run_params(params_path="run_params_rico.yaml")
+    run_params = load_run_params(params_path="run_params.yaml")
 
     if CloudFieldFile is not None:
         run_params['CloudFieldFile'] = CloudFieldFile
@@ -29,7 +29,14 @@ def main(CloudFieldFile = None, Init_dict = None, Prefix = None):
         
     if Prefix is not None:
         run_params['Log_Prefix'] = Prefix   
-        
+    
+    if init is not None:
+        run_params['inverse_options']['init'] = init
+        if init == 'FromMatFile':
+            run_params['inverse_options']['mat_path'] = mat_path
+        else:
+            raise Exception('Not implemented yet.')
+
 
     #run_params['inverse_options']['reff_smoothness_const'] = reff_smoothness_const 
     # run_params['sun_zenith'] = sun_zenith # if you need to set the angle from main's input
@@ -843,8 +850,11 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
     elif(inverse_options['init'] == 'LesFile' ):
         INIT_USE = ' --init ' + inverse_options['init'] + ' --path ' + inverse_options['LesFile_path']
     elif(inverse_options['init'] == 'Monotonous' ): 
-        INIT_USE = ' --init ' + inverse_options['init']       
-
+        INIT_USE = ' --init ' + inverse_options['init']  
+    elif(inverse_options['init'] == 'FromMatFile' ): 
+        INIT_USE = ' --init ' + inverse_options['init'] + ' --path ' + inverse_options['mat_path']
+        
+        
     GT_USE = ''
     GT_USE = GT_USE + ' --cloudct_use' if inverse_options['cloudct_use'] else GT_USE  # -----------------
     GT_USE = GT_USE + ' --add_rayleigh' if inverse_options['add_rayleigh'] and not run_params['forward_options'][
@@ -1305,11 +1315,38 @@ def SHOW_INIT_PROFILES(N=16):
     
 if __name__ == '__main__':
     
-    #reff_smoothness_consts = [0.01, 0.1, 10, 100, 1000, 1e4, 1e5, 1e6]
-    #for reff_smoothness_const in reff_smoothness_consts:
     
-    main()
+    #main()
+    CloudFieldFiles = []
+    #CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt') 
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt') 
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt') 
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821') 
+
+    mat_paths = []
+    # must be in the same order as above:
+    #mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_23040_10_noise')
+    mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_55080_10_noise')
+    mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_53760_10_noise')
+    mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_28440_10_noise')
+    mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_4821_10_noise')
     
+    Prefix = "Init_with_noisy_gt_"
+    init = 'FromMatFile'
+    
+    for index, CloudFieldFile in enumerate(CloudFieldFiles):
+        CloudFieldName = CloudFieldFile.split('/')[-1].split('.')[0]
+        CloudFieldName = CloudFieldName.split('_')[-1]
+        mat_path = mat_paths[index]
+        print(CloudFieldName)
+        print(mat_path)
+
+        print(10*'-')
+    
+        main(CloudFieldFile = CloudFieldFile, init = init, Prefix = Prefix, mat_path = mat_path)
+
+        
     # -------------------------------
     if(0):
         #path1 = "/home/vhold/CloudCT/pyshdom/CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_620-670nm_active_sats_10_GSD_20m_and_SWIR_1628-1658nm_active_sats_10_GSD_50m_LES_cloud_field_BOMEX/cloudct_measurements"

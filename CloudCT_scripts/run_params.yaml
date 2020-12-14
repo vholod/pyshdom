@@ -256,6 +256,8 @@ inverse_options:
   stokes_weights: [1.0, 0.0, 0.0, 0.0] # Loss function weights for stokes vector components [I, Q, U, V]
 
   # INIT
+  #init: 'FromMatFile'
+  #mat_path = ../CloudCT_experiments/noisy_init/BOMOX_28440_10_noise.mat
   #init: 'Homogeneous' # init_generator = 'Homogeneous' it is the CloudGenerator from shdom.generate.py
   #init: 'LesFile'
   #LesFile_path: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt' # lwc: 0.4, reff: 6.2
