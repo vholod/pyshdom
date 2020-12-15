@@ -36,7 +36,7 @@ vis_options:
   ImportConfigPath: '../CloudCT_notebooks/Gecko_config_20mGDS.json'
   #ImportConfigPath: '../CloudCT_notebooks/VIS_835-885_config_20mGDS.json'
   temperature: *temperature # celsius
-  true_indices: [0,1,2,3,5,7,8,9]  # where imagers are located
+  true_indices: [0,1,2,3,4,5,6,7,8,9]  # where imagers are located
   rays_per_pixel: 1
   rigid_sampling: True # True
 
@@ -46,7 +46,7 @@ vis_options:
 swir_options:
   ImportConfigPath: '../CloudCT_notebooks/Hypothetic_SWIR_camera_config_50m_nadir_resolution.json'
   temperature: *temperature # celsius
-  true_indices: [4,6]   # where imagers are located, if true_indices: [], no swir imager will be simulated
+  true_indices: []   # where imagers are located, if true_indices: [], no swir imager will be simulated
   rays_per_pixel: 16
   rigid_sampling: True # True
 
@@ -72,7 +72,7 @@ AirFieldFile: '../ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file wh
 # --------------------------------------------------
 # ----------------  Number of Jobs  ----------------
 # --------------------------------------------------
-n_jobs: 40
+n_jobs: 50
 
 
 # --------------------------------------------------
@@ -194,10 +194,10 @@ forward_options:
 # --------------------------------------------------
 # equal bias and equal bias = False are meant for giving each image a different gain and bias
 # since we add uncertainty in a loop on the imager it is not relevant, so keep on true
-use_cal_uncertainty: False
+use_cal_uncertainty: True
 uncertainty_options:
   use_bias: False
-  use_gain: False
+  use_gain: True
   max_bias: 5
   max_gain: 5
   

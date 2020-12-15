@@ -12,9 +12,10 @@ from shdom import CloudCT_setup, plank
 from shdom.CloudCT_Utils import *
 import random
 
-def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, mat_path = None):
-    
-    logger = create_and_configer_logger(log_name='run_tracker.log')
+def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, mat_path = None, logger=None):
+
+    if not logger:
+        logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
     #run_params = load_run_params(params_path="run_params_rico.yaml")
@@ -1040,13 +1041,13 @@ def create_and_configer_logger(log_name):
     # set up logging to file
     logging.basicConfig(
         filename=log_name,
-        level=logging.ERROR,
+        level=logging.DEBUG,
         format='[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s'
     )
 
     # set up logging to console
     console = logging.StreamHandler()
-    console.setLevel(logging.ERROR)
+    console.setLevel(logging.DEBUG)
     # set a format which is simpler for console use
     formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
     console.setFormatter(formatter)
@@ -1161,7 +1162,7 @@ def run_many_cases():
     
     CloudFieldFiles = []
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt') 
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt')
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt') 
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt') 
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt') 
@@ -1177,17 +1178,18 @@ def run_many_cases():
     Init_dict['4821'] =  {'lwc':1.6,'reff':12.6}
     
     Prefix = "Init_same_as_swir_vis_But_with_swir_"
-    
+    logger = create_and_configer_logger(log_name='run_tracker.log')
+
     for CloudFieldFile in CloudFieldFiles:
         CloudFieldName = CloudFieldFile.split('/')[-1].split('.')[0]
         CloudFieldName = CloudFieldName.split('_')[-1]
         
-        print(CloudFieldName)
-        print('init lwc {}, init reff {}'.format(Init_dict[str(CloudFieldName)]['lwc'],
+        logger.debug(CloudFieldName)
+        logger.debug('init lwc {}, init reff {}'.format(Init_dict[str(CloudFieldName)]['lwc'],
                                                  Init_dict[str(CloudFieldName)]['reff']))
-        print(10*'-')
+        logger.debug(10*'-')
     
-        main(CloudFieldFile = CloudFieldFile, Init_dict = Init_dict[str(CloudFieldName)], Prefix = Prefix)
+        main(CloudFieldFile = CloudFieldFile, Init_dict = Init_dict[str(CloudFieldName)], Prefix = Prefix, logger=logger)
     
     # -------------------------------
     
@@ -1314,37 +1316,37 @@ def SHOW_INIT_PROFILES(N=16):
     
     
 if __name__ == '__main__':
+    run_many_cases()
     
-    
-    #main()
-    CloudFieldFiles = []
-    #CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt') 
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt') 
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt') 
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821') 
-
-    mat_paths = []
-    # must be in the same order as above:
-    #mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_23040_10_noise')
-    mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_55080_10_noise')
-    mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_53760_10_noise')
-    mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_28440_10_noise')
-    mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_4821_10_noise')
-    
-    Prefix = "Init_with_noisy_gt_"
-    init = 'FromMatFile'
-    
-    for index, CloudFieldFile in enumerate(CloudFieldFiles):
-        CloudFieldName = CloudFieldFile.split('/')[-1].split('.')[0]
-        CloudFieldName = CloudFieldName.split('_')[-1]
-        mat_path = mat_paths[index]
-        print(CloudFieldName)
-        print(mat_path)
-
-        print(10*'-')
-    
-        main(CloudFieldFile = CloudFieldFile, init = init, Prefix = Prefix, mat_path = mat_path)
+    # #main()
+    # CloudFieldFiles = []
+    # #CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')
+    # CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt')
+    # CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt')
+    # CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt')
+    # CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821')
+    #
+    # mat_paths = []
+    # # must be in the same order as above:
+    # #mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_23040_10_noise')
+    # mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_55080_10_noise')
+    # mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_53760_10_noise')
+    # mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_28440_10_noise')
+    # mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_4821_10_noise')
+    #
+    # Prefix = "Init_with_noisy_gt_"
+    # init = 'FromMatFile'
+    #
+    # for index, CloudFieldFile in enumerate(CloudFieldFiles):
+    #     CloudFieldName = CloudFieldFile.split('/')[-1].split('.')[0]
+    #     CloudFieldName = CloudFieldName.split('_')[-1]
+    #     mat_path = mat_paths[index]
+    #     print(CloudFieldName)
+    #     print(mat_path)
+    #
+    #     print(10*'-')
+    #
+    #     main(CloudFieldFile = CloudFieldFile, init = init, Prefix = Prefix, mat_path = mat_path)
 
         
     # -------------------------------
