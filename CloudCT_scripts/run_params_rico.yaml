@@ -94,7 +94,7 @@ GSD: 0.02
 # -------------   Sun Azimuth & Zenith  ------------
 # --------------------------------------------------
 sun_azimuth: 90  # azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
-sun_zenith: 165  # zenith: Solar beam zenith angle in range (90,180]
+sun_zenith: 155  # zenith: Solar beam zenith angle in range (90,180]
 
 
 # --------------------------------------------------

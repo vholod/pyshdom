@@ -17,8 +17,8 @@ def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, ma
     logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
-    #run_params = load_run_params(params_path="run_params_rico.yaml")
-    run_params = load_run_params(params_path="run_params.yaml")
+    run_params = load_run_params(params_path="run_params_rico.yaml")
+    #run_params = load_run_params(params_path="run_params.yaml")
 
     if CloudFieldFile is not None:
         run_params['CloudFieldFile'] = CloudFieldFile
@@ -334,9 +334,7 @@ def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, ma
             # - reduce_exposure = False
             # - scale_ideally = True
             # - apply_noise = False
-            #reduce_exposure = False
-            #scale_ideally = True
-            #apply_noise = False            
+                      
         else:
             # If we do not use realistic imager, we MUST use IF_SCALE_IDEALLY=True so the images will have values in
             # maximum range.
@@ -1316,35 +1314,37 @@ def SHOW_INIT_PROFILES(N=16):
 if __name__ == '__main__':
     
     
-    #main()
-    CloudFieldFiles = []
-    #CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt') 
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt') 
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt') 
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821') 
-
-    mat_paths = []
-    # must be in the same order as above:
-    #mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_23040_10_noise')
-    mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_55080_10_noise')
-    mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_53760_10_noise')
-    mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_28440_10_noise')
-    mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_4821_10_noise')
+    main()
+    if(0):
+        
+        CloudFieldFiles = []
+        #CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')
+        #CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt') 
+        #CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt') 
+        #CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt') 
+        CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821') 
     
-    Prefix = "Init_with_noisy_gt_"
-    init = 'FromMatFile'
+        mat_paths = []
+        # must be in the same order as above:
+        #mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_23040_10_noise')
+        #mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_55080_10_noise')
+        #mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_53760_10_noise')
+        #mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_28440_10_noise')
+        mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_4821_10_noise')
+        
+        Prefix = "Init_with_noisy_gt_"
+        init = 'FromMatFile'
+        
+        for index, CloudFieldFile in enumerate(CloudFieldFiles):
+            CloudFieldName = CloudFieldFile.split('/')[-1].split('.')[0]
+            CloudFieldName = CloudFieldName.split('_')[-1]
+            mat_path = mat_paths[index]
+            print(CloudFieldName)
+            print(mat_path)
     
-    for index, CloudFieldFile in enumerate(CloudFieldFiles):
-        CloudFieldName = CloudFieldFile.split('/')[-1].split('.')[0]
-        CloudFieldName = CloudFieldName.split('_')[-1]
-        mat_path = mat_paths[index]
-        print(CloudFieldName)
-        print(mat_path)
-
-        print(10*'-')
-    
-        main(CloudFieldFile = CloudFieldFile, init = init, Prefix = Prefix, mat_path = mat_path)
+            print(10*'-')
+        
+            main(CloudFieldFile = CloudFieldFile, init = init, Prefix = Prefix, mat_path = mat_path)
 
         
     # -------------------------------
