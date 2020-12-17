@@ -91,7 +91,7 @@ GSD: 0.02
 # -------------   Sun Azimuth & Zenith  ------------
 # --------------------------------------------------
 sun_azimuth: 90  # azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
-sun_zenith: 155  # zenith: Solar beam zenith angle in range (90,180]
+sun_zenith: 165  # zenith: Solar beam zenith angle in range (90,180]
 
 
 # --------------------------------------------------
@@ -196,8 +196,8 @@ forward_options:
 # since we add uncertainty in a loop on the imager it is not relevant, so keep on true
 use_cal_uncertainty: True
 uncertainty_options:
-  use_bias: False
-  use_gain: True
+  use_bias: True
+  use_gain: False
   max_bias: 5
   max_gain: 5
   
