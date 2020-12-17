@@ -777,19 +777,25 @@ class Imager(object):
                 # The 1e-6* scales electrons_number to units of [electrons]
                 electrons_number = np.round(electrons_number)
             
+                assert self._sensor.full_well > electrons_number.max() , "You reached full well, maybe you have saturation. Set less exposure time!"
+                
                 # Here is the place to put the noise, since the noise is on the electrons levels:
                 if(uncertainty_options is not None):
                     if(uncertainty_options['use_bias']):
-                        self.add_bais(electrons_number, uncertainty_options)
+                        electrons_number = self.add_bais(electrons_number, uncertainty_options)
                     
                 if(IF_APPLY_NOISE):
                     electrons_number = self.add_noise(electrons_number)
+                    
+                assert self._sensor.full_well > electrons_number.max() , "You reached full well, maybe you have saturation. Set less exposure time!"
                 
                 if(uncertainty_options is not None):    
                     if(uncertainty_options['use_gain']):
-                        self.add_gain_uncertainty(electrons_number, uncertainty_options)                    
+                        electrons_number = self.add_gain_uncertainty(electrons_number, uncertainty_options)                    
     
                 # ---------------- finish the noise ------------------------------------------------
+                assert self._sensor.full_well > electrons_number.max() , "You reached full well, maybe you have saturation. Set less exposure time!"
+                
                 gray_scale = self._sensor.alpha*electrons_number
                 
                 # For a sensor having a linear radiometric response, the conversion between pixel electrons to grayscale is by a fixxed ratio self._alpha
