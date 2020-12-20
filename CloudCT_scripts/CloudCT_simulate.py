@@ -615,7 +615,10 @@ def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, ma
         # ---------what perameter to initialize----------------------------
         run_type = inverse_options['recover_type'] if inverse_options['MICROPHYSICS'] else 'extinction'
         log_name = 'cost_' + log_name_base + '-' + time.strftime("%d-%b-%Y-%H:%M:%S")
-        log_dir = os.path.join(forward_dir, 'logs', log_name)
+        log_dir_first_part = os.path.join(forward_dir, 'logs')
+        log_dir = os.path.join(log_dir_first_part, log_name)
+        if not os.path.exists(log_dir_first_part):
+            os.mkdir(log_dir_first_part)
         if not os.path.exists(log_dir):
             os.mkdir(log_dir)
             
@@ -639,7 +642,7 @@ def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, ma
 
         for reff in reff_list:
             for lwc in lwc_list:
-                print('{}: (reff,lwc) =  ({}, {})'.format(CloudFieldFile,reff,lwc))
+                logger.debug(f"{CloudFieldFile.split('/')[-1]}: (reff,lwc) =  ({reff}, {lwc})")
                 with open(lwc_tracker_path, 'a') as file_object:
                     file_object.write('{}\n'.format(lwc))
                 
@@ -1146,7 +1149,7 @@ def CALCULATE_COST_ON_MANY_CLOUDS():
     """
     # prepare clouds for cost evaluation:
     CloudFieldFiles = []
-    CloudFieldFiles.append('../synthetic_cloud_fields/jpl_les/rico32x37x26.txt')
+    # CloudFieldFiles.append('../synthetic_cloud_fields/jpl_les/rico32x37x26.txt')
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt') 
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt') 
@@ -1188,7 +1191,7 @@ def run_many_cases():
         logger.debug('init lwc {}, init reff {}'.format(Init_dict[str(CloudFieldName)]['lwc'],
                                                  Init_dict[str(CloudFieldName)]['reff']))
         logger.debug(10*'-')
-    
+
         main(CloudFieldFile = CloudFieldFile, Init_dict = Init_dict[str(CloudFieldName)], Prefix = Prefix, logger=logger)
     
     # -------------------------------
@@ -1316,8 +1319,8 @@ def SHOW_INIT_PROFILES(N=16):
     
     
 if __name__ == '__main__':
-    run_many_cases()
-    
+    # run_many_cases()
+    CALCULATE_COST_ON_MANY_CLOUDS()
     # #main()
     # CloudFieldFiles = []
     # #CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')

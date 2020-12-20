@@ -14,8 +14,8 @@ Log_Prefix: ''
 
 
 DOFORWARD: True
-DOINVERSE: True
-DOCOSTEVAL: False
+DOINVERSE: False
+DOCOSTEVAL: True
 
 #DOFORWARD: True
 #DOINVERSE: False
@@ -91,7 +91,7 @@ GSD: 0.02
 # -------------   Sun Azimuth & Zenith  ------------
 # --------------------------------------------------
 sun_azimuth: 90  # azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
-sun_zenith: 165  # zenith: Solar beam zenith angle in range (90,180]
+sun_zenith: 155  # zenith: Solar beam zenith angle in range (90,180]
 
 
 # --------------------------------------------------
@@ -120,8 +120,8 @@ surface_albedos_val: 0.05
 # -------------------------------------------------
 mie_options:
 
-  start_reff: 2.5 #4 # Starting effective radius [Micron]
-  end_reff: 25.0
+  start_reff: 1.5 #4 # Starting effective radius [Micron]
+  end_reff: 20.0
   num_reff: 100
   start_veff: 0.01
   end_veff: 0.53 #0.4 # return it to 0.4
