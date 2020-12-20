@@ -17,8 +17,8 @@ def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, ma
     logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
-    run_params = load_run_params(params_path="run_params_rico.yaml")
-    #run_params = load_run_params(params_path="run_params.yaml")
+    #run_params = load_run_params(params_path="run_params_rico.yaml")
+    run_params = load_run_params(params_path="run_params.yaml")
 
     if CloudFieldFile is not None:
         run_params['CloudFieldFile'] = CloudFieldFile
@@ -280,9 +280,22 @@ def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, ma
             # Z DIRECTION
             values = np.zeros(ZPAD)
             atmosphere.pad_scatterer(name='cloud',axis=2, right = True, values=values)
+            values = np.zeros(max([3*ZPAD, 15])) # PAD more on bottom
             atmosphere.pad_scatterer(name='cloud',axis=2, right = False, values=values)
             # get the updated droplets:
             droplets = copy.deepcopy(atmosphere.get_scatterer('cloud'))
+            
+            # update lookat such that it will give same views as with true mask:
+            if run_params['IFTUNE_CAM']:
+                # it is droplets_grid.bounding_box.zmin + 0.1
+                LOOKAT[0] = LOOKAT[0] + dx*XPAD #
+                LOOKAT[1] = LOOKAT[1] + dy*YPAD #
+    
+            # currently, all satellites lookat the same point.
+            SAT_LOOKATS = np.array(SATS_NUMBER_SETUP * LOOKAT).reshape(-1, 3)
+            	
+            
+                        
 
         # TODO - what if the imagers have the same central wavelengths?
         # iter 0 of wavelength is for vis
@@ -547,6 +560,33 @@ def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, ma
                 mlab.title('diff')
                 # -----------------------------------------
                 # -----------------------------------------
+                
+                #--------------------------------------------------------
+                # closing:
+                struct = ndimage.generate_binary_structure(3, 2)
+                closed_mask = ndimage.morphology.binary_closing(show_vol, struct)
+                diff_mask = show_vol - closed_mask
+                mlab.figure()
+                
+                h = mlab.pipeline.scalar_field(diff_mask)
+                v = mlab.pipeline.volume(h,vmin=-1,vmax=1)
+                
+                ipw_x = mlab.pipeline.image_plane_widget(h, plane_orientation='x_axes',vmin=-1,vmax=1)
+                ipw_x.ipw.reslice_interpolate = 'nearest_neighbour'
+                ipw_x.ipw.texture_interpolate = False
+                ipw_y = mlab.pipeline.image_plane_widget(h, plane_orientation='y_axes',vmin=-1,vmax=1)
+                ipw_y.ipw.reslice_interpolate = 'nearest_neighbour'
+                ipw_y.ipw.texture_interpolate = False
+                ipw_z = mlab.pipeline.image_plane_widget(h, plane_orientation='z_axes',vmin=-1,vmax=1)
+                ipw_z.ipw.reslice_interpolate = 'nearest_neighbour'
+                ipw_z.ipw.texture_interpolate = False
+                
+                color_bar = mlab.colorbar(orientation='vertical', nb_labels=5)
+                mlab.outline(color = (1, 1, 1))  # box around data axes
+                mlab.title('diff new')            
+                
+                 
+                # ----
                 
                 mlab.show()            
                  
@@ -1314,25 +1354,27 @@ def SHOW_INIT_PROFILES(N=16):
 if __name__ == '__main__':
     
     
-    main()
-    if(0):
+    #main()
+    if(1):
         
         CloudFieldFiles = []
-        #CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')
-        #CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt') 
-        #CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt') 
-        #CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt') 
+        CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')
+        CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt') 
+        CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt') 
+        CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt') 
         CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821') 
+        CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt') 
     
         mat_paths = []
         # must be in the same order as above:
-        #mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_23040_10_noise')
-        #mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_55080_10_noise')
-        #mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_53760_10_noise')
-        #mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_28440_10_noise')
+        mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_23040_10_noise')
+        mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_55080_10_noise')
+        mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_53760_10_noise')
+        mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_28440_10_noise')
         mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_4821_10_noise')
+        mat_paths.append('../CloudCT_experiments/noisy_init/BOMOX_43200_10_noise')
         
-        Prefix = "Init_with_noisy_gt_"
+        Prefix = "Init_with_noisy_gt_sza_155_"
         init = 'FromMatFile'
         
         for index, CloudFieldFile in enumerate(CloudFieldFiles):

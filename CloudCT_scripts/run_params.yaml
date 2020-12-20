@@ -44,7 +44,7 @@ vis_options:
 # ------------   SWIR Imager Parameters  ------------
 # --------------------------------------------------
 swir_options:
-  ImportConfigPath: '../CloudCT_notebooks/Hypothetic_SWIR_camera_config_50m_nadir_resolution.json'
+  ImportConfigPath: '../CloudCT_notebooks/Hypothetic_MICROGIC_SWIR_camera_config_50m_nadir_resolution.json'
   temperature: *temperature # celsius
   true_indices: [4,6]   # where imagers are located, if true_indices: [], no swir imager will be simulated
   rays_per_pixel: 16
@@ -120,8 +120,8 @@ surface_albedos_val: 0.05
 # -------------------------------------------------
 mie_options:
 
-  start_reff: 2.5 #4 # Starting effective radius [Micron]
-  end_reff: 25.0
+  start_reff: 1.5 #4 # Starting effective radius [Micron]
+  end_reff: 20.0
   num_reff: 100
   start_veff: 0.01
   end_veff: 0.53 #0.4 # return it to 0.4

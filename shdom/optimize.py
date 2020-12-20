@@ -2813,16 +2813,16 @@ class SpaceCarver(object):
 
 
         #-----------------
-        f, axarr = plt.subplots(1, len(self._images), figsize=(20, 20))
-        for ax, image in zip(axarr, self._images):
-            img = image.copy()
-            img[image < thresholds[0]] = 0
-            ax.imshow(img)
-            ax.invert_xaxis() 
-            ax.invert_yaxis() 
-            ax.axis('off')
+        #f, axarr = plt.subplots(1, len(self._images), figsize=(20, 20))
+        #for ax, image in zip(axarr, self._images):
+            #img = image.copy()
+            #img[image < thresholds[0]] = 0
+            #ax.imshow(img)
+            #ax.invert_xaxis() 
+            #ax.invert_yaxis() 
+            #ax.axis('off')
 
-        plt.show()
+        #plt.show()
         #-----------------------
 
         for view_index, (projection, image, threshold) in enumerate(zip(self._projections, self._images, thresholds)):
@@ -2887,6 +2887,10 @@ class SpaceCarver(object):
                     camphi=projection.phi,
                     npix=projection.npix,
                 )
+                
+                file_name = 'volume_{}'.format(view_index)+'.mat'
+                sio.savemat(file_name, {'vol':carved_volume.reshape(grid.nx, grid.ny, grid.nz)}) 
+                
                 volume += carved_volume.reshape(grid.nx, grid.ny, grid.nz)
 
         volume = volume * 1.0 / len(self._images)
@@ -2901,7 +2905,7 @@ class SpaceCarver(object):
 
 
             MAXI = 1
-            show_vol = volume > agreement
+            show_vol = volume >= agreement
             show_vol = np.multiply(show_vol, 1, dtype= np.int16) 
 
             # I was testing holes with the following two lines:
@@ -2930,8 +2934,14 @@ class SpaceCarver(object):
         show_vol = np.multiply(show_vol, 1, dtype= np.int16)         
         file_name = 'The_mask.mat'
         sio.savemat(file_name, {'vol':show_vol}) 
+        
+        # closing to avoide hols in the core:
+        volume = volume >= agreement
+        #volume = np.multiply(volume, 1, dtype= np.int16)
+        #struct = ndimage.generate_binary_structure(3, 2)
+        #volume = ndimage.morphology.binary_closing(volume, struct)
 
-        mask = GridData(grid, volume > agreement) 
+        mask = GridData(grid, volume > 0) 
         return mask
 
     @property
