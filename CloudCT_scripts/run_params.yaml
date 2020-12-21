@@ -14,8 +14,8 @@ Log_Prefix: ''
 
 
 DOFORWARD: True
-DOINVERSE: False
-DOCOSTEVAL: True
+DOINVERSE: True
+DOCOSTEVAL: False
 
 #DOFORWARD: True
 #DOINVERSE: False
@@ -196,8 +196,8 @@ forward_options:
 # since we add uncertainty in a loop on the imager it is not relevant, so keep on true
 use_cal_uncertainty: True
 uncertainty_options:
-  use_bias: True
-  use_gain: False
+  use_bias: False
+  use_gain: True
   max_bias: 5
   max_gain: 5
   

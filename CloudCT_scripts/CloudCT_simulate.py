@@ -27,6 +27,9 @@ def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, ma
     if Init_dict is not None:
         run_params['inverse_options']['lwc'] = Init_dict['lwc']
         run_params['inverse_options']['reff'] = Init_dict['reff']
+        run_params['uncertainty_options']['use_gain'] = Init_dict['use_gain']
+        run_params['uncertainty_options']['use_bias'] = Init_dict['use_bias']
+
         
     if Prefix is not None:
         run_params['Log_Prefix'] = Prefix   
@@ -1151,49 +1154,62 @@ def CALCULATE_COST_ON_MANY_CLOUDS():
     CloudFieldFiles = []
     # CloudFieldFiles.append('../synthetic_cloud_fields/jpl_les/rico32x37x26.txt')
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt') 
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt') 
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt') 
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt') 
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821') 
+    # CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt')
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt')
+    # CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt')
+    # CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt')
+    # CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821')
+    from multiprocessing import Pool
 
-    for CloudFieldFile in CloudFieldFiles:
-        main(CloudFieldFile)    
+    with Pool(len(CloudFieldFiles)) as p:
+        p.map(main, CloudFieldFiles)
+    # for CloudFieldFile in CloudFieldFiles:
+    #     main(CloudFieldFile)
 
 
 def run_many_cases():
     
     CloudFieldFiles = []
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt')
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt') 
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt') 
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt') 
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821') 
+    # CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt')
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt')
+    # CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt')
+    # CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt')
+    # CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821')
 
     Init_dict = {}
-    Init_dict['23040'] = {'lwc':0.5,'reff':7.8}
-    Init_dict['43200'] = {'lwc':1.3,'reff':10.2}
-    Init_dict['55080'] = {'lwc':0.8,'reff':11.8}
-    
-    Init_dict['53760'] = {'lwc':0.8,'reff':11.8}
-    Init_dict['28440'] = {'lwc':0.8,'reff':11.0}
-    Init_dict['4821'] =  {'lwc':1.6,'reff':12.6}
-    
+    Init_dict['23040'] = {'lwc':0.4,'reff':6.2, 'use_bias':False, 'use_gain':True}
+    # Init_dict['43200'] = {'lwc':1.1,'reff':7.8, 'use_bias':False, 'use_gain':True}
+    Init_dict['55080'] = {'lwc':0.6,'reff':8.6, 'use_bias':False, 'use_gain':True}
+    #
+    # Init_dict['53760_bias'] = {'lwc':0.7,'reff':10.2, 'use_bias':True, 'use_gain':False}
+    # Init_dict['28440_bias'] = {'lwc':0.3,'reff':3.0, 'use_bias':True, 'use_gain':False}
+    # Init_dict['4821_bias'] =  {'lwc':1.6,'reff':13.4, 'use_bias':True, 'use_gain':False}
+    #
+    # Init_dict['53760_gain'] = {'lwc':0.5,'reff':7.0, 'use_bias':False, 'use_gain':True}
+    # Init_dict['28440_gain'] = {'lwc':0.3,'reff':3.0, 'use_bias':False, 'use_gain':True}
+    # Init_dict['4821_gain'] =  {'lwc':1.6,'reff':13.4, 'use_bias':False, 'use_gain':True}
+
     Prefix = "Init_same_as_swir_vis_But_with_swir_"
     logger = create_and_configer_logger(log_name='run_tracker.log')
 
     for CloudFieldFile in CloudFieldFiles:
         CloudFieldName = CloudFieldFile.split('/')[-1].split('.')[0]
         CloudFieldName = CloudFieldName.split('_')[-1]
-        
-        logger.debug(CloudFieldName)
-        logger.debug('init lwc {}, init reff {}'.format(Init_dict[str(CloudFieldName)]['lwc'],
-                                                 Init_dict[str(CloudFieldName)]['reff']))
-        logger.debug(10*'-')
-    
-        main(CloudFieldFile = CloudFieldFile, Init_dict = Init_dict[str(CloudFieldName)], Prefix = Prefix, logger=logger)
-    
+        if CloudFieldName in ['53760', '28440', '4821']:
+            for par in ['_bias','_gain']:
+                Init_dict[CloudFieldName] = Init_dict[CloudFieldName+par]
+                logger.debug(f"{CloudFieldName}:{Init_dict[CloudFieldName]}")
+                logger.debug(10*'-')
+
+                main(CloudFieldFile = CloudFieldFile, Init_dict = Init_dict[str(CloudFieldName)], Prefix = Prefix, logger=logger)
+        else:
+            logger.debug(CloudFieldName)
+            logger.debug(f"{CloudFieldName}:{Init_dict[CloudFieldName]}")
+            logger.debug(10*'-')
+
+            main(CloudFieldFile = CloudFieldFile, Init_dict = Init_dict[str(CloudFieldName)], Prefix = Prefix, logger=logger)
+
     # -------------------------------
     
 def SHOW_INIT_PROFILES(N=16):
@@ -1202,19 +1218,19 @@ def SHOW_INIT_PROFILES(N=16):
     from collections import namedtuple
     
     #PATH_TO_LOOK_FOR_COST_LOGS = '../CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_620-670nm_active_sats_10_GSD_20m_and_SWIR_1628-1658nm_active_sats_10_GSD_50m_LES_cloud_field_BOMEX/logs/'
-    PATH_TO_LOOK_FOR_COST_LOGS = '../CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_620-670nm_active_sats_10_GSD_20m_LES_cloud_field_BOMEX/logs/'
+    PATH_TO_LOOK_FOR_COST_LOGS = '../CloudCT_experiments/run_results'
     
     
-    TEMPLATE = 'cost_reff_smoothness_with_0.0prec_lwc_10_prec_reff_0.1_'
+    TEMPLATE = 'gain_cost_reff_smoothness_with_0.0prec_lwc_10_prec_reff_0.1_'
     
     # prepare clouds for cost evaluation:
     CloudFieldFiles = []
-    #CloudFieldFiles.append('../synthetic_cloud_fields/jpl_les/rico32x37x26.txt')
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')
+    # CloudFieldFiles.append('../synthetic_cloud_fields/jpl_les/rico32x37x26.txt')
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt') #
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt') 
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt') 
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt') 
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt') 
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt') ##
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821') 
 
     for CloudFieldFile in CloudFieldFiles:
@@ -1227,8 +1243,13 @@ def SHOW_INIT_PROFILES(N=16):
             print('The function is taking the last one in list. Make sure this is the updated one or erase the old logs.')
             log_dir = logs_files_of_certain_cloud[-1]
         else:
-            log_dir = logs_files_of_certain_cloud[0]
-            
+            try:
+                log_dir = logs_files_of_certain_cloud[0]
+                print(log_dir)
+            except:
+                print(FULL_PATH_WITHOUT_DATE)
+                continue
+
         # -----------------------------------------------------------------------
         # ---------------START LOADIN AND PROCESSING-----------------------------
         # -----------------------------------------------------------------------
@@ -1319,8 +1340,9 @@ def SHOW_INIT_PROFILES(N=16):
     
     
 if __name__ == '__main__':
-    # run_many_cases()
-    CALCULATE_COST_ON_MANY_CLOUDS()
+    run_many_cases()
+    # CALCULATE_COST_ON_MANY_CLOUDS()
+    # SHOW_INIT_PROFILES()
     # #main()
     # CloudFieldFiles = []
     # #CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')
