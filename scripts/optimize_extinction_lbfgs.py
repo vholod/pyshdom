@@ -1,6 +1,9 @@
 import os, time
 import numpy as np
 import argparse
+
+from scipy.optimize import fmin_l_bfgs_b
+
 import shdom
 import scipy.io as sio
 
@@ -43,7 +46,10 @@ class OptimizationScript(object):
         """
         parser.add_argument('--calc_only_cost',
                             action='store_true',
-                            help='Use the calc_only_cost if you want only to calculate the cost of the initialized state.')                
+                            help='Use the calc_only_cost if you want only to calculate the cost of the initialized state.')
+        parser.add_argument('--optimize_monotonous',
+                            action='store_true',
+                            help='Use the optimize_monotonous if you want find the optimal alpha reff and alpha lwc values for monotonous initialization.')
         parser.add_argument('--cloudct_use',
                             action='store_true',
                             help='Use it if you want to laoad and work with cloudct measurments.')          
@@ -430,6 +436,47 @@ class OptimizationScript(object):
             tracker_path = os.path.join(log_dir,'cost.txt')
             with open(tracker_path, 'a') as file_object:
                 file_object.write('{}\n'.format(cost))
+
+        elif self.args.optimize_monotonous:
+
+            init_reff = np.random.random()*20#13.0
+            init_lwc = np.random.random()*0.2 #1.0
+            self.reff_scale = 0.1
+            self.lwc_scale = 10.0
+            self.reff_pow = 1.0 / 3.0
+            self.lwc_pow = 1.0
+            self.medium_mono, rte_solver, self.measurements_mono = self.load_forward_model(self.args.input_dir)
+
+            GT_mask = self.medium_mono.get_mask(threshold=0.01)
+            z = GT_mask.grid.z
+            # Find the bottom index and point of mask:
+            cumsum_volume_axis2 = np.cumsum(GT_mask.data, axis=2, dtype=float)
+            tmp = np.sum(np.sum(cumsum_volume_axis2, axis=1), axis=0)
+            tmp[tmp == 0] = max(tmp)
+            # GET RID OF ZEROS -> done
+            Bottom = np.argmin(tmp)
+            self.z0 = z[Bottom]
+            print("Cloud base at z0={}km".format(self.z0))
+
+            # prepare the solvers:
+            if not isinstance(rte_solver, shdom.RteSolverArray):
+                self.rte_solver_mono = shdom.RteSolverArray([rte_solver])
+            else:
+                self.rte_solver_mono = rte_solver
+            self.optimizer_ = shdom.LocalOptimizer('L-BFGS-B', n_jobs=self.args.n_jobs)
+            self.iter_ = 0
+            
+            def call_back_func(x):
+                print(f'iter:{self.iter_} lwc: {round(x[0] / self.lwc_scale, 4)}, reff:{round(x[1] / self.reff_scale, 4)}')
+                self.iter_+=1
+                
+            result = fmin_l_bfgs_b(func=self.optimize_monotonous_objective_func,
+                                   x0=np.array([init_lwc*self.lwc_scale, init_reff*self.reff_scale]),
+                                   bounds=[(0, float('inf')), (0, float('inf'))],
+                                   callback=call_back_func,
+                                   maxls=10,
+                                   factr=10.0)
+            print(result)
                 
         else:
             
@@ -481,6 +528,34 @@ class OptimizationScript(object):
                     GT_parameter = ground_truth.__getattribute__(parameter_name).data
                     sio.savemat(os.path.join(save_dir,'FINAL_3D_{}.mat'.format(parameter_name)), {'GT':GT_parameter,parameter_name:rec_param,'dx':dx,'dy':dy,'dz':dz})
                 
+    def optimize_monotonous_objective_func(self, x):
+        # Initialize a Medium Estimator
+
+        self.args.lwc = x[0]/self.lwc_scale
+        self.args.reff = x[1]/self.reff_scale
+        medium_estimator = self.get_medium_estimator(self.measurements_mono, self.medium_mono)
+        # medium_estimator.
+        for solver in self.rte_solver_mono:
+            solver.set_medium(medium_estimator)
+
+        # solve rte:
+        self.rte_solver_mono.solve(maxiter=2, verbose=False) # TODO is this necessary?
+        self.optimizer_.set_measurements(self.measurements_mono)
+        self.optimizer_.set_rte_solver(self.rte_solver_mono)
+        self.optimizer_.set_medium_estimator(medium_estimator)
+        self.optimizer_.init_optimizer()
+
+        _, loss, _, grad_3d = self.optimizer_._medium.compute_gradient(self.rte_solver_mono, self.measurements_mono, self.args.n_jobs, iteration=1)
+        grid = self.medium_mono.lwc.grid # can be any param grid
+        _, _, Z = np.meshgrid(grid.x, grid.y, grid.z, indexing='ij')
+        z_diff = np.abs(Z-self.z0)
+        lwc_grad = z_diff**self.lwc_pow
+        reff_grad = z_diff**self.reff_pow
+        grad = np.empty(2)
+        grad[0] = (grad_3d[0]*lwc_grad).sum()*self.lwc_scale
+        grad[1] = (grad_3d[1]*reff_grad).sum()*self.reff_scale
+        print(f'At lwc: {round(x[0]/self.lwc_scale,4)}, reff:{round(x[1]/self.reff_scale,4)}: Loss:{round(loss,6)}, grad:{np.round(grad,4)}')
+        return loss, grad
 
 if __name__ == "__main__":
     script = OptimizationScript(scatterer_name='cloud')

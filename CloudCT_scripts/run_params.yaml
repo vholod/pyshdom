@@ -16,6 +16,7 @@ Log_Prefix: ''
 DOFORWARD: True
 DOINVERSE: True
 DOCOSTEVAL: False
+optimize_monotonous: True
 
 #DOFORWARD: True
 #DOINVERSE: False

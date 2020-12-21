@@ -857,7 +857,9 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
     elif(inverse_options['init'] == 'LesFile' ):
         INIT_USE = ' --init ' + inverse_options['init'] + ' --path ' + inverse_options['LesFile_path']
     elif(inverse_options['init'] == 'Monotonous' ): 
-        INIT_USE = ' --init ' + inverse_options['init']  
+        INIT_USE = ' --init ' + inverse_options['init']
+        INIT_USE += ' --optimize_monotonous' if run_params['optimize_monotonous'] else INIT_USE
+
     elif(inverse_options['init'] == 'FromMatFile' ): 
         INIT_USE = ' --init ' + inverse_options['init'] + ' --path ' + inverse_options['mat_path']
         
@@ -1343,7 +1345,7 @@ if __name__ == '__main__':
     run_many_cases()
     # CALCULATE_COST_ON_MANY_CLOUDS()
     # SHOW_INIT_PROFILES()
-    # #main()
+    main()
     # CloudFieldFiles = []
     # #CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')
     # CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt')
