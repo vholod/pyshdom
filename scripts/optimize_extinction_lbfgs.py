@@ -439,8 +439,7 @@ class OptimizationScript(object):
 
         elif self.args.optimize_monotonous:
 
-            init_reff = np.random.random()*20#13.0
-            init_lwc = np.random.random()*0.2 #1.0
+
             self.reff_scale = 0.1
             self.lwc_scale = 10.0
             self.reff_pow = 1.0 / 3.0
@@ -457,26 +456,83 @@ class OptimizationScript(object):
             Bottom = np.argmin(tmp)
             self.z0 = z[Bottom]
             print("Cloud base at z0={}km".format(self.z0))
-
+            self.results = {'time':[], 'init_lwc':[], 'init_reff':[],'lwc':[], 'reff':[], 'loss':[]}
             # prepare the solvers:
             if not isinstance(rte_solver, shdom.RteSolverArray):
                 self.rte_solver_mono = shdom.RteSolverArray([rte_solver])
             else:
                 self.rte_solver_mono = rte_solver
-            self.optimizer_ = shdom.LocalOptimizer('L-BFGS-B', n_jobs=self.args.n_jobs)
             self.iter_ = 0
-            
+            self.optimizer_ = shdom.LocalOptimizer('L-BFGS-B', n_jobs=self.args.n_jobs)
             def call_back_func(x):
                 print(f'iter:{self.iter_} lwc: {round(x[0] / self.lwc_scale, 4)}, reff:{round(x[1] / self.reff_scale, 4)}')
                 self.iter_+=1
-                
-            result = fmin_l_bfgs_b(func=self.optimize_monotonous_objective_func,
-                                   x0=np.array([init_lwc*self.lwc_scale, init_reff*self.reff_scale]),
-                                   bounds=[(0, float('inf')), (0, float('inf'))],
-                                   callback=call_back_func,
-                                   maxls=10,
-                                   factr=10.0)
-            print(result)
+
+             # TODO
+            """ 
+            import matplotlib.pyplot as plt
+            x={'time': [111.31845927238464, 111.29790425300598, 85.52190637588501, 115.99412488937378, 107.25484251976013, 114.94710731506348, 109.5345447063446, 111.49884366989136, 113.71950030326843, 111.5090880393982, 106.08210802078247, 141.2928819656372, 109.33372235298157, 98.77369832992554, 114.2970700263977, 107.49797534942627, 105.40637254714966, 103.88471722602844, 108.58827424049377, 115.96372652053833], 'init_lwc': [0.004145161260341412, 0.17834323255049983, 0.14229991201641212, 0.0729905138895786, 0.11764251053993446, 0.04774122054376628, 0.11558167598065656, 0.06170146622227331, 0.025665230843357124, 0.0398725816785728, 0.19332319208922577, 0.10233001368147937, 0.10496643375146104, 0.11793777214074067, 0.11209991406063546, 0.17353426238530278, 0.060742032980532205, 0.040861206639375675, 0.12745868158152607, 0.19525907552451388], 'init_reff': [10.021833499735703, 16.7878207373198, 1.8011839004906505, 8.409714520183098, 18.662850464419783, 5.458243415252058, 16.39715385802458, 16.453715752016944, 6.187033784125169, 19.048887526459122, 19.789071104191148, 11.073132558676415, 17.119237339859534, 5.3357056183797695, 9.384763375488186, 4.990524692022628, 17.988444623613734, 12.023916521153366, 19.76336970540251, 14.202736253115884], 'lwc': [0.6676204154994683, 1.0377264859941617, 0.24229990774658045, 0.540198120449134, 1.1135798322489932, 0.4018041630589598, 1.0045984914778452, 0.9933219140006878, 0.4300082909896969, 1.104732768476901, 1.1873780176650233, 0.6876856134810152, 1.0366496037516144, 0.4055956717920119, 0.5940106455623853, 0.3755800265604726, 1.0643669708818635, 0.7742006299630354, 1.1687087378168806, 0.8309181146427764], 'reff': [9.992791904320818, 16.745957979635673, 1.7982616302854877, 8.391302548348975, 18.615799478345735, 5.445542969618444, 16.355065612541928, 16.41097074823329, 6.1724569785076016, 19.001015261936022, 19.740366060710684, 11.047559225806811, 17.075411525198884, 5.325165827259237, 9.364937275155025, 4.983527486681762, 17.94259063961043, 11.990502012803345, 19.713921172899518, 14.17481504347776], 'loss': [0.18708064468949542, 0.19359235396001784, 0.2278375584476526, 0.1812080130877353, 0.19174426764572552, 0.18464762888850061, 0.19108404377856525, 0.18913693526948683, 0.18283245446619514, 0.19000397488465737, 0.1946182490683079, 0.18215427428017422, 0.1907580622877526, 0.1870307759700128, 0.18111221382669304, 0.18537871907678224, 0.18976628889252734, 0.18787102646662793, 0.1925530319179792, 0.1846800880937834]}
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.scatter(x['reff'], x['lwc'], x['loss'])
+        Backend Qt5Agg is interactive backend. Turning interactive mode on.
+        Out[3]: <mpl_toolkits.mplot3d.art3d.Path3DCollection at 0x7f07d50ae450>
+"""
+            # best_parameters, values, experiment, model = optimize(
+            #     parameters=[
+            #         {
+            #             "name": "init_lwc",
+            #             "type": "range",
+            #             "bounds": [0.0, 20.0],
+            #             "value_type": "float",  # Optional, defaults to inference from type of "bounds".
+            #             "log_scale": False,  # Optional, defaults to False.
+            #         },
+            #         {
+            #             "name": "init_reff",
+            #             "type": "range",
+            #             "bounds": [0.0, 20.0],
+            #         }
+            #     ],
+            #     experiment_name="test",
+            #     objective_name="fmin_l_bfgs_b",
+            #     evaluation_function=monotonous_optimization_func_call,
+            #     minimize=True,  # Optional, defaults to False.
+            #     #parameter_constraints=["x1 + x2 <= 20"],  # Optional.
+            #     #outcome_constraints=["l2norm <= 1.25"],  # Optional.
+            #     total_trials=5,  # Optional.
+            # )
+            # def monotonous_optimization_func_call(params):
+            #     init_lwc = params.get('init_lwc')
+            #     init_reff = params.get('init_reff')
+            #     result = fmin_l_bfgs_b(func=self.optimize_monotonous_objective_func,
+            #                            x0=np.array([init_lwc * self.lwc_scale, init_reff * self.reff_scale]),
+            #                            bounds=[(0, float('inf')), (0, float('inf'))],
+            #                            callback=call_back_func,
+            #                            maxls=5,
+            #                            factr=10.0)
+
+            import time
+            for _ in range(20):
+                start = time.time()
+                init_reff = np.random.random() * 20  # 13.0
+                init_lwc = np.random.random() * 0.2  # 1.0
+                result = fmin_l_bfgs_b(func=self.optimize_monotonous_objective_func,
+                                       x0=np.array([init_lwc*self.lwc_scale, init_reff*self.reff_scale]),
+                                       bounds=[(0, float('inf')), (0, float('inf'))],
+                                       callback=call_back_func,
+                                       maxls=5,
+                                       factr=10.0)
+                end = time.time()
+
+                print(result)
+                self.results['time'].append(end - start)
+                self.results['init_lwc'].append(init_lwc)
+                self.results['init_reff'].append(init_reff)
+                self.results['lwc'].append(result[0][0]/self.lwc_scale)
+                self.results['reff'].append(result[0][1]/self.reff_scale)
+                self.results['loss'].append(result[1])
+            print(self.results)
                 
         else:
             
