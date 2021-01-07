@@ -1,5 +1,6 @@
 import csv
 import logging
+import shutil
 from shutil import copyfile
 
 import matplotlib.pyplot as plt
@@ -12,7 +13,7 @@ def main(cloud_indices):
     logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
-    run_params = load_run_params(params_path="run_params_cloud_ct_nn_20m_clouds.yaml")
+    run_params = load_run_params(params_path="cloud_fields/run_params_cloud_ct_nn_initialize_soloution.yaml")
     # run_params['sun_zenith'] = sun_zenith # if you need to set the angle from main's input
     # logger.debug(f"New Run with sun zenith {run_params['sun_zenith']} (overrides yaml)")
 
@@ -114,7 +115,7 @@ def main(cloud_indices):
         # cny x cnx is the camera resolution in pixels
         fov = 2 * np.rad2deg(np.arctan(0.5 * L / (run_params['Rsat'])))
 
-        vis_cnx = vis_cny = int(np.floor(L / vis_pixel_footprint))  # 32  #
+        vis_cnx = vis_cny = 64 # int(np.floor(L / vis_pixel_footprint))  # 32  #
         if USESWIR:
             swir_cnx = swir_cny = int(np.floor(L / swir_pixel_footprint))
 
@@ -293,7 +294,8 @@ def main(cloud_indices):
 
             # See the simulated images:
             if forward_options['SEE_IMAGES']:
-                CloudCT_measurements.show_measurments(title_content=run_params['sun_zenith'])
+                CloudCT_measurements.show_measurments(title_content=run_params['sun_zenith'],
+                                                      radiance_threshold_dict=run_params['radiance_threshold'])
                 plt.show()
 
             # save images as mat for cloudCT neural network
@@ -307,7 +309,7 @@ def main(cloud_indices):
             shdom.save_CloudCT_measurments_and_forward_model(directory=forward_dir, medium=medium, solver=rte_solvers,
                                                              measurements=CloudCT_measurements)
 
-            logger.debug("Forward phase complete")
+            logger.debug(f"Forward phase complete in {time.time()-start_time} sec")
 
         # ---------SOLVE INVERSE ------------------------
         if run_params['DOINVERSE']:
@@ -362,7 +364,7 @@ def main(cloud_indices):
                 logger.debug("Inverse phase complete")
             except Exception as e:
                 print(f'cloud {cloud_index} FAILED, {e}')
-        # shutil.rmtree(f"/home/yaelsc/PycharmProjects/pyshdom/CloudCT_experiments/cloud{cloud_index}")
+        shutil.rmtree(f"/home/yaelsc/PycharmProjects/pyshdom/CloudCT_experiments/cloud{cloud_index}")
         logger.debug(f"--------------- End for cloud {cloud_index} , {time.time() - start_time} sec---------------")
 
     # return vis_max_radiance_list, swir_max_radiance_list
@@ -768,7 +770,7 @@ if __name__ == '__main__':
     # with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
     #     future_to_url = {executor.submit(main, cloud_indices_chunks[i]) for i in np.arange(num_workers)}
     # main(['6001','6002','6003'])
-    main(['28440','55080','53760'])
+    main(np.arange(9001,12000).astype(str))
     # main(['6010','6037','6066','6341','6342'])
     # main(['6010','6037','6066'])
 

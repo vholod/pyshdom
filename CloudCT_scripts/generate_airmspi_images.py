@@ -17,6 +17,8 @@ for file_index, file_name in enumerate(glob.glob("/home/yaelsc/Data/AirMSPI/clou
     start_process_time = time.time()
     cloud_index = file_name.split("/home/yaelsc/Data/AirMSPI/clouds/cloud")[-1].split(".txt")[0]
     try:
+        if not (int(cloud_index)<2000):
+            continue
 
         print(cloud_index)
         droplets = shdom.MicrophysicalScatterer()
@@ -81,7 +83,8 @@ for file_index, file_name in enumerate(glob.glob("/home/yaelsc/Data/AirMSPI/clou
                 #[1540, 1884, 792, 1036], [1604, 1944, 828, 1076], [1660, 2012, 884, 1120], [1728, 2084, 936, 1172],
                 #[1792, 2152, 980, 1224]]
 
-        rois = 9*[[1540, 1720, 772, 952]]
+        # rois = 9*[[1540, 1720, 772, 952]]
+        rois = 9*[[1540, 1700, 772, 932]]
 
         valid_wavelength = [660]
         data_dir = '/home/yaelsc/Data/AirMSPI/raw_data'
@@ -105,18 +108,18 @@ for file_index, file_name in enumerate(glob.glob("/home/yaelsc/Data/AirMSPI/clou
 
         images = camera.render(rte_solver, n_jobs=20)
 
-        # result = {'satellites_images': images,
-        #           'file_name': file_name}
-        # filename = f'/home/yaelsc/Data/AirMSPI/fixed_satellites_images/satellites_images_{cloud_index}.mat'
-        # sio.savemat(filename, result)
+        result = {'satellites_images': images,
+                  'file_name': file_name}
+        filename = f'/home/yaelsc/Data/AirMSPI/160_pixels_satellites_images/satellites_images_{cloud_index}.mat'
+        sio.savemat(filename, result)
 
-        f, axarr = plt.subplots(1, len(images), figsize=(20, 20))
-        for ax, image in zip(axarr, images):
-            ax.imshow(image, cmap='gray')
-            # ax.invert_xaxis()
-            # ax.invert_yaxis()
-            ax.axis('off')
-        plt.show()
+        # f, axarr = plt.subplots(1, len(images), figsize=(20, 20))
+        # for ax, image in zip(axarr, images):
+        #     ax.imshow(image, cmap='gray')
+        #     # ax.invert_xaxis()
+        #     # ax.invert_yaxis()
+        #     ax.axis('off')
+        # plt.show()
 
         print(f"{cloud_index} finished in {time.time()-start_process_time}")
     except Exception as e:
