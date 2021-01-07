@@ -9,19 +9,19 @@
 # --------   CloudCT neural network  ---------------
 # --------------------------------------------------
 neural_network:
-  satellites_images_path:  "/wdata/yaelsc/Data/CASS_50m_256x256x139_600CCN/64_64_32_satellites_images"
+  satellites_images_path:  "/wdata/yaelsc/Data/CASS_50m_256x256x139_600CCN/satellites_images"
 #  lwcs_path:  "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/lwcs"
 #  reffs_path:  "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/reffs"
 #  veffs_path:  "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/veffs"
 #  betas_path:  "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/betas"
-  clouds_path: "/wdata/yaelsc/Data/CASS_50m_256x256x139_600CCN/64_64_32_cloud_fields/cloud*.txt"
+  clouds_path: "/wdata/yaelsc/Data/CASS_50m_256x256x139_600CCN/lwcs/cloud*.txt"
 #  times_path: "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/times_betas"
 
 # --------------------------------------------------
 # -------------   Simulation flags  ----------------
 # --------------------------------------------------
 DOFORWARD: True
-DOINVERSE: False
+DOINVERSE: True
 
 # --------------------------------------------------
 # --------------   Use Simple Imager?  --------------

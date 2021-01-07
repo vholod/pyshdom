@@ -364,7 +364,7 @@ def main(cloud_indices):
                 logger.debug("Inverse phase complete")
             except Exception as e:
                 print(f'cloud {cloud_index} FAILED, {e}')
-        shutil.rmtree(f"/home/yaelsc/PycharmProjects/pyshdom/CloudCT_experiments/cloud{cloud_index}")
+        # shutil.rmtree(f"/home/yaelsc/PycharmProjects/pyshdom/CloudCT_experiments/cloud{cloud_index}")
         logger.debug(f"--------------- End for cloud {cloud_index} , {time.time() - start_time} sec---------------")
 
     # return vis_max_radiance_list, swir_max_radiance_list
@@ -770,8 +770,8 @@ if __name__ == '__main__':
     # with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
     #     future_to_url = {executor.submit(main, cloud_indices_chunks[i]) for i in np.arange(num_workers)}
     # main(['6001','6002','6003'])
-    main(np.arange(9001,12000).astype(str))
+    # main(np.arange(9001,12000).astype(str))
     # main(['6010','6037','6066','6341','6342'])
     # main(['6010','6037','6066'])
 
-    # main(['6004'])
+    main(['89'])
