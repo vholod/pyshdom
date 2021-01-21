@@ -12,7 +12,7 @@ def main(cloud_indices):
     logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
-    run_params = load_run_params(params_path="run_params_cloud_ct_nn_20m_clouds.yaml")
+    run_params = load_run_params(params_path="run_params_cloud_ct_nn_rico.yaml")
     # run_params['sun_zenith'] = sun_zenith # if you need to set the angle from main's input
     # logger.debug(f"New Run with sun zenith {run_params['sun_zenith']} (overrides yaml)")
 
@@ -353,10 +353,10 @@ def main(cloud_indices):
 
                 # save lwc and reff for neural network
                 copyfile(Final_results_3Dfiles[0], os.path.join(run_params['neural_network']['betas_path'],
-                                                                f'32_sats_no_limit_iter_20_m_initialize_{cloud_index}.mat'))
+                                                                f'try_{cloud_index}.mat'))
                 result = {'time': time.time() - inverse_start_time}
                 filename = os.path.join(run_params['neural_network']['times_path'],
-                                        f'32_sats_no_limit_iter_20_m_initialize_{cloud_index}.mat')
+                                        f'try_{cloud_index}.mat')
                 sio.savemat(filename, result)
 
                 logger.debug("Inverse phase complete")
@@ -768,6 +768,6 @@ if __name__ == '__main__':
     # with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
     #     future_to_url = {executor.submit(main, cloud_indices_chunks[i]) for i in np.arange(num_workers)}
     # main(['6001','6002','6003'])
-    main(['28440','55080','53760'])
+    # main(['28440','55080','53760'])
 
-    # main(['6004'])
+    main(['rico32x37x26'])
