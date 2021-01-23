@@ -12,7 +12,7 @@ def main(cloud_indices):
     logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
-    run_params = load_run_params(params_path="run_params_cloud_ct_nn_rico.yaml")
+    run_params = load_run_params(params_path="run_params_cloud_ct_nn_fab_clouds_fields.yaml")
     # run_params['sun_zenith'] = sun_zenith # if you need to set the angle from main's input
     # logger.debug(f"New Run with sun zenith {run_params['sun_zenith']} (overrides yaml)")
 
@@ -114,7 +114,7 @@ def main(cloud_indices):
         # cny x cnx is the camera resolution in pixels
         fov = 2 * np.rad2deg(np.arctan(0.5 * L / (run_params['Rsat'])))
 
-        vis_cnx = vis_cny = int(np.floor(L / vis_pixel_footprint))  # 32  #
+        vis_cnx = vis_cny = 64 # 32 # int(np.floor(L / vis_pixel_footprint))  # 32  #
         if USESWIR:
             swir_cnx = swir_cny = int(np.floor(L / swir_pixel_footprint))
 
@@ -770,4 +770,4 @@ if __name__ == '__main__':
     # main(['6001','6002','6003'])
     # main(['28440','55080','53760'])
 
-    main(['rico32x37x26'])
+    main(['550803'])

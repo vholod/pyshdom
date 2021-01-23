@@ -29,12 +29,12 @@ def main():
     print("reading the scat table from: {}".format(scat_file_path))
     mie.read_table(scat_file_path)
 
-    clouds_txt_path = "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/clouds"
-    clouds_mat_path = "/home/yaelsc/Data/BOMEX_256x256x100_5000CCN_50m_micro_256/lwcs"
+    clouds_txt_path = "/wdata/yaelsc/Data/fab_clouds_fields/clouds"
+    clouds_mat_path = "/wdata/yaelsc/Data/fab_clouds_fields/betas"
     for cloud_txt_path in glob.glob(os.path.join(clouds_txt_path, "*.txt")):
         cloud_index = cloud_txt_path.split(clouds_txt_path)[1].replace('.txt', '').replace('/cloud', '')
         print(f'processing cloud {cloud_index}')
-        cloud_mat_path = os.path.join(clouds_mat_path, f'cloud{cloud_index}.mat')
+        cloud_mat_path = os.path.join(clouds_mat_path, f'gt_cloud{cloud_index}.mat')
         exists(cloud_txt_path, 'csv_txt not found!')
         if os.path.exists(cloud_mat_path):
             print(f'cloud {cloud_index} already exists! skipping')
@@ -45,12 +45,14 @@ def main():
         droplets.load_from_csv(cloud_txt_path, veff=0.1)
 
         # threshold
-        run_params = load_run_params(params_path="run_params_cloud_ct_nn_test.yaml")
+        run_params = load_run_params(params_path="run_params_cloud_ct_nn_rico.yaml")
         mie_options = run_params['mie_options']
         droplets.reff.data[droplets.reff.data <= mie_options['start_reff']] = mie_options['start_reff']
         droplets.reff.data[droplets.reff.data >= mie_options['end_reff']] = mie_options['end_reff']
-        droplets.veff.data[droplets.veff.data <= mie_options['start_veff']] = mie_options['start_veff']
-        droplets.veff.data[droplets.veff.data >= mie_options['end_veff']] = mie_options['end_veff']
+        if len(droplets.veff.data[droplets.veff.data <= mie_options['start_veff']]) > 0:
+            droplets.veff.data[droplets.veff.data <= mie_options['start_veff']] = mie_options['start_veff']
+        if len(droplets.veff.data[droplets.veff.data >= mie_options['end_veff']]) > 0:
+            droplets.veff.data[droplets.veff.data >= mie_options['end_veff']] = mie_options['end_veff']
 
         droplets.add_mie(mie)
 
