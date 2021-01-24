@@ -655,7 +655,7 @@ def old_Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500, CAM_FOV = 0.1, CAM_RES = (
     return MV, near_nadir_view_index
 
 def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None,air_num_points= 20,air_max_alt= 5 ,MieTablesPath=None,
-                   wavelengths_micron=None,wavelength_averaging=False, mie_options = None):
+                   wavelengths_micron=None,wavelength_averaging=False, mie_options = None, cloud_index=None):
     """
     Prepare the medium for the CloudCT simulation:
     1. Generate multi-spectral scatterers for both droplets and air molecules.
@@ -680,7 +680,7 @@ def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None,air_num_points= 20,a
     # Generate multi-spectral scatterers for both droplets and air molecules
     assert CloudFieldFile is not None, "You must provied the cloud field for the simulation."
     droplets = shdom.MicrophysicalScatterer()
-    droplets.load_from_csv(CloudFieldFile, veff=0.1)
+    droplets.load_from_csv_divided(CloudFieldFile, veff=0.1)
 
     # threshold
     droplets.reff.data[droplets.reff.data <= mie_options['start_reff']] = mie_options['start_reff']
@@ -725,6 +725,16 @@ def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None,air_num_points= 20,a
         mie = shdom.MiePolydisperse()
         mie.read_table(table_path)
         droplets.add_mie(mie)
+
+        # save extintcion as mat file:
+        data_dir = "/wdata/yaelsc/Data/CASS_50m_256x256x139_600CCN/clouds_divided_10/lwcs"
+        # extract the extinction:
+        extinction = mie.get_extinction(droplets.lwc, droplets.reff, droplets.veff)
+        extinction_data = extinction.data  # 1/km
+        sio.savemat(os.path.join(data_dir, f"cloud{cloud_index}.mat"),
+                    dict(beta=extinction_data, lwc=droplets.lwc.data, reff=droplets.reff.data, veff=droplets.veff.data))
+        print("saving the lwc .mat file to: {}".format(os.path.join(data_dir, f"cloud{cloud_index}.mat")))
+
         print('added mie with wavelength of {}'.format(wavelength))
         
         # here droplets.num_wavelengths = air.num_wavelengths = wavelength_num

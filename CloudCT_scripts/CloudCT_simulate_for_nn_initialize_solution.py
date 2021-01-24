@@ -1,5 +1,6 @@
 import csv
 import logging
+import shutil
 from shutil import copyfile
 
 import matplotlib.pyplot as plt
@@ -12,7 +13,7 @@ def main(cloud_indices):
     logger = create_and_configer_logger(log_name='run_tracker.log')
     logger.debug("--------------- New Simulation ---------------")
 
-    run_params = load_run_params(params_path="run_params_cloud_ct_nn_fab_clouds_fields.yaml")
+    run_params = load_run_params(params_path="/home/yaelsc/PycharmProjects/pyshdom/CloudCT_scripts/divida_cass/run_params_cloud_ct_nn_initialize_soloution.yaml")
     # run_params['sun_zenith'] = sun_zenith # if you need to set the angle from main's input
     # logger.debug(f"New Run with sun zenith {run_params['sun_zenith']} (overrides yaml)")
 
@@ -89,7 +90,8 @@ def main(cloud_indices):
                                                   MieTablesPath=MieTablesPath,
                                                   wavelengths_micron=wavelengths_micron,
                                                   wavelength_averaging=wavelength_averaging,
-                                                  mie_options=run_params['mie_options'])
+                                                  mie_options=run_params['mie_options'],
+                                                  cloud_index = cloud_index)
 
         droplets = atmosphere.get_scatterer('cloud')
 
@@ -362,7 +364,7 @@ def main(cloud_indices):
                 logger.debug("Inverse phase complete")
             except Exception as e:
                 print(f'cloud {cloud_index} FAILED, {e}')
-        # shutil.rmtree(f"/home/yaelsc/PycharmProjects/pyshdom/CloudCT_experiments/cloud{cloud_index}")
+        shutil.rmtree(f"/home/yaelsc/PycharmProjects/pyshdom/CloudCT_experiments/cloud{cloud_index}")
         logger.debug(f"--------------- End for cloud {cloud_index} , {time.time() - start_time} sec---------------")
 
     # return vis_max_radiance_list, swir_max_radiance_list
@@ -770,4 +772,4 @@ if __name__ == '__main__':
     # main(['6001','6002','6003'])
     # main(['28440','55080','53760'])
 
-    main(['4444'])
+    main(str(np.arange(0,10)))
