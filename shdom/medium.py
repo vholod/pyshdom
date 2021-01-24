@@ -464,7 +464,57 @@ class MicrophysicalScatterer(Scatterer):
             reff=shdom.GridData(grid, reff_data).squeeze_dims(), 
             veff=shdom.GridData(grid, veff_data).squeeze_dims()
         )
-    
+
+    def load_from_csv_divided(self, path, veff=0.1):
+        """
+        A utility function to load a microphysical medium.
+
+        Parameters
+        ----------
+        path: str
+            Path to file.
+        veff: float
+            If effective variance is not specified in the csv file as a 6th column,
+            this value is used as a homogeneous value.
+            Default value is veff=0.1
+
+        Notes
+        -----
+        CSV format should be as follows:
+
+        # comment line (description)
+        nx ny nz
+        dz dy dz     z_levels[0]     z_levels[1] ...  z_levels[nz-1]
+        ix iy iz     lwc[ix, iy, iz]    reff[ix, iy, iz]  veff[ix, iy, iz](optional)
+        .
+        .
+        .
+        ix iy iz     lwc[ix, iy, iz]    reff[ix, iy, iz]  veff[ix, iy, iz](optional)
+        """
+        grid = self.load_grid(path)
+        data = np.genfromtxt(path, skip_header=3)
+
+        grid_index = data[:, :3].astype(int)
+        lwc = data[:, 3]/10
+        reff = data[:, 4]
+        if data.shape[1] == 6:
+            veff = data[:, 5]
+        else:
+            veff = veff * np.ones_like(reff)
+
+        lwc_data  = np.full(shape=(grid.nx, grid.ny, grid.nz), fill_value=np.nan)
+        reff_data = np.full(shape=(grid.nx, grid.ny, grid.nz), fill_value=np.nan)
+        veff_data = np.full(shape=(grid.nx, grid.ny, grid.nz), fill_value=np.nan)
+        lwc_data[grid_index[:, 0], grid_index[:, 1], grid_index[:, 2]]  = lwc
+        reff_data[grid_index[:, 0], grid_index[:, 1], grid_index[:, 2]] = reff
+        veff_data[grid_index[:, 0], grid_index[:, 1], grid_index[:, 2]] = veff
+
+        self.set_microphysics(
+            lwc=shdom.GridData(grid, lwc_data).squeeze_dims(),
+            reff=shdom.GridData(grid, reff_data).squeeze_dims(),
+            veff=shdom.GridData(grid, veff_data).squeeze_dims()
+        )
+
     @property
     def lwc(self):
         return self._lwc
