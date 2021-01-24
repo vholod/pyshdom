@@ -773,5 +773,7 @@ if __name__ == '__main__':
     # main(['6001','6002','6003'])
     # main(['28440','55080','53760'])
 
-    main(np.arange(2030,4000).astype(str))
+    # main(np.arange(2226,4000).astype(str))
+    # main(np.arange(4231,6000).astype(str))
+    main(np.arange(6277,8000).astype(str))
     # main(['444420'])
