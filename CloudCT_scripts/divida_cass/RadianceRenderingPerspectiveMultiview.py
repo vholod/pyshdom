@@ -14,7 +14,7 @@ from shdom import SpaceMultiView
 
 mie = shdom.MiePolydisperse()
 mie.read_table(
-    file_path='/home/yaelsc/PycharmProjects/pyshdom/yael/mie_tables/polydisperse/Water_672nm.scat')
+    file_path='/home/yaelsc/PycharmProjects/pyshdom/mie_tables/polydisperse/Water_672nm.scat')
 
 # Generate a Microphysical medium
 droplets = shdom.MicrophysicalScatterer()
@@ -29,7 +29,7 @@ for file_name in glob.iglob(
 
     droplets.load_from_csv_divided(file_name, veff=0.1)
     # threshold
-    run_params = load_run_params(params_path="run_params_cloud_ct_nn_rico.yaml")
+    run_params = load_run_params(params_path="/home/yaelsc/PycharmProjects/pyshdom/CloudCT_scripts/run_params_cloud_ct_nn_fab_clouds_fields.yaml")
     mie_options = run_params['mie_options']
     droplets.reff.data[droplets.reff.data <= mie_options['start_reff']] = mie_options['start_reff']
     droplets.reff.data[droplets.reff.data >= mie_options['end_reff']] = mie_options['end_reff']
