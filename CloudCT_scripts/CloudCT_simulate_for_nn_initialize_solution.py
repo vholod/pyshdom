@@ -14,6 +14,7 @@ def main(cloud_indices):
     logger.debug("--------------- New Simulation ---------------")
 
     run_params = load_run_params(params_path="/home/yaelsc/PycharmProjects/pyshdom/CloudCT_scripts/divida_cass/run_params_cloud_ct_nn_initialize_soloution.yaml")
+
     # run_params['sun_zenith'] = sun_zenith # if you need to set the angle from main's input
     # logger.debug(f"New Run with sun zenith {run_params['sun_zenith']} (overrides yaml)")
 
@@ -772,4 +773,5 @@ if __name__ == '__main__':
     # main(['6001','6002','6003'])
     # main(['28440','55080','53760'])
 
-    main(str(np.arange(0,10)))
+    main(np.arange(2030,4000).astype(str))
+    # main(['444420'])

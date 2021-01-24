@@ -495,7 +495,7 @@ class MicrophysicalScatterer(Scatterer):
         data = np.genfromtxt(path, skip_header=3)
 
         grid_index = data[:, :3].astype(int)
-        lwc = data[:, 3]/10
+        lwc = data[:, 3]/10 ###### YAEL ADDED divisio!!!!!!!!!! remove!!!!!!!!
         reff = data[:, 4]
         if data.shape[1] == 6:
             veff = data[:, 5]
