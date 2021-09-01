@@ -11,15 +11,10 @@
 # --------------------------------------------------
 Log_Prefix: ''
 
-
-
 DOFORWARD: True
-DOINVERSE: False
-DOCOSTEVAL: True
-
-#DOFORWARD: True
-#DOINVERSE: False
-#DOCOSTEVAL: True 
+DOINVERSE: True
+DOCOSTEVAL: False
+calc_loss_and_grad: False
 
 # --------------------------------------------------
 # --------------   Use Simple Imager?  --------------
@@ -61,27 +56,34 @@ swir_options:
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt' # reff: 9.4 lwc: 0.6 
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt' # lwc: 0.4, reff: 6.2
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440_1d_reff_const_veff.txt'
-CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821' # 
+CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821' #
+
+CloudFields:
+  rico: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt'
+  23040: '../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt'
+  43200: '../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt'
+  55080: '../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt'
+  53760: '../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt'
+  28440: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt'
+  4821: '../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821'
 
 
-
-#CloudFieldFile: '../WIZ_Clouds/cloud1261.txt'
 AirFieldFile: '../ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file which contains temperature measurements
 
 
 # --------------------------------------------------
 # ----------------  Number of Jobs  ----------------
 # --------------------------------------------------
-n_jobs: 50
+n_jobs: 15
 
 
 # --------------------------------------------------
 # ----------------   Orbit and GSD  ----------------
 # --------------------------------------------------
 Rsat: 500  # orbit altitude, km
-#GSD: 0.02  # in km, it is the ground spatial resolution.
-#GSD: 0.005 # /4
-GSD: 0.02
+GSD: 0.02  # in km, it is the ground spatial resolution.
+
+
 # --------------------------------------------------
 # -----------------   Wavelengths  -----------------
 # --------------------------------------------------
@@ -101,15 +103,15 @@ SATS_NUMBER_SETUP: &num_sats 10  # satellites number to build the setup, for the
 SATS_NUMBER_INVERSE: *num_sats  #10, how much satellites will be used for the inverse. TODO not in use
 WIDEST_VIEW: False # If WIDEST_VIEW False, the setup is the original with 100km distance between satellites.
 # If it is True the distance become 200km.
-APPLY_VIEW_GEOMETRIC_SCALING: False
-# If it is True, scale the gradient with geomitric scaling per view.
+APPLY_VIEW_GEOMETRIC_SCALING: False # If it is True, scale the gradient with geometric scaling per view.
+
 
 # --------------------------------------------------
 # ---------  numerical & scene Parameters  ---------
 # ---------  for RTE solver & solver init  ---------
 # --------------------------------------------------
 # later we must update it since it depends on the wavelegth.
-# split_accuracy of 0.1 gives nice results, For the rico cloud i didn't see that decreasing the split accuracy improves the rec.
+# split_accuracy of 0.1 gives nice results, For the rico cloud I didn't see that decreasing the split accuracy improves the rec.
 # so fo the rico loud Let's use split_accuracy = 0.1.
 solar_fluxes_val: 1.0
 split_accuracies_val: 0.1
@@ -119,7 +121,6 @@ surface_albedos_val: 0.05
 # -------------   mia table parameters  -----------
 # -------------------------------------------------
 mie_options:
-
   start_reff: 1.5 #4 # Starting effective radius [Micron]
   end_reff: 20.0
   num_reff: 100
@@ -155,7 +156,7 @@ vizual_options:
 forward_options:
 
   # Rayleigh part:
-  CENCEL_AIR: False # just for debugging, in runtime  must be false.
+  cancel_air: False # just for debugging, in runtime  must be false.
   air_num_points: 80  # Number of altitude grid points for the air volume
   air_max_alt: 100  # in km ,Maximum altitude for the air volume 
   # ------------------------------------------------------------
@@ -205,11 +206,10 @@ uncertainty_options:
 # ----------------  inverse parameters  -----------
 # -------------------------------------------------
 inverse_options:
-
   erode_edges_init: False
   precond_grad: False
   force_1d_reff: False
-  reff_smoothness_const: 0.0 # good 0.000001 # sloud be less than  0.00001
+  reff_smoothness_const: 0.0 # good 0.000001 # should be less than  0.00001
   # --------------------------------------------------
   # -------------   Radiance Threshold  ------------
   # --------------------------------------------------
@@ -234,7 +234,7 @@ inverse_options:
   MICROPHYSICS: True
   
   # if micropyhsics is  true, specify where to recover lwc / reff / veff or (reff and lwc)
-  recover_type: 'reff_and_lwc' #reff_and_lwc' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
+  recover_type: 'reff_and_lwc'  # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
 
   # Initialization and Medium parameters:
   lwc: 1.3 # 1  # init lwc of the generator
@@ -242,11 +242,9 @@ inverse_options:
   veff: 0.1 # init veff of the generator
 
   # Scaling params when recovering reff and lwc:
-  lwc_scaling_val: 10
-  reff_scaling_val: 0.1
-  #lwc_scaling_val: 15
-  #reff_scaling_val: 0.01
-  
+  lwc_scaling_val: 10 # 15
+  reff_scaling_val: 0.1 # 0.01
+
   # if not microphysics:
   extinction: 0.01  # init extinction of the generator
 

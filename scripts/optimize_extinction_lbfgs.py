@@ -430,7 +430,6 @@ class OptimizationScript(object):
             tracker_path = os.path.join(log_dir,'cost.txt')
             with open(tracker_path, 'a') as file_object:
                 file_object.write('{}\n'.format(cost))
-                
         else:
             
             # perform full optimization:

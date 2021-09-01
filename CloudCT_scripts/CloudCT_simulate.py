@@ -119,7 +119,7 @@ def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, ma
     vizual_options = run_params['vizual_options']  # visualization params
     # -------------LOAD SOME MEDIUM TO RECONSTRUCT--------------------------------
     # Path to csv file which contains temperature measurements or None if the atmosphere will not consider any air.
-    AirFieldFile = run_params['AirFieldFile'] if not run_params['forward_options']['CENCEL_AIR'] else None
+    AirFieldFile = run_params['AirFieldFile'] if not run_params['forward_options']['cancel_air'] else None
 
     # If we do not use simple imager we probably use imager with a band so:
     wavelength_averaging = False if run_params['USE_SIMPLE_IMAGER'] else True
@@ -849,12 +849,10 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
     Returns:
 
     """
-    if(inverse_options['init'] == 'Homogeneous' ):
+    if(inverse_options['init'] in ['Homogeneous','Monotonous'] ):
         INIT_USE = ' --init ' + inverse_options['init']
     elif(inverse_options['init'] == 'LesFile' ):
         INIT_USE = ' --init ' + inverse_options['init'] + ' --path ' + inverse_options['LesFile_path']
-    elif(inverse_options['init'] == 'Monotonous' ): 
-        INIT_USE = ' --init ' + inverse_options['init']  
     elif(inverse_options['init'] == 'FromMatFile' ): 
         INIT_USE = ' --init ' + inverse_options['init'] + ' --path ' + inverse_options['mat_path']
         
@@ -862,7 +860,7 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
     GT_USE = ''
     GT_USE = GT_USE + ' --cloudct_use' if inverse_options['cloudct_use'] else GT_USE  # -----------------
     GT_USE = GT_USE + ' --add_rayleigh' if inverse_options['add_rayleigh'] and not run_params['forward_options'][
-        'CENCEL_AIR'] else GT_USE
+        'cancel_air'] else GT_USE
     GT_USE = GT_USE + ' --use_forward_mask' if inverse_options['use_forward_mask'] else GT_USE
     GT_USE = GT_USE + ' --use_forward_grid' if inverse_options['use_forward_grid'] else GT_USE
     GT_USE = GT_USE + ' --save_gt_and_carver_masks' if inverse_options['if_save_gt_and_carver_masks'] else GT_USE
@@ -895,10 +893,10 @@ def create_inverse_command(run_params, inverse_options, vizual_options,
     OTHER_PARAMS = OTHER_PARAMS + ' --precond_grad' if inverse_options['precond_grad'] else OTHER_PARAMS
     OTHER_PARAMS = OTHER_PARAMS + ' --globalopt' if inverse_options['globalopt'] else OTHER_PARAMS
 
-    OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if not run_params['forward_options']['CENCEL_AIR'] else OTHER_PARAMS
+    OTHER_PARAMS = OTHER_PARAMS + ' --air_path ' + AirFieldFile if not run_params['forward_options']['cancel_air'] else OTHER_PARAMS
     OTHER_PARAMS += ' --smoothness_const ' + str(inverse_options['reff_smoothness_const'])
     
-    if(not run_params['forward_options']['CENCEL_AIR']):
+    if(not run_params['forward_options']['cancel_air']):
         OTHER_PARAMS = OTHER_PARAMS + ' --air_max_alt ' + str(run_params['forward_options']['air_max_alt'])
         OTHER_PARAMS = OTHER_PARAMS + ' --air_num_points ' + str(run_params['forward_options']['air_num_points'])
 
@@ -1151,14 +1149,16 @@ def CALCULATE_COST_ON_MANY_CLOUDS():
     CloudFieldFiles = []
     # CloudFieldFiles.append('../synthetic_cloud_fields/jpl_les/rico32x37x26.txt')
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt') 
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt') 
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt')
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt')
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt') 
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt') 
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821') 
 
-    for CloudFieldFile in CloudFieldFiles:
-        main(CloudFieldFile)    
+    from multiprocessing import Pool
+
+    with Pool(len(CloudFieldFiles)) as p:
+        p.map(main, CloudFieldFiles)
 
 
 def run_many_cases():
@@ -1169,33 +1169,35 @@ def run_many_cases():
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt') 
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt') 
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt') 
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821') 
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821')
 
+    from multiprocessing import Pool
+
+    with Pool(len(CloudFieldFiles)) as p:
+        p.map(run_case, CloudFieldFiles)
+
+def run_case(CloudFieldFile):
     Init_dict = {}
-    Init_dict['23040'] = {'lwc':0.5,'reff':7.8}
-    Init_dict['43200'] = {'lwc':1.3,'reff':10.2}
-    Init_dict['55080'] = {'lwc':0.8,'reff':11.8}
-    
-    Init_dict['53760'] = {'lwc':0.8,'reff':11.8}
-    Init_dict['28440'] = {'lwc':0.8,'reff':11.0}
-    Init_dict['4821'] =  {'lwc':1.6,'reff':12.6}
-    
+    Init_dict['23040'] = {'lwc': 0.5, 'reff': 7.8}
+    Init_dict['43200'] = {'lwc': 1.2, 'reff': 8.6}
+    Init_dict['55080'] = {'lwc': 0.6, 'reff': 8.6}
+    Init_dict['53760'] = {'lwc': 0.7, 'reff': 10.2}
+    Init_dict['28440'] = {'lwc': 0.5, 'reff': 6.2}
+    Init_dict['4821'] = {'lwc': 1.4, 'reff': 11.0}
+
     Prefix = "Init_same_as_swir_vis_But_with_swir_"
     logger = create_and_configer_logger(log_name='run_tracker.log')
+    CloudFieldName = CloudFieldFile.split('/')[-1].split('.')[0]
+    CloudFieldName = CloudFieldName.split('_')[-1]
 
-    for CloudFieldFile in CloudFieldFiles:
-        CloudFieldName = CloudFieldFile.split('/')[-1].split('.')[0]
-        CloudFieldName = CloudFieldName.split('_')[-1]
-        
-        logger.debug(CloudFieldName)
-        logger.debug('init lwc {}, init reff {}'.format(Init_dict[str(CloudFieldName)]['lwc'],
-                                                 Init_dict[str(CloudFieldName)]['reff']))
-        logger.debug(10*'-')
+    logger.debug(CloudFieldName)
+    logger.debug('init lwc {}, init reff {}'.format(Init_dict[str(CloudFieldName)]['lwc'],
+                                                    Init_dict[str(CloudFieldName)]['reff']))
+    logger.debug(10 * '-')
 
-        main(CloudFieldFile = CloudFieldFile, Init_dict = Init_dict[str(CloudFieldName)], Prefix = Prefix, logger=logger)
-    
-    # -------------------------------
-    
+    main(CloudFieldFile=CloudFieldFile, Init_dict=Init_dict[str(CloudFieldName)], Prefix=Prefix, logger=logger)
+
+
 def SHOW_INIT_PROFILES(N=16):
     SHOW_FITTING_ERROR = False
     from mpl_toolkits import mplot3d
@@ -1203,7 +1205,8 @@ def SHOW_INIT_PROFILES(N=16):
     
     #PATH_TO_LOOK_FOR_COST_LOGS = '../CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_620-670nm_active_sats_10_GSD_20m_and_SWIR_1628-1658nm_active_sats_10_GSD_50m_LES_cloud_field_BOMEX/logs/'
     PATH_TO_LOOK_FOR_COST_LOGS = '../CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_620-670nm_active_sats_10_GSD_20m_LES_cloud_field_BOMEX/logs/'
-    
+    PATH_TO_LOOK_FOR_COST_LOGS = '../CloudCT_experiments/run_results/bias'
+
     
     TEMPLATE = 'cost_reff_smoothness_with_0.0prec_lwc_10_prec_reff_0.1_'
     
@@ -1319,8 +1322,9 @@ def SHOW_INIT_PROFILES(N=16):
     
     
 if __name__ == '__main__':
-    # run_many_cases()
-    CALCULATE_COST_ON_MANY_CLOUDS()
+    run_many_cases()
+    # CALCULATE_COST_ON_MANY_CLOUDS()
+    # SHOW_INIT_PROFILES()
     # #main()
     # CloudFieldFiles = []
     # #CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')
