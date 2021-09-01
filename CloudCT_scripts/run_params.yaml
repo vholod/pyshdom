@@ -27,6 +27,8 @@ vis_options:
   ImportConfigPath: '../notebooks/Gecko_config.json'
   temperature: *temperature # celsius
   true_indices: [0,1,2,3,4,5,6,7,8,9]  # where imagers are located
+  rays_per_pixel: 16
+  rigid_sampling: False # True
 
 # --------------------------------------------------
 # ------------   SWIR Imager Parameters  ------------
@@ -35,30 +37,31 @@ swir_options:
   ImportConfigPath: '../notebooks/Hypothetic_SWIR_camera_config_50m_nadir_resolution.json'
   temperature: *temperature # celsius
   true_indices: [0,1,2,3,4,5,6,7,8,9]   # where imagers are located, if true_indices: [], no swir imager will be simulated
-
+  rays_per_pixel: 16
+  rigid_sampling: False # True
 
 
 # --------------------------------------------------
 # -------------   Cloud & Air Field files  ---------
 # --------------------------------------------------
 
-CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt' # '/wdata/clouds_from_weizmann/BOMEX_512X512X170_500CCN_20m/cropped/BOMEX_21720_30x36x18_o2.txt'
+CloudFieldFile: '/wdata/clouds_from_weizmann/BOMEX_512X512X170_500CCN_20m/cropped/BOMEX_36000_41x35x50_048171.txt'
 AirFieldFile: '../ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file which contains temperature measurements
 
 
 # --------------------------------------------------
 # ----------------  Number of Jobs  ----------------
 # --------------------------------------------------
-n_jobs: 28
+n_jobs: 30
 
 
 # --------------------------------------------------
 # ----------------   Orbit and GSD  ----------------
 # --------------------------------------------------
 Rsat: 500  # orbit altitude, km
-GSD: 0.02  # in km, it is the ground spatial resolution.
-
-
+#GSD: 0.02  # in km, it is the ground spatial resolution.
+#GSD: 0.005 # /4
+GSD: 0.02
 # --------------------------------------------------
 # -----------------   Wavelengths  -----------------
 # --------------------------------------------------
@@ -96,14 +99,14 @@ radiance_threshold: [0.023, 0.02] # Threshold is either a scalar or a list of le
 
 
 # -------------------------------------------------
-# -------------   mia table parameters  -----------
+# -------------   mie table parameters  -----------
 # -------------------------------------------------
 mie_options:
-  start_reff: 4.0 # Starting effective radius [Micron]
+  start_reff: 2.0 # Starting effective radius [Micron]
   end_reff: 25.0
   num_reff: 100
   start_veff: 0.01
-  end_veff: 0.4 # return it to 0.4
+  end_veff: 0.7 # return it to 0.4
   num_veff: 117
   radius_cutoff: 65.0 # The cutoff radius for the pdf averaging [Micron]
   wavelength_resolution: 0.001 # it is the delta in the wavelengths (microns) for the optical parameters avaraging inside shdom.
@@ -125,7 +128,7 @@ vizual_options:
 # -------------------------------------------------
 forward_options:
 
-  SEE_IMAGES: False
+  SEE_IMAGES: True
 
   temp: 5900  # K,  units of W/(m^2))
 
@@ -169,11 +172,11 @@ inverse_options:
   MICROPHYSICS: True
   
   # if micropyhsics is  true, specify where to recover lwc / reff / veff or (reff and lwc)
-  recover_type: 'reff_and_lwc' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
+  recover_type: 'reff' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
 
   # Initialization and Medium parameters:
-  lwc: 0.01  # init lwc of the generator
-  reff: 6 # init reff of the generator
+  lwc: 0.1  # init lwc of the generator
+  reff: 10 # init reff of the generator
   veff: 0.19 # init veff of the generator
 
   # Scaling params when recovering reff and lwc:

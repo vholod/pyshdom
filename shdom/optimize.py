@@ -1165,9 +1165,21 @@ class MediumEstimator(shdom.Medium):
             The rendered (synthetic) images.
         """
         if isinstance(projection.npix, list):
-            total_pix = np.sum(projection.npix)
+            total_pixs = np.sum(projection.npix)
+            rays_per_pixel = []
+            for samples_per_pixel, npix in zip(projection.samples_per_pixel,projection.npix):
+                rays = np.repeat(samples_per_pixel, npix)
+                rays_per_pixel.append(rays)  
+            rays_per_pixel = np.concatenate(rays_per_pixel)
         else:
-            total_pix = projection.npix
+            total_pixs = projection.npix
+            rays_per_pixel = np.repeat(projection.samples_per_pixel, total_pixs)
+            
+    
+        rays_weights = projection.weight # pixel/ray weight of contibution to gradient due to samples per pixel introdution, interduced by vadim.
+
+
+        #print('--> {}, {}'.format(projection.phi[10], projection.mu[10]))
 
         gradient, loss, images = core.gradient_l2(
             weights=self._stokes_weights[:rte_solver._nstokes],
@@ -1253,9 +1265,11 @@ class MediumEstimator(shdom.Medium):
             camx=projection.x,
             camy=projection.y,
             camz=projection.z,
+            ray_weights=rays_weights, 
+            rays_per_pixel = rays_per_pixel,
             cammu=projection.mu,
             camphi=projection.phi,
-            npix=total_pix,
+            npix=total_pixs,
             srctype=rte_solver._srctype,
             sfctype=rte_solver._sfctype,
             units=rte_solver._units,
@@ -1307,6 +1321,10 @@ class MediumEstimator(shdom.Medium):
             for imager_index, wavelength in enumerate(imagers_channels):
                 acquired_images = images_dict[imager_index]
                 CloudCT_projection = CloudCT_geometry_and_imagers[imager_index]
+                # resample rays per pixels to imitate random sampling of the rays per pixel:
+                if any(np.array(CloudCT_projection.samples_per_pixel)>1):
+                    #CloudCT_projection.resample_rays_per_pixel()
+                    pass
                 # chack consistensy in the wavelengths:
                 assert wavelength == CloudCT_projection.imager.centeral_wavelength_in_microns,\
                        "There is not consistency between the wavelengths between the imager and the CLoudCT setup measurements."
@@ -1322,10 +1340,19 @@ class MediumEstimator(shdom.Medium):
                     sensor=shdom.RadianceSensor()
                     num_channels = CloudCT_projection.num_channels
                     pixels = []
-                    for image in acquired_images:
-                        pixels.append(image.reshape((-1, num_channels), order='F'))  
+                    rays_per_pixel = []
+                    for (image, samples_per_pixel) in zip(acquired_images,CloudCT_projection.samples_per_pixel):
+                        # duplicate pixels:
+                        # row_pixels = np.repeat(image.reshape((-1, num_channels), order='F'), samples_per_pixel)[:,np.newaxis]
+                        # don't replicate pixels, leave them as they are:
+                        row_pixels = image.reshape((-1, num_channels), order='F')
+                        pixels.append(row_pixels)
+                        rays = np.repeat(samples_per_pixel, row_pixels.size)
+                        rays_per_pixel.append(rays)
                         
                     pixels = np.concatenate(pixels, axis=-2)
+                    rays_per_pixel = np.concatenate(rays_per_pixel)
+                    
                 else:
                     raise AttributeError('Only RadianceSensor is supported with the CloudCT setups.')                
                 
@@ -1333,7 +1360,11 @@ class MediumEstimator(shdom.Medium):
                 # TODO- consider to use num_channels>1 per one imager.
                 # Sequential or parallel processing using multithreading (threadsafe Fortran)
                 #n_jobs = 1
-                if n_jobs > 1:           
+                
+                if n_jobs > 1:          
+                    #if any(np.array(CloudCT_projection.samples_per_pixel)>1):
+                        #n_jobs = CloudCT_projection.num_projections
+                        
                     output = Parallel(n_jobs=n_jobs, backend="threading", verbose=0)(
                         delayed(self.core_grad, check_pickle=False)(
                             rte_solver=rte_solvers[loop_imager_index],
@@ -1367,10 +1398,19 @@ class MediumEstimator(shdom.Medium):
                 #loss_per_imager = output[1]
                 loss_per_imager = np.sum(list(map(lambda x: x[1], output)))
                 gradient_per_imager = np.sum(list(map(lambda x: x[0], output)), axis=0)    
-                images_per_imager = sensor.make_images(np.concatenate(list(map(lambda x: x[2], output)), axis=-1),
+                images_per_imager = sensor.inverse_make_images(np.concatenate(list(map(lambda x: x[2], output)), axis=-1),
                                             CloudCT_projection,
                                             num_channels)   
                 
+                #if any(np.array(CloudCT_projection.samples_per_pixel)>1):
+                                    #CloudCT_projection.resample_rays_per_pixel()
+                                    ## If any projection has samples_per_pixel > 1, the cost calculated inside GRADIENT_L2 (fortran) is wrong.
+                                    ## It is refined here:
+                                    #loss_per_imager = 0
+                                    #for (i_measured,i) in zip(acquired_images,images_per_imager):
+                                        #loss_per_imager += 0.5*np.sum(np.power((i_measured.ravel() - i.ravel()),2))
+                
+                                
                 gradient = np.sum([gradient, gradient_per_imager], axis=0) 
                 loss += loss_per_imager
                 images += images_per_imager
@@ -2235,7 +2275,7 @@ class LocalOptimizer(object):
         self._loss = loss
         self._images = images
         # vadim save gradients for each iteration for debug:
-        SAVE_GRADIENTS_DB = False
+        SAVE_GRADIENTS_DB = True
         if(SAVE_GRADIENTS_DB):
             gredient_save_dir = self.writer.dir + '_gradients'            
             if not os.path.exists(gredient_save_dir):
