@@ -205,18 +205,26 @@ max_y_coordinates = float_round(ygrid[max_y_index] - dy)
 # Becouse The Xmin is here ->|_|_|_|_|_|_|_|_|.
 # The Xmax is one dx befor the last corner (|_|_|_|_|_|_|_->|_|). I made a lot of miskaes when I implemented it.
 
-new_field = volumefield[min_x_index:max_x_index, min_y_index:max_y_index, :]
-cumsum_volume_axis2 = np.cumsum(new_field, axis=2, dtype=float)
-# GET RID OF ZEROS: fined the minimum excluding zeros, 
-tmp = np.sum(np.sum(cumsum_volume_axis2, axis=1), axis=0)
+# new_field = volumefield[min_x_index:max_x_index, min_y_index:max_y_index, :]
+# cumsum_volume_axis2 = np.cumsum(new_field, axis=2, dtype=float)
+# # GET RID OF ZEROS: fined the minimum excluding zeros,
+# tmp = np.sum(np.sum(cumsum_volume_axis2, axis=1), axis=0)
+# tmp[tmp == 0] = max(tmp)
+# # GET RID OF ZEROS -> done
+# Bottom_minimum = np.argmin(tmp)
+
+cumsum_volume_axis22 = np.cumsum(volumefield, axis=2, dtype=float)
+# GET RID OF ZEROS: find the minimum excluding zeros,
+tmp = np.sum(np.sum(cumsum_volume_axis22, axis=1), axis=0)
 tmp[tmp == 0] = max(tmp)
 # GET RID OF ZEROS -> done
 Bottom_minimum = np.argmin(tmp)
 
 min_z_index = Bottom_minimum
-max_z_index = np.amax(np.argmax(cumsum_volume_axis2, axis=2))
+max_z_index = np.amax(np.argmax(cumsum_volume_axis22, axis=2))
 
-new_field = new_field[:, :, min_z_index:max_z_index]
+new_field = volumefield[min_x_index:max_x_index, min_y_index:max_y_index, min_z_index:max_z_index]
+# new_field = new_field[:, :, min_z_index:max_z_index]
 
 # I always do the padding. I Pad with zeros on the sides.
 # So:
@@ -244,6 +252,8 @@ logger.info("The min_x_coordinates is {}".format(min_x_coordinates))
 logger.info("The min_y_coordinates is {}".format(min_y_coordinates))
 logger.info("The max_x_coordinates is {}".format(max_x_coordinates))
 logger.info("The max_y_coordinates is {}".format(max_y_coordinates))
+logger.info("The min_z_coordinates is {}".format(min_z_coordinates)) # TODO
+logger.info("The max_z_coordinates is {}".format(max_z_coordinates))
 
 # -------------------------------------------------------------
 # set every thing new:
