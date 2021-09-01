@@ -37,7 +37,7 @@ vis_options:
   ImportConfigPath: '../CloudCT_notebooks/Gecko_config_20mGDS.json'
   #ImportConfigPath: '../CloudCT_notebooks/VIS_835-885_config_20mGDS.json'
   temperature: *temperature # celsius
-  true_indices: [0,1,2,3,4,5,6,7,8,9]  # where imagers are located
+  true_indices: [0,1,2,3,5,7,8,9]  # where imagers are located
   rays_per_pixel: 1
   rigid_sampling: True # True
 
@@ -47,7 +47,7 @@ vis_options:
 swir_options:
   ImportConfigPath: '../CloudCT_notebooks/Hypothetic_SWIR_camera_config_50m_nadir_resolution.json'
   temperature: *temperature # celsius
-  true_indices: []   # where imagers are located, if true_indices: [], no swir imager will be simulated
+  true_indices: [4,6]   # where imagers are located, if true_indices: [], no swir imager will be simulated
   rays_per_pixel: 16
   rigid_sampling: True # True
 
@@ -57,12 +57,12 @@ swir_options:
 # --------------------------------------------------
 #CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt' # 15.2, 06
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt' # lwc: 0.4 reff: 7.8
-#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt' # lwc: 0.8 reff: 6.2
+CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt' # lwc: 0.8 reff: 6.2
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt' # or _1d_reff , reff: 7.8 , lwc: 0.5
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt' # reff: 9.4 lwc: 0.6 
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt' # lwc: 0.4, reff: 6.2
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440_1d_reff_const_veff.txt'
-CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821' # 
+#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821' #
 
 
 
@@ -195,7 +195,7 @@ forward_options:
 # --------------------------------------------------
 # equal bias and equal bias = False are meant for giving each image a different gain and bias
 # since we add uncertainty in a loop on the imager it is not relevant, so keep on true
-use_cal_uncertainty: True
+use_cal_uncertainty: False
 uncertainty_options:
   use_bias: False
   use_gain: True

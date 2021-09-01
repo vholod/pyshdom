@@ -6,7 +6,7 @@ from scipy.optimize import fmin_l_bfgs_b
 
 import shdom
 import scipy.io as sio
-
+import ax
 class OptimizationScript(object):
     """
     Optimize: Extinction
@@ -464,9 +464,7 @@ class OptimizationScript(object):
                 self.rte_solver_mono = rte_solver
             self.iter_ = 0
             self.optimizer_ = shdom.LocalOptimizer('L-BFGS-B', n_jobs=self.args.n_jobs)
-            def call_back_func(x):
-                print(f'iter:{self.iter_} lwc: {round(x[0] / self.lwc_scale, 4)}, reff:{round(x[1] / self.reff_scale, 4)}')
-                self.iter_+=1
+
 
              # TODO
             """ 
@@ -479,60 +477,56 @@ class OptimizationScript(object):
         Backend Qt5Agg is interactive backend. Turning interactive mode on.
         Out[3]: <mpl_toolkits.mplot3d.art3d.Path3DCollection at 0x7f07d50ae450>
 """
-            # best_parameters, values, experiment, model = optimize(
-            #     parameters=[
-            #         {
-            #             "name": "init_lwc",
-            #             "type": "range",
-            #             "bounds": [0.0, 20.0],
-            #             "value_type": "float",  # Optional, defaults to inference from type of "bounds".
-            #             "log_scale": False,  # Optional, defaults to False.
-            #         },
-            #         {
-            #             "name": "init_reff",
-            #             "type": "range",
-            #             "bounds": [0.0, 20.0],
-            #         }
-            #     ],
-            #     experiment_name="test",
-            #     objective_name="fmin_l_bfgs_b",
-            #     evaluation_function=monotonous_optimization_func_call,
-            #     minimize=True,  # Optional, defaults to False.
-            #     #parameter_constraints=["x1 + x2 <= 20"],  # Optional.
-            #     #outcome_constraints=["l2norm <= 1.25"],  # Optional.
-            #     total_trials=5,  # Optional.
-            # )
-            # def monotonous_optimization_func_call(params):
-            #     init_lwc = params.get('init_lwc')
-            #     init_reff = params.get('init_reff')
+            best_parameters, values, experiment, model = ax.optimize(
+                parameters=[
+                    {
+                        "name": "init_lwc",
+                        "type": "range",
+                        "bounds": [0.01, 5.0],
+                        "value_type": "float",  # Optional, defaults to inference from type of "bounds".
+                        "log_scale": False,  # Optional, defaults to False.
+                    },
+                    {
+                        "name": "init_reff",
+                        "type": "range",
+                        "bounds": [0.01, 20.0],
+                        "value_type": "float"
+                    }
+                ],
+                experiment_name="test",
+                evaluation_function=self.monotonous_optimization_func_call,
+                minimize=True,  # Optional, defaults to False.
+                objective_name='Loss',
+                #parameter_constraints=["x1 + x2 <= 20"],  # Optional.
+                #outcome_constraints=["l2norm <= 1.25"],  # Optional.
+                total_trials=5,  # Optional.
+            )
+            print(best_parameters)
+            print(values)
+            pass
+
+
+            # import time
+            # for _ in range(20):
+            #     start = time.time()
+            #     init_reff = np.random.random() * 20  # 13.0
+            #     init_lwc = np.random.random() * 0.2  # 1.0
             #     result = fmin_l_bfgs_b(func=self.optimize_monotonous_objective_func,
-            #                            x0=np.array([init_lwc * self.lwc_scale, init_reff * self.reff_scale]),
+            #                            x0=np.array([init_lwc*self.lwc_scale, init_reff*self.reff_scale]),
             #                            bounds=[(0, float('inf')), (0, float('inf'))],
             #                            callback=call_back_func,
             #                            maxls=5,
             #                            factr=10.0)
-
-            import time
-            for _ in range(20):
-                start = time.time()
-                init_reff = np.random.random() * 20  # 13.0
-                init_lwc = np.random.random() * 0.2  # 1.0
-                result = fmin_l_bfgs_b(func=self.optimize_monotonous_objective_func,
-                                       x0=np.array([init_lwc*self.lwc_scale, init_reff*self.reff_scale]),
-                                       bounds=[(0, float('inf')), (0, float('inf'))],
-                                       callback=call_back_func,
-                                       maxls=5,
-                                       factr=10.0)
-                end = time.time()
-
-                print(result)
-                self.results['time'].append(end - start)
-                self.results['init_lwc'].append(init_lwc)
-                self.results['init_reff'].append(init_reff)
-                self.results['lwc'].append(result[0][0]/self.lwc_scale)
-                self.results['reff'].append(result[0][1]/self.reff_scale)
-                self.results['loss'].append(result[1])
-            print(self.results)
+            #     end = time.time()
+            #
+            #     print(result)
+            #     self.results['time'].append(end - start)
+            #     self.results['init_lwc'].append(init_lwc)
+            #     self.results['init_reff'].append(init_reff)
+            #     self.results['lwc'].append(result[0][0]/self.lwc_scale)
+            #     self.results['reff'].append(result[0][1]/self.reff_scale)
+            #     self.results['loss'].append(result[1])
+            # print(self.results)
                 
         else:
             
@@ -612,6 +606,29 @@ class OptimizationScript(object):
         grad[1] = (grad_3d[1]*reff_grad).sum()*self.reff_scale
         print(f'At lwc: {round(x[0]/self.lwc_scale,4)}, reff:{round(x[1]/self.reff_scale,4)}: Loss:{round(loss,6)}, grad:{np.round(grad,4)}')
         return loss, grad
+
+    def monotonous_optimization_func_call(self, params):
+        init_lwc = params.get('init_lwc')
+        init_reff = params.get('init_reff')
+        result = fmin_l_bfgs_b(func=self.optimize_monotonous_objective_func,
+                               x0=np.array([init_lwc * self.lwc_scale, init_reff * self.reff_scale]),
+                               bounds=[(0.001, float('inf')), (0.001, float('inf'))],
+                               callback=self.call_back_func,
+                               maxls=5,
+                               factr=10.0)
+        # results = {'time':}
+        # self.results['time'].append(end - start)
+        # self.results['init_lwc'].append(init_lwc)
+        # self.results['init_reff'].append(init_reff)
+        # self.results['lwc'].append(result[0][0] / self.lwc_scale)
+        # self.results['reff'].append(result[0][1] / self.reff_scale)
+        # self.results['loss'].append(result[1])
+        return result[1]
+
+    def call_back_func(self, x):
+        print(f'iter:{self.iter_} lwc: {round(x[0] / self.lwc_scale, 4)}, reff:{round(x[1] / self.reff_scale, 4)}')
+        self.iter_ += 1
+
 
 if __name__ == "__main__":
     script = OptimizationScript(scatterer_name='cloud')

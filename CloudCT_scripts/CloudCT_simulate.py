@@ -1215,24 +1215,24 @@ def run_many_cases():
     # -------------------------------
     
 def SHOW_INIT_PROFILES(N=16):
-    SHOW_FITTING_ERROR = False
+    SHOW_FITTING_ERROR = True
     from mpl_toolkits import mplot3d
     from collections import namedtuple
     
-    #PATH_TO_LOOK_FOR_COST_LOGS = '../CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_620-670nm_active_sats_10_GSD_20m_and_SWIR_1628-1658nm_active_sats_10_GSD_50m_LES_cloud_field_BOMEX/logs/'
+    # PATH_TO_LOOK_FOR_COST_LOGS = '../CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_620-670nm_active_sats_10_GSD_20m_and_SWIR_1628-1658nm_active_sats_10_GSD_50m_LES_cloud_field_BOMEX/logs/'
     PATH_TO_LOOK_FOR_COST_LOGS = '../CloudCT_experiments/run_results'
     
     
-    TEMPLATE = 'gain_cost_reff_smoothness_with_0.0prec_lwc_10_prec_reff_0.1_'
+    TEMPLATE = 'bias_cost_reff_smoothness_with_0.0prec_lwc_10_prec_reff_0.1_'
     
     # prepare clouds for cost evaluation:
     CloudFieldFiles = []
     # CloudFieldFiles.append('../synthetic_cloud_fields/jpl_les/rico32x37x26.txt')
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt') #
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt') 
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt') 
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt') 
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt') ##
+    # CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt') #
+    # CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt')
+    # CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt')
+    # CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt')
+    # CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt') ##
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821') 
 
     for CloudFieldFile in CloudFieldFiles:
@@ -1342,7 +1342,7 @@ def SHOW_INIT_PROFILES(N=16):
     
     
 if __name__ == '__main__':
-    run_many_cases()
+    # run_many_cases()
     # CALCULATE_COST_ON_MANY_CLOUDS()
     # SHOW_INIT_PROFILES()
     main()
