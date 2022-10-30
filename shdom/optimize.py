@@ -925,19 +925,32 @@ class MediumEstimator(shdom.Medium):
         leg_table.pad(rte_solver._nleg)
         dleg = leg_table.data
         dnumphase = leg_table.numphase
-        dphasetab = core.precompute_phase_check(
+        
+        # zero the first term of the first component of the phase function
+        # gradient. Pre-scale the legendre moments by 1/(2*l+1) which
+        # is done in the forward problem in TRILIN_INTERP_PROP
+        scaling_factor =np.array([2.0*i+1.0 for i in range(0,rte_solver._nleg+1)])
+        if dleg.ndim == 2:
+            dleg[0,:] = 0.0
+            dleg /= scaling_factor[:,np.newaxis]
+        elif dleg.ndim ==3:
+            dleg[0,0,:] = 0.0
+            dleg /= scaling_factor[np.newaxis,:,np.newaxis]
+
+        dphasetab = core.precompute_phase_check_grad(
             negcheck=False,
             nstphase=rte_solver._nstphase,
             nstleg=rte_solver._nstleg,
             nscatangle=rte_solver._nscatangle,
             nstokes=rte_solver._nstokes,
-            numphase=dnumphase,
+            dnumphase=dnumphase,
             ml=rte_solver._ml,
             nlm=rte_solver._nlm,
             nleg=rte_solver._nleg,
-            legen=dleg,
+            dleg=dleg,
             deltam=rte_solver._deltam
-        )                
+        )
+
         return dext, dalb, diphase, dleg, dphasetab, dnumphase
 
     def compute_direct_derivative(self, rte_solver):
@@ -2058,6 +2071,7 @@ class LocalOptimizer(object):
             measurements=self.measurements,
             n_jobs=self.n_jobs
         )
+        print(state, gradient, loss)
         self._loss = loss
         self._images = images
         return loss, gradient
