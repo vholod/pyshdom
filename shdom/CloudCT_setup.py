@@ -696,7 +696,7 @@ def old_Create(SATS_NUMBER = 10,ORBIT_ALTITUDE = 500, CAM_FOV = 0.1, CAM_RES = (
     return MV, near_nadir_view_index
 
 def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, air_num_points = 20, air_max_alt = 20.0, MieTablesPath=None, 
-                   wavelengths_micron=None,wavelength_averaging=False):
+                   wavelengths_micron=None,wavelength_averaging=False, LIMIT_MIE_PARAMETERS=False, mie_options = None):
     """
     Prepare the medium for the CloudCT simulation:
     1. Generate multi-spectral scatterers for both droplets and air molecules.
@@ -713,7 +713,12 @@ def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, air_num_points = 20
          If it is False, Mie tables with template of Water_{}nm.scat will be loaded
          If it is True, Mie tables with template of averaged_Water_{}nm.scat will be loaded. It means that
          here we want to use the central wavelength and the Mie tables were calculated by averaging scattering properties over the wavelength band.
+    (new) LIMIT_MIE_PARAMETERS: bool, if it is true, the reff and veff may be cliped by the mie_options.limits
     """
+    
+    
+    
+
     
     # Force/check the wavelengths_micron to be a list:
     if(np.isscalar(wavelengths_micron)):
@@ -755,6 +760,43 @@ def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, air_num_points = 20
         
         droplets = shdom.MicrophysicalScatterer()
         droplets.load_from_csv(CloudFieldFile, veff=0.1)
+    
+        # ---------------------------------------------
+        # -------------NEW 2/01/2023-------------------
+        # ---------------------------------------------
+        
+        if LIMIT_MIE_PARAMETERS:
+            assert mie_options is not None, "mie_options must be valide options."
+            
+            lwc = droplets.lwc.data
+            veff = droplets.veff.data
+            reff = droplets.reff.data
+            
+            start_veff = mie_options['start_veff']
+            start_reff = mie_options['start_reff']
+            end_veff = mie_options['end_veff']
+            end_reff = mie_options['end_reff']
+            
+            
+            
+            reff[reff<=start_reff] = start_reff
+            reff[reff>=end_reff] = end_reff 
+            if np.isscalar(veff):
+                veff = veff*np.ones_like(reff)
+            else:
+                veff[veff<=start_veff] = start_veff
+                veff[veff>=end_veff] = end_veff  
+                
+            new_lwc = shdom.GridData(droplets.grid,lwc)
+            new_veff = shdom.GridData(droplets.grid,veff)
+            new_reff = shdom.GridData(droplets.grid,reff)
+            new_droplets = shdom.MicrophysicalScatterer(new_lwc,new_reff,new_veff)
+            droplets = new_droplets    
+
+        # ---------------------------------------------
+        # ---------------------------------------------
+        # ---------------------------------------------
+
     
     # Air part
     air = shdom.MultispectralScatterer()

@@ -22,14 +22,24 @@ import operator
 
 
 VISSETUP = False
+LIMIT_MIE_PARAMETERS = True
 
 # -----------------------------------------------------------------
 # mia table parameters:
-start_reff = 0.01
+start_reff = 0.05
 end_reff = 25.0
 start_veff = 0.01
 end_veff = 0.7
 radius_cutoff = 65.0
+
+# these parameters don't work
+#start_reff = 0.5
+#end_reff = 35.0
+#start_veff = 0.1
+#end_veff = 0.2
+#radius_cutoff = 160.0
+
+
 mie_options = {
     'start_reff': start_reff,# Starting effective radius [Micron]
     'end_reff': end_reff,
@@ -70,9 +80,10 @@ mie_base_path = CALC_MIE_TABLES(MieTablesPath,wavelengths_micron,mie_options)
 # -------------LOAD SOME MEDIUM TO RECONSTRUCT--------------------------------
 # ---------------------------------------------------------------
 #CloudFieldFile = "/wdata/clouds_from_weizmann/BOMEX_512X512X170_500CCN_20m/cropped_for_new_pyshdom/BOMEX_256x256x100_5000CCN_50m_micro_256_0000007620.txt" # works but slow.
-#CloudFieldFile = "/wdata/vadim/CloudGeometry/clouds from Udi/16samples/BOMEX_512x512x200_20m_20m_1s_512_0000007360_2_3_old_pyshdom.txt"
-CloudFieldFile = "/wdata/clouds_from_weizmann/BOMEX_512X512X170_500CCN_20m/cropped_for_new_pyshdom/BOMEX_21600_515x515x71_6520_old_pyshdom.txt"
+CloudFieldFile = "/wdata/vadim/CloudGeometry/clouds from Udi/16samples/BOMEX_512x512x200_20m_20m_1s_512_0000013880_0_1_old_pyshdom.txt"
+#CloudFieldFile = "/wdata/clouds_from_weizmann/BOMEX_512X512X170_500CCN_20m/cropped_for_new_pyshdom/BOMEX_21600_515x515x71_6520_old_pyshdom.txt"
 #CloudFieldFile = "/wdata/clouds_from_weizmann/BOMEX_512X512X170_500CCN_20m/cropped_for_new_pyshdom/danny_small_cloud_old_pyshdom.txt"
+
 
 
 
@@ -81,7 +92,10 @@ AirFieldFile = '../ancillary_data/AFGL_summer_mid_lat.txt' # Path to csv file wh
 
 atmosphere = CloudCT_setup.Prepare_Medium(CloudFieldFile=CloudFieldFile, AirFieldFile = AirFieldFile, \
                air_num_points = 20, air_max_alt = 20.0, MieTablesPath=MieTablesPath, 
-               wavelengths_micron=wavelengths_micron,wavelength_averaging=False)
+               wavelengths_micron=wavelengths_micron,wavelength_averaging=False, LIMIT_MIE_PARAMETERS=True, mie_options =mie_options)
+
+
+
 
 
 fig1 = mlab.figure(1, bgcolor=(1, 1, 1), fgcolor=(0, 0, 0),
@@ -101,25 +115,26 @@ atmosphere.pad_scatterer(name = 'cloud', axis=1, right = False, values=values)
 
 droplets = atmosphere.get_scatterer('cloud')
 
+
 # -----------------------------------------------
 # ---------Point the cameras and ----------------
 # ---------Calculate camera footprint at nadir --
 # -----------------------------------------------
-atmospheric_grid = atmosphere.grid
-dx = atmospheric_grid.dx
-dy = atmospheric_grid.dy
+droplets_grid = droplets.grid
+dx = droplets_grid.dx
+dy = droplets_grid.dy
 
-nz = atmospheric_grid.nz
-nx = atmospheric_grid.nx
-ny = atmospheric_grid.ny
+nz = droplets_grid.nz
+nx = droplets_grid.nx
+ny = droplets_grid.ny
 
-Lx = atmospheric_grid.bounding_box.xmax - atmospheric_grid.bounding_box.xmin
-Ly = atmospheric_grid.bounding_box.ymax - atmospheric_grid.bounding_box.ymin
-Lz = atmospheric_grid.bounding_box.zmax - atmospheric_grid.bounding_box.zmin
+Lx = droplets_grid.bounding_box.xmax - droplets_grid.bounding_box.xmin
+Ly = droplets_grid.bounding_box.ymax - droplets_grid.bounding_box.ymin
+Lz = droplets_grid.bounding_box.zmax - droplets_grid.bounding_box.zmin
 L = max(Lx,Ly)
 
 Lz_droplets = droplets.grid.bounding_box.zmax - droplets.grid.bounding_box.zmin
-dz = Lz_droplets/nz
+dz = Lz_droplets/(nz - 1)
 
 #USED FOV, RESOLUTION and SAT_LOOKATS:
 PIXEL_FOOTPRINT = GSD # km
@@ -143,7 +158,7 @@ if(IFTUNE_CAM):
 # tuning is applied by the variavle LOOKAT.
 LOOKAT = CENTER_OF_MEDIUM_BOTTOM
 if(IFTUNE_CAM):
-    LOOKAT[2] = 0.68*nx*dz # tuning. if IFTUNE_CAM = False, just lookat the bottom
+    LOOKAT[2] = droplets.grid.bounding_box.zmin + 0.68*nz*dz # tuning. if IFTUNE_CAM = False, just lookat the bottom
         
 SAT_LOOKATS = np.array(SATS_NUMBER_SETUP*LOOKAT).reshape(-1,3)# currently, all satellites lookat the same point.
     
@@ -162,14 +177,14 @@ print("Medium summary")
 print("nx = {}, ny = {},nz ={}".format(nx,ny,nz))
 print("dx = {}, dy = {},dz ={}".format(dx,dy,dz))
 print("Lx = {}, Ly = {},Lz ={}".format(Lx,Ly,Lz))
-x_min = atmospheric_grid.bounding_box.xmin
-x_max = atmospheric_grid.bounding_box.xmax
+x_min = droplets_grid.bounding_box.xmin
+x_max = droplets_grid.bounding_box.xmax
 
-y_min = atmospheric_grid.bounding_box.ymin
-y_max = atmospheric_grid.bounding_box.ymax
+y_min = droplets_grid.bounding_box.ymin
+y_max = droplets_grid.bounding_box.ymax
 
-z_min = atmospheric_grid.bounding_box.zmin
-z_max = atmospheric_grid.bounding_box.zmax 
+z_min = droplets_grid.bounding_box.zmin
+z_max = droplets_grid.bounding_box.zmax 
 print("xmin = {}, ymin = {},zmin ={}".format(x_min,y_min,z_min))
 print("xmax = {}, ymax = {},zmax ={}".format(x_max,y_max,z_max))
 
