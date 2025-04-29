@@ -14,6 +14,7 @@ from mpl_toolkits.axes_grid1 import AxesGrid
 import time
 import glob
 from shdom.CloudCT_Utils import *
+from collections import OrderedDict
 
 # importing functools for reduce() 
 import functools  
@@ -55,11 +56,10 @@ mie_options = {
 Rsat = 500 # km
 GSD = 0.5*0.02 # in km, it is the ground spatial resolution.
 wavelengths_micron = [0.672]  #0.672 , 1.6
-sun_azimuth = 45
+sun_azimuth = 4*45
 sun_zenith = 155
 maxiter = 150
 n_jobs = 60
-
 #azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
 #zenith: Solar beam zenith angle in range (90,180]  
 
@@ -80,8 +80,8 @@ mie_base_path = CALC_MIE_TABLES(MieTablesPath,wavelengths_micron,mie_options)
 # -------------LOAD SOME MEDIUM TO RECONSTRUCT--------------------------------
 # ---------------------------------------------------------------
 #CloudFieldFile = "/wdata/clouds_from_weizmann/BOMEX_512X512X170_500CCN_20m/cropped_for_new_pyshdom/BOMEX_256x256x100_5000CCN_50m_micro_256_0000007620.txt" # works but slow.
-CloudFieldFile = "/wdata/vadim/CloudGeometry/clouds from Udi/16samples/BOMEX_512x512x200_20m_20m_1s_512_0000013880_0_1_old_pyshdom.txt"
-#CloudFieldFile = "/wdata/clouds_from_weizmann/BOMEX_512X512X170_500CCN_20m/cropped_for_new_pyshdom/BOMEX_21600_515x515x71_6520_old_pyshdom.txt"
+#CloudFieldFile = "/wdata/vadim/CloudGeometry/clouds from Udi/16samples/BOMEX_512x512x200_20m_20m_1s_512_0000013880_0_1_old_pyshdom.txt"
+CloudFieldFile = "/wdata/clouds_from_weizmann/BOMEX_512X512X170_500CCN_20m/cropped_for_new_pyshdom/BOMEX_21600_515x515x71_6520_old_pyshdom.txt"
 #CloudFieldFile = "/wdata/clouds_from_weizmann/BOMEX_512X512X170_500CCN_20m/cropped_for_new_pyshdom/danny_small_cloud_old_pyshdom.txt"
 
 
@@ -236,6 +236,16 @@ if(VISSETUP):
     mlab.show()
 
 
+# save the projection attributes seperatlly:
+proj_data_dict = OrderedDict()
+for view,view_name in zip(projection._projection_list,names):
+    print(view_name,view.report_pose())
+    proj_data_dict[view_name] = view.report_pose()
+    
+sun_string = "sun_azi_{}_sun_zen_{}_".format(sun_azimuth,sun_zenith)
+file_name = sun_string+CloudFieldFile.split('/')[-1].split('.')[0]+'_projections.pkl'
+with open(file_name, 'wb') as outfile:
+    pickle.dump(proj_data_dict, outfile, protocol=pickle.HIGHEST_PROTOCOL)
 
     
 """
@@ -276,10 +286,10 @@ split_accuracies = np.full_like(wavelengths_micron, 0.1)
 surface_albedos = np.full_like(wavelengths_micron, 0.05) # later we must update it since it depends on the wavelegth.
 # split_accuracy of 0.1 gives nice results, For the rico cloud i didn't see that decreasing the split accuracy improves the rec.
 # so fo the rico loud Let's use split_accuracy = 0.1.
-num_mu = 8
-num_phi = 16
+num_mu = 8 #16
+num_phi = 16 #32
 # note: whae num_mu, num_phi are 16,32, the retrievals look better than with 8,16.
-adapt_grid_factor = 5
+adapt_grid_factor = 1 # 5
 solution_accuracy = 0.0001
 max_total_mb = 1000000.0
 # Generate a solver array for a multispectral solution.
@@ -370,8 +380,8 @@ if(SEE_IMAGES):
     
     grid.cbar_axes[0].colorbar(im) 
     
-    
-file_name = CloudFieldFile.split('/')[-1].split('.')[0]+'.mat'
+IMAGES_DICT['projection']  = projection  
+file_name = sun_string+CloudFieldFile.split('/')[-1].split('.')[0]+'_eccv.mat'
 sio.savemat(file_name, IMAGES_DICT)
 plt.show()    
 

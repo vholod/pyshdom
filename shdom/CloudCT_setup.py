@@ -17,7 +17,8 @@ import functools
 import operator 
 import pickle
 import warnings
-
+from scipy import ndimage
+from scipy.ndimage.filters import laplace as laplacian
 # -----------------------------------------------------------------
 # ------------------------THE CLASSES BELOW------------------------
 # -----------------------------------------------------------------
@@ -715,7 +716,7 @@ def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, air_num_points = 20
          here we want to use the central wavelength and the Mie tables were calculated by averaging scattering properties over the wavelength band.
     (new) LIMIT_MIE_PARAMETERS: bool, if it is true, the reff and veff may be cliped by the mie_options.limits
     """
-    
+    IF_SMOOTH = False
     
     
 
@@ -786,6 +787,15 @@ def Prepare_Medium(CloudFieldFile=None, AirFieldFile = None, air_num_points = 20
             else:
                 veff[veff<=start_veff] = start_veff
                 veff[veff>=end_veff] = end_veff  
+                
+            # smooth lwc and reff:
+            if IF_SMOOTH:
+                
+                sigma_reff = 1
+                sigma_lwc = 1
+                
+                reff = ndimage.gaussian_filter(reff, sigma = sigma_reff)
+                lwc  = ndimage.gaussian_filter(lwc, sigma = sigma_lwc)
                 
             new_lwc = shdom.GridData(droplets.grid,lwc)
             new_veff = shdom.GridData(droplets.grid,veff)

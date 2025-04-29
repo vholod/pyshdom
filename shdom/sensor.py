@@ -1065,6 +1065,17 @@ class PerspectiveProjection(HomographyProjection):
         self._rotation_matrix = np.matmul(self._rotation_matrix, rot)
         self.update_global_coordinates()
 
+    # vadim added to report state for cvpr 25 paper:
+    def report_pose(self):
+        """
+        reports position, fov, resolution and rotation.
+        """
+        datadict = {}
+        datadict['FOV_deg'] = self._fov
+        datadict['resolution_nx_ny'] = self._resolution
+        datadict['position'] = self._position
+        datadict['rotation'] = self._rotation_matrix
+        return datadict
     # vadim added for visualization:
     def show_camera(self,scale = 0.6,axisWidth = 3.0,axisLenght=1.0, FullCone = False):
         """

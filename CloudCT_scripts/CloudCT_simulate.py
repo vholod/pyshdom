@@ -52,7 +52,8 @@ def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, ma
 
         THe imagers aslo dictate the ground spatial resolution (GSD).
     """
-    MieTablesPath = os.path.abspath("../mie_tables")
+    #MieTablesPath = os.path.abspath("../mie_tables")
+    MieTablesPath = os.path.abspath("/wdata_visl/generated_clouds/mie_tables/")
 
     # Setup the imagers, can be simple!
     vis_imager, vis_wavelength_range, vis_pixel_footprint, vis_imager_config = setup_imager(
@@ -76,15 +77,16 @@ def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, ma
     
     cloud_name = run_params['CloudFieldFile'].split('/')[-1]
     # where to save the forward outputs:
+    output_measurements_path = run_params['output_measurements']['measurements_path']
     if USESWIR:
-        forward_dir = f'../CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_{int(1e3 * vis_wavelength_range[0])}-' \
+        forward_dir = f'{output_measurements_path}/VIS_SWIR_NARROW_BANDS_VIS_{int(1e3 * vis_wavelength_range[0])}-' \
                       f'{int(1e3 * vis_wavelength_range[1])}nm_active_sats_{SATS_NUMBER_SETUP}_' \
                       f'GSD_{int(1e3 * vis_pixel_footprint)}m_and' \
                       f'_SWIR_{int(1e3 * swir_wavelength_range[0])}-{int(1e3 * swir_wavelength_range[1])}' \
                       f'nm_active_sats_{SATS_NUMBER_SETUP}_GSD_{int(1e3 * swir_pixel_footprint)}m' \
                       f"_LES_cloud_field_{cloud_name.split('_')[0]}"
     else:
-        forward_dir = f'../CloudCT_experiments/VIS_SWIR_NARROW_BANDS_VIS_{int(1e3 * vis_wavelength_range[0])}-' \
+        forward_dir = f'{output_measurements_path}/VIS_SWIR_NARROW_BANDS_VIS_{int(1e3 * vis_wavelength_range[0])}-' \
                       f'{int(1e3 * vis_wavelength_range[1])}nm_active_sats_{SATS_NUMBER_SETUP}_' \
                       f'GSD_{int(1e3 * vis_pixel_footprint)}m' \
                       f"_LES_cloud_field_{cloud_name.split('_')[0]}"
@@ -257,8 +259,25 @@ def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, ma
         # Right now the /numerical parameter of vis and swir are the same:
 
         rte_solvers = shdom.RteSolverArray()
-
+        
+        # pad at least one layer at x and y:
+        atmosphere.pad_scatterer(name='cloud',axis=0, right = True, values=[0])
+        atmosphere.pad_scatterer(name='cloud',axis=0, right = False, values=[0])        
     
+        atmosphere.pad_scatterer(name='cloud',axis=1, right = True, values=values)
+        atmosphere.pad_scatterer(name='cloud',axis=1, right = False, values=values)    
+        # get the updated droplets:
+        droplets = copy.deepcopy(atmosphere.get_scatterer('cloud'))   
+        # update lookat such that it will give same views as with true mask:
+        if run_params['IFTUNE_CAM']:
+            # it is droplets_grid.bounding_box.zmin + 0.1
+            LOOKAT[0] = LOOKAT[0] + dx #
+            LOOKAT[1] = LOOKAT[1] + dy #
+
+        # currently, all satellites lookat the same point.
+        SAT_LOOKATS = np.array(SATS_NUMBER_SETUP * LOOKAT).reshape(-1, 3)
+        
+        
         """
         If the retrieval does not assume ground truht mask, this is a place to pad the scatterer to be retrieved. 
         It must be done before the rendering simulation to avoide diviations in images (simulated by forward and on optimization rendering)
@@ -1354,8 +1373,8 @@ def SHOW_INIT_PROFILES(N=16):
 if __name__ == '__main__':
     
     
-    #main()
-    if(1):
+    main()
+    if(0):
         
         CloudFieldFiles = []
         CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')

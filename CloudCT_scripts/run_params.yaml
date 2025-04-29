@@ -5,6 +5,11 @@
 # ------------------------------------------------------------
 # ------------------------------------------------------------
 
+# --------------------------------------------------
+# --------   Output measurements path   ------------
+# --------------------------------------------------
+output_measurements :
+  measurements_path:  "/wdata_visl/generated_clouds/measurements"
 
 # --------------------------------------------------
 # -------------   Simulation flags  ----------------
@@ -36,7 +41,7 @@ vis_options:
   ImportConfigPath: '../CloudCT_notebooks/Gecko_config_20mGDS.json'
   #ImportConfigPath: '../CloudCT_notebooks/VIS_835-885_config_20mGDS.json'
   temperature: *temperature # celsius
-  true_indices: [0,1,2,3,5,7,8,9]  # where imagers are located
+  true_indices: [0,1,2,3,4,5,6,7,8,9]  # where imagers are located
   rays_per_pixel: 1
   rigid_sampling: True # True
 
@@ -46,9 +51,10 @@ vis_options:
 swir_options:
   ImportConfigPath: '../CloudCT_notebooks/Hypothetic_MICROGIC_SWIR_camera_config_50m_nadir_resolution.json'
   temperature: *temperature # celsius
-  true_indices: [4,6]   # where imagers are located, if true_indices: [], no swir imager will be simulated
+  true_indices: []   # where imagers are located, if true_indices: [], no swir imager will be simulated
   rays_per_pixel: 16
   rigid_sampling: True # True
+  # In SWIR config: we used true_indices: [4,6]
 
 
 # --------------------------------------------------
@@ -61,8 +67,9 @@ swir_options:
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt' # reff: 9.4 lwc: 0.6 
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt' # lwc: 0.4, reff: 6.2
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440_1d_reff_const_veff.txt'
-CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821' # 
-
+#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821' # 
+CloudFieldFile: "/wdata_visl/generated_clouds/clouds/cloud1954.txt" # lwc: 0.8 reff: 6.2
+# cloud2345 cloud11734 are bad clouds
 
 
 #CloudFieldFile: '../WIZ_Clouds/cloud1261.txt'
@@ -90,8 +97,8 @@ GSD: 0.02
 # --------------------------------------------------
 # -------------   Sun Azimuth & Zenith  ------------
 # --------------------------------------------------
-sun_azimuth: 90  # azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
-sun_zenith: 155  # zenith: Solar beam zenith angle in range (90,180]
+sun_azimuth: 36.56  # azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
+sun_zenith: 154.74  # zenith: Solar beam zenith angle in range (90,180]
 
 
 # --------------------------------------------------
@@ -120,11 +127,11 @@ surface_albedos_val: 0.05
 # -------------------------------------------------
 mie_options:
 
-  start_reff: 1.5 #4 # Starting effective radius [Micron]
-  end_reff: 20.0
+  start_reff: 1 #4 # Starting effective radius [Micron]
+  end_reff: 35.0
   num_reff: 100
   start_veff: 0.01
-  end_veff: 0.53 #0.4 # return it to 0.4
+  end_veff: 0.4 #0.4 # return it to 0.4 or 0.53 as was for the main paper
   num_veff: 117
   radius_cutoff: 65.0 # The cutoff radius for the pdf averaging [Micron]
   wavelength_resolution: 0.001 # it is the delta in the wavelengths (microns) for the optical parameters avaraging inside shdom.
@@ -160,7 +167,7 @@ forward_options:
   air_max_alt: 100  # in km ,Maximum altitude for the air volume 
   # ------------------------------------------------------------
   
-  SEE_IMAGES: False
+  SEE_IMAGES: True
 
   temp: 5900  # K,  units of W/(m^2))
 
@@ -213,7 +220,7 @@ inverse_options:
   # --------------------------------------------------
   # -------------   Radiance Threshold  ------------
   # --------------------------------------------------
-  CloudCT_space_curve: True # do space curve implemented by CloudCT
+  CloudCT_space_curve: False # do space curve implemented by CloudCT
   radiance_threshold_vis: [0.023] # Threshold is either a scalar or a list of length of measurements.
   radiance_threshold_swir: [0.017]
   # Shubi added but I need to accept:
@@ -228,7 +235,7 @@ inverse_options:
 
   SEE_IMAGES: False
 
-  VIS_RESULTS3D: False  # show the results in 3D visualization
+  VIS_RESULTS3D: True  # show the results in 3D visualization
 
   #MICROPHYSICS: True # False for extinction
   MICROPHYSICS: True
@@ -237,9 +244,9 @@ inverse_options:
   recover_type: 'reff_and_lwc' #reff_and_lwc' # expects: one of 'lwc' / 'reff' / 'veff' / 'reff_and_lwc'
 
   # Initialization and Medium parameters:
-  lwc: 1.3 # 1  # init lwc of the generator
-  reff: 10.2 # 7 # init reff of the generator
-  veff: 0.1 # init veff of the generator
+  #lwc: 1.8 # 1  # init lwc of the generator
+  #reff: 7.8 # 7 # init reff of the generator
+  #veff: 0.1 # init veff of the generator
 
   # Scaling params when recovering reff and lwc:
   lwc_scaling_val: 10
@@ -258,11 +265,15 @@ inverse_options:
   # INIT
   #init: 'FromMatFile'
   #mat_path = ../CloudCT_experiments/noisy_init/BOMOX_28440_10_noise.mat
-  #init: 'Homogeneous' # init_generator = 'Homogeneous' it is the CloudGenerator from shdom.generate.py
+  init: 'Homogeneous' # init_generator = 'Homogeneous' it is the CloudGenerator from shdom.generate.py
   #init: 'LesFile'
   #LesFile_path: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt' # lwc: 0.4, reff: 6.2
-  init: 'Monotonous'
+  #init: 'Monotonous'
   #mono_in: 'reff'
+  lwc: 0.1 # 1  # init lwc of the generator
+  reff: 12 # 7 # init reff of the generator
+  veff: 0.1 # init veff of the generator
+  
   
   # droplets scatterer padding width.
   XPAD: 5 # pad in both sides in x axis

@@ -25,10 +25,10 @@ import operator
 
 # -----------------------------------------------
 
-#CloudFieldFile = "/wdata/clouds_from_weizmann/BOMEX_512X512X170_500CCN_20m/cropped_for_new_pyshdom/BOMEX_256x256x100_5000CCN_50m_micro_256_0000007620.txt"
+CloudFieldFile = "/wdata/clouds_from_weizmann/BOMEX_512X512X170_500CCN_20m/cropped_for_new_pyshdom/BOMEX_256x256x100_5000CCN_50m_micro_256_0000007620.txt"
 #CloudFieldFile = "/wdata/vadim/CloudGeometry/clouds from Udi/16samples/BOMEX_512x512x200_20m_20m_1s_512_0000002300_3_3_old_pyshdom.txt"
 #CloudFieldFile = "/wdata/clouds_from_weizmann/BOMEX_512X512X170_500CCN_20m/cropped_for_new_pyshdom/danny_small_cloud_old_pyshdom.txt"
-CloudFieldFile = "/wdata/clouds_from_weizmann/BOMEX_512X512X170_500CCN_20m/cropped_for_new_pyshdom/BOMEX_21600_515x515x71_6520_old_pyshdom.txt"
+#CloudFieldFile = "/wdata/clouds_from_weizmann/BOMEX_512X512X170_500CCN_20m/cropped_for_new_pyshdom/BOMEX_21600_515x515x71_6520_old_pyshdom.txt"
 
 
 str_name = CloudFieldFile.split('/')[-1].split('.')[0]
