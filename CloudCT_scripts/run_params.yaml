@@ -19,8 +19,8 @@ Log_Prefix: ''
 
 
 DOFORWARD: True
-DOINVERSE: True
-DOCOSTEVAL: False
+DOINVERSE: False
+DOCOSTEVAL: True
 
 #DOFORWARD: True
 #DOINVERSE: False
@@ -68,7 +68,7 @@ swir_options:
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt' # lwc: 0.4, reff: 6.2
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440_1d_reff_const_veff.txt'
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821' # 
-CloudFieldFile: "/wdata_visl/generated_clouds/clouds/cloud1954.txt" # lwc: 0.8 reff: 6.2
+CloudFieldFile: "/wdata_visl/generated_clouds/generated_clouds_mat_mul_by_10_xyz/cloud41628.txt"
 # cloud2345 cloud11734 are bad clouds
 
 
@@ -162,7 +162,7 @@ vizual_options:
 forward_options:
 
   # Rayleigh part:
-  CENCEL_AIR: False # just for debugging, in runtime  must be false.
+  CENCEL_AIR: True # just for debugging, in runtime  must be false.
   air_num_points: 80  # Number of altitude grid points for the air volume
   air_max_alt: 100  # in km ,Maximum altitude for the air volume 
   # ------------------------------------------------------------
@@ -265,12 +265,12 @@ inverse_options:
   # INIT
   #init: 'FromMatFile'
   #mat_path = ../CloudCT_experiments/noisy_init/BOMOX_28440_10_noise.mat
-  init: 'Homogeneous' # init_generator = 'Homogeneous' it is the CloudGenerator from shdom.generate.py
+  #init: 'Homogeneous' # init_generator = 'Homogeneous' it is the CloudGenerator from shdom.generate.py
   #init: 'LesFile'
   #LesFile_path: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt' # lwc: 0.4, reff: 6.2
-  #init: 'Monotonous'
+  init: 'Monotonous'
   #mono_in: 'reff'
-  lwc: 0.1 # 1  # init lwc of the generator
+  lwc: 0.1 # 1  # init lwc of the generator ONLY for the inverse problem
   reff: 12 # 7 # init reff of the generator
   veff: 0.1 # init veff of the generator
   
