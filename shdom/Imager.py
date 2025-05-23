@@ -699,7 +699,19 @@ class Imager(object):
                         ).astype(np.int)
     
         electrons_number += READ_noise 
-        
+        # ----------21/May/2025 important update: Noise bais reduction:
+        # -------------------------------------------------------------
+        # -------------------------------------------------------------
+        # Remove the noise mean here:
+        # The expected value (mean) of the sum of random variables 
+        # is equal to the sum of their expected values 
+        #(due to the linearity of expectation), regardless 
+        # of their distribution or independence. Therefore:
+        electrons_number = electrons_number - (READ_NOISE_mean + DARK_NOISE_mean)
+        # -------------------------------------------------------------
+        # -------------------------------------------------------------
+        # -------------------------------------------------------------
+            
         electrons_number = np.clip(electrons_number, a_min = 0, a_max=None)
         return electrons_number 
     

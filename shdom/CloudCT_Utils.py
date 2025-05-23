@@ -13,7 +13,7 @@ import functools
 import operator 
 import re
 import pickle
-
+import datetime
 # -------------------------------------------------------------------------------
 # ----------------------CONSTANTS------------------------------------------
 # -------------------------------------------------------------------------------
@@ -314,6 +314,88 @@ def load_CloudCT_measurments_and_forward_model(directory):
     
         
     return medium, solver, CloudCT_measurments
+
+
+# -----------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------
+def extract_date_from_filename_re(filename):
+    """
+    Extracts the date and time from the filename string using regular expressions.
+
+    Args:
+        filename (str): The input filename string.
+
+    Returns:
+        datetime.datetime: A datetime object representing the extracted date and time,
+                           or None if the date cannot be parsed.
+    """
+    # Regex pattern:
+    # r"(\d{2}-\w{3}-\d{4}-\d{2}:\d{2}:\d{2})"
+    # (\d{2}) : Captures two digits (for day)
+    # -       : Matches a literal hyphen
+    # (\w{3}) : Captures three word characters (for abbreviated month like 'May')
+    # -       : Matches a literal hyphen
+    # (\d{4}) : Captures four digits (for year)
+    # -       : Matches a literal hyphen
+    # (\d{2}:\d{2}:\d{2}) : Captures HH:MM:SS format
+    # This pattern looks for the date-time string at the end of the filename.
+    # The `$` anchor at the end ensures it matches only at the very end of the string.
+    pattern = r"(\d{2}-\w{3}-\d{4}-\d{2}:\d{2}:\d{2})$"
+
+    match = re.search(pattern, filename)
+
+    if match:
+        date_time_str = match.group(1) # Get the captured group (the full date-time string)
+        try:
+            # Parse the date and time string
+            dt_object = datetime.datetime.strptime(date_time_str, "%d-%b-%Y-%H:%M:%S")
+            return dt_object
+        except ValueError as e:
+            print(f"Regex matched a string '{date_time_str}', but could not parse it as date from filename '{filename}': {e}")
+            return None
+    else:
+        # print(f"No date pattern found in filename: '{filename}'")
+        return None
+
+# -----------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------
+
+def sort_filenames_by_date_re(filenames):
+    """
+    Sorts a list of filenames based on the date extracted from them using regex.
+
+    Args:
+        filenames (list): A list of filename strings.
+
+    Returns:
+        list: A new list of filenames sorted by date, with unparsable filenames
+              placed at the end (or handled as per requirement).
+    """
+    parsed_filenames = []
+
+    for filename in filenames:
+        dt = extract_date_from_filename_re(filename)
+        if dt:
+            parsed_filenames.append((dt, filename))
+        
+
+    # Sort the parsed filenames based on the datetime object
+    parsed_filenames.sort(key=lambda x: x[0])
+
+    # Reconstruct the sorted list of filenames
+    sorted_filenames = [filename for dt, filename in parsed_filenames]
+
+    return sorted_filenames
+
+# -----------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------
+
 
 
 # -----------------------------------------------------------------

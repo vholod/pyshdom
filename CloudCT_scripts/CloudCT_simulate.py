@@ -7,7 +7,7 @@ import sys
 from itertools import chain
 import scipy.io as sio
 import copy
-
+from tqdm import tqdm
 from shdom import CloudCT_setup, plank
 from shdom.CloudCT_Utils import *
 import random
@@ -52,8 +52,8 @@ def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, ma
 
         THe imagers aslo dictate the ground spatial resolution (GSD).
     """
-    #MieTablesPath = os.path.abspath("../mie_tables")
-    MieTablesPath = os.path.abspath("/wdata_visl/generated_clouds/mie_tables/")
+    MieTablesPath = os.path.abspath("../mie_tables")
+    #MieTablesPath = os.path.abspath("/home/vhold/pyshdom/mie_tables/")
 
     # Setup the imagers, can be simple!
     vis_imager, vis_wavelength_range, vis_pixel_footprint, vis_imager_config = setup_imager(
@@ -259,23 +259,6 @@ def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, ma
         # Right now the /numerical parameter of vis and swir are the same:
 
         rte_solvers = shdom.RteSolverArray()
-        
-        # pad at least one layer at x and y:
-        atmosphere.pad_scatterer(name='cloud',axis=0, right = True, values=[0])
-        atmosphere.pad_scatterer(name='cloud',axis=0, right = False, values=[0])        
-    
-        atmosphere.pad_scatterer(name='cloud',axis=1, right = True, values=values)
-        atmosphere.pad_scatterer(name='cloud',axis=1, right = False, values=values)    
-        # get the updated droplets:
-        droplets = copy.deepcopy(atmosphere.get_scatterer('cloud'))   
-        # update lookat such that it will give same views as with true mask:
-        if run_params['IFTUNE_CAM']:
-            # it is droplets_grid.bounding_box.zmin + 0.1
-            LOOKAT[0] = LOOKAT[0] + dx #
-            LOOKAT[1] = LOOKAT[1] + dy #
-
-        # currently, all satellites lookat the same point.
-        SAT_LOOKATS = np.array(SATS_NUMBER_SETUP * LOOKAT).reshape(-1, 3)
         
         
         """
@@ -638,6 +621,42 @@ def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, ma
         log_name = run_type + "_only_" + log_name_base
         log_name = run_params['Log_Prefix'] + log_name
 
+
+        if not run_params['DOFORWARD']:
+            # Means that the there was no forword simulation and many above defined parameters are missing:
+            
+            # ------------------------------------------------------------------------
+            # ----------Threshold for the radiance to create a cloud mask.------------
+            # ------------------------------------------------------------------------
+            radiance_threshold_dict = dict()
+            
+            if(not run_params['inverse_options']['use_forward_mask']):
+                # In a case of use_forward_mask = False which means that the 3D mask will be 
+                # calculated by Space Carving, we will visualize the images after radiance trashold on radiances images.
+                
+                radiance_threshold_vis = run_params['inverse_options']['radiance_threshold_vis']
+                radiance_threshold_swir = run_params['inverse_options']['radiance_threshold_swir']
+                assert isinstance(radiance_threshold_vis,list) , "radiance_threshold must be a list"
+                if len(radiance_threshold_vis) == 1:
+                    # index 0 always to vis
+                    radiance_threshold_dict[0] = sum(vis_imager_config)*radiance_threshold_vis
+                
+                else:
+                    radiance_threshold_dict[0] = radiance_threshold_vis
+                    
+                if USESWIR:
+                    assert isinstance(radiance_threshold_swir,list) , "radiance_threshold must be a list"
+                    if len(radiance_threshold_vis) == 1:
+                        radiance_threshold_dict[1] = sum(swir_imager_config)*radiance_threshold_swir
+                
+                    else:
+                        radiance_threshold_dict[1] = radiance_threshold_swir
+            
+        # ---------------------------------------------------
+        # ---------------------------------------------------
+        # ---------------------------------------------------
+        # ---------------------------------------------------
+        
         cmd = create_inverse_command(run_params=run_params, inverse_options=inverse_options,
                                      vizual_options=vizual_options,
                                      forward_dir=forward_dir, AirFieldFile=AirFieldFile,
@@ -672,8 +691,34 @@ def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, ma
         run_type = inverse_options['recover_type'] if inverse_options['MICROPHYSICS'] else 'extinction'
         log_name = 'cost_' + log_name_base + '-' + time.strftime("%d-%b-%Y-%H:%M:%S")
         log_dir = os.path.join(forward_dir, 'logs', log_name)
-        if not os.path.exists(log_dir):
-            os.mkdir(log_dir)
+        
+        # ------------------------------------------------------------
+        # ------------------------------------------------------------
+        # ------------------------------------------------------------
+        # --------- Check if the log path exists and creat it if not--
+        parts = log_dir.split(os.sep)
+        index_e = [parts.index(i) for i in parts if '_experiments' in i][0]
+        base_path = []
+        for i in range(0, index_e+1):
+            if not (parts[i] == '' or parts[i] is None):
+                base_path.append(parts[i])
+        if 'wdata' in parts[0] or parts[1]:  
+            base_path.insert(0,'/')
+            
+        base_path = os.path.join(*base_path)    
+        tmp_path = base_path
+        
+        
+        for i in range(index_e+1, len(parts)):
+            if not (parts[i] == '' or parts[i] is None):
+                tmp_path = os.path.join(tmp_path , parts[i])
+                if not os.path.exists(tmp_path):
+                    os.mkdir(tmp_path)
+        # ------------------------------------------------------------
+        # ------------------------------------------------------------
+        # ------------------------------------------------------------
+        # ------------------------------------------------------------
+        
             
         reff_tracker_path = os.path.join(log_dir,'reff.txt')
         lwc_tracker_path = os.path.join(log_dir,'lwc.txt')
@@ -693,6 +738,7 @@ def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, ma
         #reff_list = np.linspace(8,20,16)
         #lwc_list = np.linspace(0.1,1.6,16)        
 
+        pbar = tqdm(total=len(reff_list)*len(lwc_list))
         for reff in reff_list:
             for lwc in lwc_list:
                 print('{}: (reff,lwc) =  ({}, {})'.format(CloudFieldFile,reff,lwc))
@@ -705,7 +751,9 @@ def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, ma
                 # the cost is calculated inside the ptimize_microphysics_lbfgs.py:
                 run_params['inverse_options']['reff'] = reff 
                 run_params['inverse_options']['lwc'] = lwc
-                                
+                
+                radiance_threshold_dict = []
+                
                 cmd = create_inverse_command(run_params=run_params, inverse_options=inverse_options,
                                              vizual_options=vizual_options,
                                              forward_dir=forward_dir, AirFieldFile=AirFieldFile,
@@ -713,7 +761,9 @@ def main(CloudFieldFile = None, Init_dict = None, Prefix = None, init = None, ma
                 
                 cmd = cmd + ' --calc_only_cost'    
                 _ = subprocess.call(cmd, shell=True)
-                
+                pbar.update(1)
+          
+        pbar.close() # Important: close the progress bar when done      
         logger.debug("Calculation of costs is complete")
                 
                 
@@ -771,15 +821,10 @@ def visualize_results(forward_dir, log_name, wavelength_micron):
     logs_prefix = os.path.join(logs_dir, log_name)
     logs_files = glob.glob(logs_prefix + '-*')
 
-    times = [i.split('{}-'.format(int(1e3 * wavelength_micron)))[-1] for i in logs_files]
-    # sort the times to find the last one.
-    timestamp = [time.mktime(time.strptime(i, "%d-%b-%Y-%H:%M:%S")) for i in times]
-    # time.mktime(t) This is the inverse function of localtime()
-    timestamp.sort()
-    timestamp = [time.strftime("%d-%b-%Y-%H:%M:%S", time.localtime(i)) for i in timestamp]
-    # now, the timestamp are sorted, and I want the last stamp to visualize.
-    connector = '{}-'.format(int(1e3 * wavelength_micron))
-    log2load = logs_prefix + '-' + timestamp[-1]
+    sorted_file_list = sort_filenames_by_date_re(logs_files)
+    last_file = sorted_file_list[-1]
+
+    log2load = last_file
     # print here the Final results files:
     Final_results_3Dfiles = glob.glob(log2load + '/FINAL_3D_*.mat')
     print("{} files with the results in 3D were created:".format(len(Final_results_3Dfiles)))
@@ -1202,13 +1247,13 @@ def CALCULATE_COST_ON_MANY_CLOUDS():
     """
     # prepare clouds for cost evaluation:
     CloudFieldFiles = []
-    CloudFieldFiles.append('../synthetic_cloud_fields/jpl_les/rico32x37x26.txt')
+    #CloudFieldFiles.append('../synthetic_cloud_fields/jpl_les/rico32x37x26.txt')
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt')
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt') 
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt') 
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt') 
     CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt') 
-    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821') 
+    CloudFieldFiles.append('../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821.text') 
 
     for CloudFieldFile in CloudFieldFiles:
         main(CloudFieldFile)    
@@ -1373,7 +1418,8 @@ def SHOW_INIT_PROFILES(N=16):
 if __name__ == '__main__':
     
     
-    main()
+    #main()
+    CALCULATE_COST_ON_MANY_CLOUDS()
     if(0):
         
         CloudFieldFiles = []

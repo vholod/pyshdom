@@ -9,7 +9,8 @@
 # --------   Output measurements path   ------------
 # --------------------------------------------------
 output_measurements :
-  measurements_path:  "/wdata_visl/generated_clouds/measurements"
+  # measurements_path:  "/wdata_visl/generated_clouds/measurements"
+  measurements_path:  "/wdata_visl/vhold/CloudCT_153/pyshdom_dev/Archive_experiments"
 
 # --------------------------------------------------
 # -------------   Simulation flags  ----------------
@@ -62,13 +63,13 @@ swir_options:
 # --------------------------------------------------
 #CloudFieldFile: '../synthetic_cloud_fields/jpl_les/rico32x37x26.txt' # 15.2, 06
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_22x27x49_23040.txt' # lwc: 0.4 reff: 7.8
-#CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt' # lwc: 0.8 reff: 6.2
+CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_24x22x21_43200.txt' # lwc: 0.8 reff: 6.2
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_35x28x54_55080.txt' # or _1d_reff , reff: 7.8 , lwc: 0.5
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36x31x55_53760.txt' # reff: 9.4 lwc: 0.6 
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt' # lwc: 0.4, reff: 6.2
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440_1d_reff_const_veff.txt'
 #CloudFieldFile: '../synthetic_cloud_fields/wiz/BOMEX_36000_39x44x30_4821' # 
-CloudFieldFile: "/wdata_visl/generated_clouds/generated_clouds_mat_mul_by_10_xyz/cloud41628.txt"
+#CloudFieldFile: "/wdata_visl/generated_clouds/generated_clouds_mat_mul_by_10_xyz/cloud41628.txt"
 # cloud2345 cloud11734 are bad clouds
 
 
@@ -79,7 +80,7 @@ AirFieldFile: '../ancillary_data/AFGL_summer_mid_lat.txt'  # Path to csv file wh
 # --------------------------------------------------
 # ----------------  Number of Jobs  ----------------
 # --------------------------------------------------
-n_jobs: 65
+n_jobs: 50
 
 
 # --------------------------------------------------
@@ -87,7 +88,7 @@ n_jobs: 65
 # --------------------------------------------------
 Rsat: 500  # orbit altitude, km
 #GSD: 0.02  # in km, it is the ground spatial resolution.
-#GSD: 0.005 # /4
+#GSD: 0.05 # /4
 GSD: 0.02
 # --------------------------------------------------
 # -----------------   Wavelengths  -----------------
@@ -97,8 +98,8 @@ GSD: 0.02
 # --------------------------------------------------
 # -------------   Sun Azimuth & Zenith  ------------
 # --------------------------------------------------
-sun_azimuth: 36.56  # azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
-sun_zenith: 154.74  # zenith: Solar beam zenith angle in range (90,180]
+sun_azimuth: 90 # 36.56  # azimuth: 0 is beam going in positive X direction (North), 90 is positive Y (East).
+sun_zenith: 155 # 154.74  # zenith: Solar beam zenith angle in range (90,180]
 
 
 # --------------------------------------------------
@@ -127,11 +128,11 @@ surface_albedos_val: 0.05
 # -------------------------------------------------
 mie_options:
 
-  start_reff: 1 #4 # Starting effective radius [Micron]
-  end_reff: 35.0
+  start_reff: 1.5 #4 # Starting effective radius [Micron]
+  end_reff: 20.0
   num_reff: 100
   start_veff: 0.01
-  end_veff: 0.4 #0.4 # return it to 0.4 or 0.53 as was for the main paper
+  end_veff: 0.53 #0.4 # return it to 0.4 or 0.53 as was for the main paper
   num_veff: 117
   radius_cutoff: 65.0 # The cutoff radius for the pdf averaging [Micron]
   wavelength_resolution: 0.001 # it is the delta in the wavelengths (microns) for the optical parameters avaraging inside shdom.
@@ -162,12 +163,12 @@ vizual_options:
 forward_options:
 
   # Rayleigh part:
-  CENCEL_AIR: True # just for debugging, in runtime  must be false.
+  CENCEL_AIR: False # just for debugging, in runtime  must be false.
   air_num_points: 80  # Number of altitude grid points for the air volume
   air_max_alt: 100  # in km ,Maximum altitude for the air volume 
   # ------------------------------------------------------------
   
-  SEE_IMAGES: True
+  SEE_IMAGES: False
 
   temp: 5900  # K,  units of W/(m^2))
 
@@ -233,7 +234,7 @@ inverse_options:
   
   SEE_SETUP: False
 
-  SEE_IMAGES: False
+  SEE_IMAGES: True
 
   VIS_RESULTS3D: True  # show the results in 3D visualization
 
@@ -270,10 +271,10 @@ inverse_options:
   #LesFile_path: '../synthetic_cloud_fields/wiz/BOMEX_13x25x36_28440.txt' # lwc: 0.4, reff: 6.2
   init: 'Monotonous'
   #mono_in: 'reff'
-  lwc: 0.1 # 1  # init lwc of the generator ONLY for the inverse problem
-  reff: 12 # 7 # init reff of the generator
+  lwc: 0.8 # 1  # init lwc of the generator ONLY for the inverse problem
+  reff: 5.4 # 7 # init reff of the generator
   veff: 0.1 # init veff of the generator
-  
+  # vis 43200 1.1 7.8
   
   # droplets scatterer padding width.
   XPAD: 5 # pad in both sides in x axis
